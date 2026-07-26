@@ -1,12 +1,13 @@
 import { preflight, json, fail, log } from "../_shared/http.ts";
-import { analyzeShopify, applyHeaderSignals } from "../../../shared/shopifyCore/detect.mjs";
+import { analyzeShopify, applyHeaderSignals, applyProbeSignals } from "../../../shared/shopifyCore/detect.mjs";
 
 // GET /shopify-check?url=example.com
 // Response shape is a superset of shopifyornot.in's /check API, so existing
 // Zapier / n8n / Make recipes written for that shape work against this too:
 //   is_shopify, confidence (0-1), input_url, final_url, shop_domain,
 //   detected_signals, headers_sample, elapsed_ms
-//   + extras: verdict, confidence_pct, theme, currency, plus, signals_detail
+//   + extras: verdict, confidence_pct, theme, currency, plus, signals_detail,
+//     platform, product_count, probes, evidence
 
 const HEADER_SAMPLE_KEYS = [
   "x-shopify-stage", "x-shopid", "x-sorting-hat-shopid", "x-sorting-hat-podid",
@@ -27,6 +28,68 @@ function isPrivateHost(host: string): boolean {
   }
   if (host.includes(":")) return true; // raw IPv6 literals: reject outright
   return false;
+}
+
+/* Live endpoint probes: /cart.js, /products.json and robots.txt exist on
+   every Shopify storefront and answer with characteristic content. A page
+   can fake MENTIONS of Shopify; it cannot fake the platform answering.
+   Absence is not negative evidence (headless stores disable these), and
+   every probe is size-capped and time-boxed. */
+async function probeEndpoints(origin: string, signal: AbortSignal) {
+  const get = async (path: string, cap: number): Promise<string | null> => {
+    try {
+      const r = await fetch(origin + path, {
+        redirect: "follow", signal,
+        headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check", "Accept": "application/json, text/plain, */*" },
+      });
+      if (!r.ok) return null;
+      const reader = r.body?.getReader();
+      if (!reader) return null;
+      let got = 0; const parts: Uint8Array[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value); got += value.length;
+        if (got > cap) { try { await reader.cancel(); } catch { /* closed */ } break; }
+      }
+      return new TextDecoder().decode(concat(parts, Math.min(got, cap)));
+    } catch { return null; }
+  };
+  const concat = (parts: Uint8Array[], n: number) => {
+    const out = new Uint8Array(n); let o = 0;
+    for (const p of parts) { const take = Math.min(p.length, n - o); out.set(p.subarray(0, take), o); o += take; if (o >= n) break; }
+    return out;
+  };
+
+  const [cartRaw, prodRaw, robotsRaw] = await Promise.all([
+    get("/cart.js", 128 * 1024),
+    get("/products.json?limit=1", 256 * 1024),
+    get("/robots.txt", 32 * 1024),
+  ]);
+
+  const probes: Record<string, unknown> = {};
+  if (cartRaw != null) {
+    try {
+      const j = JSON.parse(cartRaw);
+      probes.cart = {
+        json: true,
+        token: typeof j.token === "string" && Array.isArray(j.items),
+        currency: typeof j.currency === "string" ? j.currency : undefined,
+      };
+    } catch { probes.cart = { json: false }; }
+  }
+  if (prodRaw != null) {
+    try {
+      const j = JSON.parse(prodRaw);
+      probes.products = Array.isArray(j.products)
+        ? { json: true, count: j.products.length }
+        : { json: false };
+    } catch { probes.products = { json: false }; }
+  }
+  if (robotsRaw != null) {
+    probes.robots = { shopify: /shopify/i.test(robotsRaw) && /sitemap\.xml/i.test(robotsRaw) };
+  }
+  return probes;
 }
 
 Deno.serve(async (req) => {
@@ -70,7 +133,20 @@ Deno.serve(async (req) => {
   const elapsed = Math.round(performance.now() - t0);
 
   const base = analyzeShopify(html, finalUrl);
-  const res = applyHeaderSignals(base, headers);
+  const withHeaders = applyHeaderSignals(base, headers);
+
+  /* live endpoint probes against the FINAL origin (post-redirect). These run
+     even when the main fetch failed or was bot-blocked (429/403/empty body):
+     stores that refuse to serve HTML to non-browsers routinely still answer
+     /cart.js and robots.txt — the probes are the whole point in that case. */
+  let probes: Record<string, unknown> = {};
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6_000);
+    probes = await probeEndpoints(new URL(finalUrl).origin, ctrl.signal);
+    clearTimeout(timer);
+  } catch { /* probes are additive-only; failure changes nothing */ }
+  const res = applyProbeSignals(withHeaders, probes);
 
   const body = {
     input_url: raw,
@@ -81,8 +157,13 @@ Deno.serve(async (req) => {
     confidence_pct: res.confidence,
     shop_domain: res.shopDomain,
     theme: res.theme,
+    theme_store_id: res.themeStoreId ?? null,
     currency: res.currency,
     plus: res.plus,
+    platform: res.platform ?? null,
+    product_count: res.productCount ?? null,
+    evidence: res.evidence,
+    probes,
     detected_signals: res.hits.map((h: { label: string }) => h.label),
     signals_detail: res.hits,
     headers_sample: headers,
