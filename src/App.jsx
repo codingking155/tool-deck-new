@@ -27,9 +27,13 @@ const TOOL_VIEWS = {
 
 function ToolFallback() {
   return (
-    <div className="grid2" aria-hidden="true">
-      <div className="skel" style={{ height: 320, borderRadius: 18 }} />
-      <div className="skel" style={{ height: 320, borderRadius: 18 }} />
+    <div style={{ padding: "40px 20px" }}>
+      <div className="grid2" aria-hidden="true">
+        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
+        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
+      </div>
+      <div className="skel" style={{ height: 120, borderRadius: 18, marginTop: 20 }} />
+      <p style={{ textAlign: "center", color: "var(--tx3)", fontSize: "13px", marginTop: 16 }}>Loading tool...</p>
     </div>
   );
 }

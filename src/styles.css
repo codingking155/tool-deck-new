@@ -292,7 +292,8 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .kv .v{font-family:var(--mono);color:var(--tx);text-align:right;word-break:break-all}
 .kv .v.hl{color:var(--pri2);font-weight:600}
 .empty{padding:42px 20px;text-align:center;color:var(--tx3);font-size:13.5px;line-height:1.65}
-.skel{border-radius:10px;background:linear-gradient(90deg,var(--panel2) 25%,var(--panel) 50%,var(--panel2) 75%);background-size:600px 100%;animation:shimmer 1.3s linear infinite}
+  .skel{border-radius:10px;background:linear-gradient(90deg,rgba(255,138,42,.08) 25%,rgba(255,138,42,.15) 50%,rgba(255,138,42,.08) 75%);background-size:600px 100%;animation:shimmer 1.3s linear infinite}
+  .light .skel{background:linear-gradient(90deg,#E8DDD2 25%,#F5ECDD 50%,#E8DDD2 75%);background-size:600px 100%}
 
 /* gauge */
 .gauge{position:relative;width:230px;height:135px;margin:10px auto}
