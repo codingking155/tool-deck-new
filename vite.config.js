@@ -21,11 +21,20 @@ export default defineConfig(({ mode }) => {
   build: {
     target: "es2020",
     cssCodeSplit: true,
+    minify: "terser",
+    terserOptions: {
+      compress: { drop_console: true, passes: 2 },
+      mangle: true,
+    },
     rollupOptions: {
       output: {
         // React in its own long-cached chunk; each tool route is already
         // split automatically via React.lazy() dynamic imports.
         manualChunks: { vendor: ["react", "react-dom"] },
+        // Optimize chunk size with better naming for caching
+        chunkFileNames: "js/[name]-[hash].js",
+        entryFileNames: "js/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
   },
