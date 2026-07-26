@@ -208,13 +208,6 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
   if (bytes < 200000) return { mbps: null, bytes };
   return { mbps: +finalMbps(samples).toFixed(1), bytes };
 }
-  }
-
-  await Promise.all([stream(), stream(), stream()]);
-  const bytes = samples.reduce((a, s) => a + s.bytes, 0);
-  if (bytes < 200000) return { mbps: null, bytes };
-  return { mbps: +finalMbps(samples).toFixed(1), bytes };
-}
 
 /* ── metadata (connection panel) ──────────────────────────────────────── */
 
