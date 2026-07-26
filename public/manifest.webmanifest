@@ -1,0 +1,22 @@
+{
+  "name": "ToolDeck BLR — browser utilities",
+  "short_name": "ToolDeck",
+  "description": "Fast, private browser tools: UTC wait schedules, phone → country, Shopify detector, speed test, IP & IPv6, price tracker.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07090F",
+  "theme_color": "#07090F",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "UTC Wait-Time Generator", "url": "/tool/utc" },
+    { "name": "Phone → Country", "url": "/tool/phone" },
+    { "name": "Shopify Detector", "url": "/tool/shopify" },
+    { "name": "Internet Speed Test", "url": "/tool/speed" }
+  ]
+}
