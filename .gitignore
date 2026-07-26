@@ -1,0 +1,42 @@
+# ─── secrets — NEVER commit these ────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+supabase/.env
+
+# ─── dependencies ───────────────────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.js
+
+# ─── build output ───────────────────────────────────────────────────────
+dist/
+dist-ssr/
+.vercel/
+*.local
+
+# ─── supabase local state ───────────────────────────────────────────────
+supabase/.temp/
+supabase/.branches/
+
+# ─── logs ───────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── test / coverage ────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── editor / OS ────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+deno.lock
