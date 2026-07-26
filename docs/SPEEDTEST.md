@@ -2,7 +2,7 @@
 
 ## Formulas (all unit-tested in `tests/speed-core.test.mjs`)
 
-**Idle latency.** 12 small uncached probes (`?bytes=0` + random cache-buster).
+**Idle latency.** 10 small uncached probes (`?bytes=0` + random cache-buster).
 Failed probes (timeout/network error) are removed; outliers beyond
 2.5 × MAD × 1.4826 of the median are removed; the reported value is the
 **median** of what remains.
@@ -16,20 +16,33 @@ Failed probes (timeout/network error) are removed; outliers beyond
 time but contributing no bytes. The final figure uses
 `finalMbps`: the first **10 % of wall time is excluded** (TCP slow-start and
 connection warm-up), then `Σbits / activeSeconds` over the remainder.
-Download reads streamed `response.body` chunks over up to 4 parallel
-connections with progressive payloads (1 → 10 → 25 → 50 MB, 12 s max).
-Upload sends `crypto.getRandomValues` payloads (1 → 5 → 10 MB, 3 streams,
-10 s max) and counts only bytes whose response completed.
+Download reads streamed `response.body` chunks over up to 6 parallel
+connections with progressive payloads (10 → 25 → 50 MB). Upload sends
+`crypto.getRandomValues` payloads (2 → 8 → 16 MB, 4 streams) and counts
+only bytes whose response completed. Both stages **terminate early** once
+the sliding-window throughput is stable (`isStable`: the last N window
+readings all within a small fraction of their median, after a minimum
+duration), bounded by hard caps (download ≤ 10 s, upload ≤ 8 s). A fast,
+steady connection finishes in roughly half the previous wall time; a
+fluctuating one keeps measuring up to the cap.
 
 **Loaded latency.** The idle prober keeps running (every 250 ms) during the
 download stage and separately during the upload stage; each reports its own
 median. Loaded ≫ idle indicates bufferbloat, which the UI calls out.
 
-**Packet loss.** Displayed as **Unavailable** — deliberately. Browser HTTP
-runs over TCP (or QUIC), which retransmits lost packets invisibly; a probe
-failure count is *not* packet loss and reporting it as such would be
-fabrication. Honest loss measurement needs a UDP-like path (WebRTC/TURN
-infrastructure), listed under future work.
+**Packet loss.** Measured — honestly — from the server side of the TCP
+connection. Cloudflare's `__down` endpoint exposes a `Server-Timing: cfL4`
+header (cross-origin readable via `Access-Control-Expose-Headers`) carrying
+the edge's cumulative per-connection counters: `sent`, `lost`, `retrans`.
+Because they are cumulative, each request's header reflects everything that
+ran on that connection before it; after the transfer streams finish, a few
+zero-byte trailing probes on the warm connections capture the final state.
+`aggregateLoss` keeps the last reading per connection id and reports
+`(lost + retrans) / sent` as a **downstream loss estimate**. This is the
+server's own view of segments it had to re-send toward the client — real
+loss signal, not probe-failure counting. Servers that don't emit `cfL4`
+(e.g. a custom endpoint not fronted by Cloudflare's L4 stack) show
+**Unavailable**, as before. Upstream loss would still need WebRTC/TURN.
 
 **Data budget.** A shared byte counter caps the whole run near 200 MB; the
 UI warns before starting.

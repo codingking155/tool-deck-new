@@ -63,6 +63,51 @@ export function finalMbps(samples, warmupFrac = 0.1) {
   return mbps(bytes, end - t0);
 }
 
+/** Parse Cloudflare's `cfL4` Server-Timing entry into TCP counters.
+    Input: the raw Server-Timing header value; returns {cid, sent, lost,
+    retrans, rttMs} or null when the entry is absent/malformed. `sent`,
+    `lost` and `retrans` are cumulative per TCP connection (cid). */
+export function parseCfL4(header) {
+  if (!header) return null;
+  const m = /cfL4;desc="\?([^"]*)"/.exec(header);
+  if (!m) return null;
+  const p = Object.fromEntries(m[1].split("&").map((kv) => kv.split("=")));
+  const num = (k) => (p[k] != null && p[k] !== "" ? Number(p[k]) : null);
+  const sent = num("sent");
+  if (!Number.isFinite(sent)) return null;
+  return {
+    cid: p.cid ?? "?",
+    sent,
+    lost: num("lost") ?? 0,
+    retrans: num("retrans") ?? 0,
+    rttMs: Number.isFinite(num("rtt")) ? num("rtt") / 1000 : null,
+  };
+}
+
+/** Aggregate cfL4 readings into a downstream loss estimate.
+    Counters are cumulative per connection, so keep only the LAST reading
+    per cid, then sum. Loss % = (lost + retrans) / sent. Returns
+    {pct, sent, lost, retrans} or null with no usable readings. */
+export function aggregateLoss(readings) {
+  const last = new Map();
+  for (const r of readings) if (r && Number.isFinite(r.sent)) last.set(r.cid, r);
+  if (!last.size) return null;
+  let sent = 0, lost = 0, retrans = 0;
+  for (const r of last.values()) { sent += r.sent; lost += r.lost; retrans += r.retrans; }
+  if (sent <= 0) return null;
+  return { pct: +((lost + retrans) / sent * 100).toFixed(2), sent, lost, retrans };
+}
+
+/** Early-termination check: true when the last n throughput readings are
+    tight around their median (coefficient of dispersion below cv). */
+export function isStable(readings, n = 5, cv = 0.05) {
+  if (readings.length < n) return false;
+  const tail = readings.slice(-n);
+  const med = median(tail);
+  if (!med) return false;
+  return tail.every((x) => Math.abs(x - med) / med <= cv);
+}
+
 /** One-line shareable summary. */
 export function summaryText(r) {
   const f = (v, u) => (v == null ? "—" : `${v}${u}`);
@@ -71,7 +116,7 @@ export function summaryText(r) {
     `↓ ${f(r.down, " Mbps")} · ↑ ${f(r.up, " Mbps")}`,
     `Idle latency ${f(r.ping, " ms")} · jitter ${f(r.jitter, " ms")}`,
     `Loaded latency ↓ ${f(r.loadedDown, " ms")} · ↑ ${f(r.loadedUp, " ms")}`,
-    `Packet loss: ${r.loss ?? "Unavailable over HTTP"}`,
+    `Packet loss: ${r.loss != null ? `${r.loss < 0.01 ? "<0.01" : r.loss}%` : "Unavailable over HTTP"}`,
     `Server: ${r.server || "—"}`,
   ].join("\n");
 }

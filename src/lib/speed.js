@@ -3,7 +3,7 @@
     tested formulas in speedCore.mjs. Cancellation aborts every in-flight
     request; a global byte counter enforces the ~200 MB data budget. */
 
-import { median, cleanSamples, jitterOf, windowMbps, finalMbps } from "./speedCore.mjs";
+import { median, cleanSamples, jitterOf, windowMbps, finalMbps, parseCfL4, aggregateLoss, isStable } from "./speedCore.mjs";
 export { summaryText, historyCsv, compareRuns } from "./speedCore.mjs";
 
 const DATA_BUDGET = 200 * 1024 * 1024;
@@ -100,11 +100,25 @@ export async function pickServer(servers, { signal } = {}) {
 
 /* ── download ─────────────────────────────────────────────────────────── */
 
-export async function runDownload(server, { signal, onLive, budget, maxMs = 12000 } = {}) {
-  const sizes = [1e6, 10e6, 25e6, 50e6];
+export async function runDownload(server, { signal, onLive, budget, minMs = 4500, maxMs = 10000, streams = 6 } = {}) {
+  const sizes = [10e6, 25e6, 50e6];
   const samples = [{ t: performance.now(), bytes: 0 }];
+  const cfL4 = [];
+  const stability = [];
   const t0 = performance.now();
-  let sizeIdx = 0, done = false;
+  let sizeIdx = 0, done = false, lastStab = t0;
+
+  const shouldStop = () => {
+    const now = performance.now();
+    if (now - t0 > maxMs) return true;
+    /* sample the sliding window ~every 300 ms; stop once it's flat */
+    if (now - lastStab >= 300) {
+      lastStab = now;
+      stability.push(windowMbps(samples));
+      if (now - t0 > minMs && isStable(stability, 5, 0.05)) return true;
+    }
+    return false;
+  };
 
   async function stream() {
     while (!done && !signal?.aborted) {
@@ -112,6 +126,11 @@ export async function runDownload(server, { signal, onLive, budget, maxMs = 1200
       if (budget && !budget.take(size)) { done = true; break; }
       try {
         const r = await fetch(server.down(size), { cache: "no-store", signal });
+        /* cfL4 counters are cumulative per TCP connection and snapshotted at
+           response-header time, so each request reports the retransmissions
+           of everything that ran on that connection before it */
+        const l4 = parseCfL4(r.headers.get("server-timing"));
+        if (l4) cfL4.push(l4);
         if (!r.body) break;
         const reader = r.body.getReader();
         for (;;) {
@@ -119,18 +138,31 @@ export async function runDownload(server, { signal, onLive, budget, maxMs = 1200
           if (d) break;
           samples.push({ t: performance.now(), bytes: value.length });
           onLive && onLive(windowMbps(samples));
-          if (performance.now() - t0 > maxMs) { done = true; try { await reader.cancel(); } catch { /* closed */ } break; }
+          if (shouldStop()) { done = true; try { await reader.cancel(); } catch { /* closed */ } break; }
         }
         sizeIdx++;
       } catch { if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
-      if (performance.now() - t0 > maxMs) done = true;
+      if (shouldStop()) done = true;
     }
   }
 
-  await Promise.all([stream(), stream(), stream(), stream()]);
+  await Promise.all(Array.from({ length: streams }, stream));
+
+  /* trailing zero-byte probes reuse the warm connections, so their headers
+     carry the final cumulative counters including the last big transfers */
+  if (!signal?.aborted) {
+    await Promise.all(Array.from({ length: Math.min(streams, 4) }, async () => {
+      try {
+        const r = await fetch(server.down(0), { cache: "no-store", signal });
+        const l4 = parseCfL4(r.headers.get("server-timing"));
+        if (l4) cfL4.push(l4);
+        await r.arrayBuffer();
+      } catch { /* counters just stay at the last snapshot */ }
+    }));
+  }
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
-  if (bytes < 200000) return { mbps: null, bytes };   // not enough data to be honest
-  return { mbps: +finalMbps(samples).toFixed(1), bytes };
+  if (bytes < 200000) return { mbps: null, bytes, loss: null };   // not enough data to be honest
+  return { mbps: +finalMbps(samples).toFixed(1), bytes, loss: aggregateLoss(cfL4) };
 }
 
 /* ── upload ───────────────────────────────────────────────────────────── */
@@ -143,25 +175,39 @@ function randomPayload(n) {
   return buf;
 }
 
-export async function runUpload(server, { signal, onLive, budget, maxMs = 10000 } = {}) {
-  const payloads = [1e6, 5e6, 10e6].map(randomPayload);
+export async function runUpload(server, { signal, onLive, budget, minMs = 4000, maxMs = 8000, streams = 4 } = {}) {
+  const payloads = [2e6, 8e6, 16e6].map(randomPayload);
   const samples = [{ t: performance.now(), bytes: 0 }];
+  const stability = [];
   const t0 = performance.now();
   let sizeIdx = 0, done = false;
+
+  const shouldStop = () => {
+    const now = performance.now();
+    if (now - t0 > maxMs) return true;
+    stability.push(windowMbps(samples, 3000));
+    return now - t0 > minMs && isStable(stability, 4, 0.08);
+  };
 
   async function stream() {
     while (!done && !signal?.aborted) {
       const p = payloads[Math.min(sizeIdx, payloads.length - 1)];
       if (budget && !budget.take(p.length)) { done = true; break; }
       try {
-        const r = await fetch(server.up, { method: "POST", body: p, signal, headers: { "Content-Type": "application/octet-stream" } });
-        await r.arrayBuffer();
-        samples.push({ t: performance.now(), bytes: p.length }); // confirmed only
+        const r = await fetch(server.up(), { cache: "no-store", method: "POST", body: p, signal });
+        samples.push({ t: performance.now(), bytes: p.length });
         onLive && onLive(windowMbps(samples, 3000));
         sizeIdx++;
       } catch { if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
-      if (performance.now() - t0 > maxMs) done = true;
+      if (shouldStop()) done = true;
     }
+  }
+
+  await Promise.all(Array.from({ length: streams }, stream));
+  const bytes = samples.reduce((a, s) => a + s.bytes, 0);
+  if (bytes < 200000) return { mbps: null, bytes };
+  return { mbps: +finalMbps(samples).toFixed(1), bytes };
+}
   }
 
   await Promise.all([stream(), stream(), stream()]);
@@ -226,7 +272,7 @@ export async function runFullTest(server, servers, cb, signal) {
     }
 
     cb("idle");
-    const idle = await measureLatency(srv, { probes: 12, signal, onSample: (s) => cb("idle_sample", s) });
+    const idle = await measureLatency(srv, { probes: 10, signal, onSample: (s) => cb("idle_sample", s) });
     if (signal.aborted) throw { cancelled: true };
     if (idle.ping == null) throw new Error("Latency probes all failed — the server may be unreachable");
 
@@ -251,7 +297,11 @@ export async function runFullTest(server, servers, cb, signal) {
       ping: idle.ping, jitter: idle.jitter,
       down: down.mbps, up: up.mbps,
       loadedDown, loadedUp,
-      loss: null,                       // honest: not measurable over HTTP
+      /* Downstream loss estimate from the edge server's own TCP counters
+         (Server-Timing cfL4: lost + retransmitted / sent). Null when the
+         chosen server doesn't expose them. */
+      loss: down.loss?.pct ?? null,
+      lossDetail: down.loss ?? null,
       dataUsed: Math.round(budget.used / 1e6),
       tabHidden: hiddenDuring,
       partial: down.mbps == null || up.mbps == null,
