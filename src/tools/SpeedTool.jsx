@@ -39,7 +39,6 @@ function detectOS() {
 
 export default function SpeedTool({ notify }) {
   const servers = useMemo(availableServers, []);
-  const [serverId, setServerId] = useState("auto");
   const [stage, setStage] = useState("ready");
   const [live, setLive] = useState(0);
   const [res, setRes] = useState(null);
@@ -47,6 +46,7 @@ export default function SpeedTool({ notify }) {
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
   const [history, setHistory] = useState(loadHistory);
+  const [hasStarted, setHasStarted] = useState(false);
   const abortRef = useRef(null);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
@@ -71,9 +71,8 @@ export default function SpeedTool({ notify }) {
     setErr(""); setRes(null); setLive(0); setPickedName(null);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const chosen = serverId === "auto" ? null : servers.find((s) => s.id === serverId);
     try {
-      const r = await runFullTest(chosen, servers, (st, payload) => {
+      const r = await runFullTest(null, servers, (st, payload) => {
         if (st === "server") setPickedName(payload.name);
         else if (st === "live") setLive(payload);
         else if (st !== "idle_sample") { setStage(st); setLive(0); }
@@ -86,7 +85,15 @@ export default function SpeedTool({ notify }) {
       else if (e?.offline) setStage("offline");
       else { setErr(e?.message || "The test could not complete."); setStage("failed"); }
     }
-  }, [running, serverId, servers, notify]);
+  }, [running, servers, notify]);
+
+  /* auto-start the test on first load */
+  useEffect(() => {
+    if (!hasStarted && stage === "ready" && servers.length > 0) {
+      setHasStarted(true);
+      start();
+    }
+  }, [hasStarted, stage, servers, start]);
 
   const cancel = () => abortRef.current?.abort();
   const prev = history.find((h) => res && h.iso !== res.iso);
@@ -121,17 +128,7 @@ export default function SpeedTool({ notify }) {
           )}
 
           {stage === "ready" && (
-            <>
-              <div className="field">
-                <label htmlFor="stsrv">Test server</label>
-                <select id="stsrv" value={serverId} onChange={(e) => setServerId(e.target.value)}>
-                  <option value="auto">Auto — lowest latency</option>
-                  {servers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              <button className="btn pri" onClick={start}>Start test</button>
-              <div className="hint" style={{ marginTop: 10 }}>A speed test may consume up to 200 MB of data.</div>
-            </>
+            <div className="hint" style={{ marginTop: 10 }}>A speed test may consume up to 200 MB of data.</div>
           )}
           {running && <button className="btn gh" style={{ width: "100%" }} onClick={cancel}>Cancel test</button>}
           {(stage === "failed" || stage === "cancelled" || stage === "offline") && (
