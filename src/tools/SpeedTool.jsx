@@ -80,6 +80,9 @@ export default function SpeedTool({ notify }) {
       <span className="v" style={{ overflowWrap: "anywhere" }}>{v ?? "Unavailable"}</span></div>
   );
 
+  const progressWidths = { finding: 8, idle: 22, down: 55, up: 85, calc: 97 };
+  const progressWidth = progressWidths[stage] ?? 5;
+
   return (
     <div className="grid2" style={{ alignItems: "start" }}>
       {/* ── main test card ── */}
@@ -95,7 +98,7 @@ export default function SpeedTool({ notify }) {
           {running && (
             <div className="st-livebox" aria-hidden="true">
               <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
-              <div className="st-bar"><i style={{ width: `${{ finding: 8, idle: 22, down: 55, up: 85, calc: 97 }[stage] ?? 5}%` }} /></div>
+              <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
             </div>
           )}
 

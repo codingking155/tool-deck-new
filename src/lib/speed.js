@@ -193,7 +193,7 @@ export async function fetchMeta(server, { signal } = {}) {
       country: j.country ?? j.country_name ?? null,
       asn: j.asn != null ? String(j.asn).replace(/^(?!AS)/, "AS") : null,
       org: j.org ?? j.asOrganization ?? null,
-      serverLoc: j.colo ? (COLO_CITY[j.colo] ? `${COLO_CITY[j.colo]} (${j.colo})` : j.colo) : null,
+      serverLoc: j.colo ? (() => { const colo = typeof j.colo === 'object' ? j.colo.iata : j.colo; return COLO_CITY[colo] ? `${COLO_CITY[colo]} (${colo})` : (typeof j.colo === 'object' ? `${j.colo.city ?? j.colo.iata}` : colo); })() : null,
       approximate: true,
     };
   } catch { return null; }
