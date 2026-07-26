@@ -8,6 +8,7 @@ import LocalClock from "./components/LocalClock.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
 import BengaluruFooter from "./components/BengaluruFooter.jsx";
 import CornerWebs from "./components/CornerWebs.jsx";
+import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import Home from "./pages/Home.jsx";
 
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
@@ -67,6 +68,7 @@ export default function App() {
       <div className="aurora" aria-hidden="true" /><div className="gridbg" aria-hidden="true" />
       <Particles reduced={reduced} theme={theme} /><CursorGlow reduced={reduced} />
       <CornerWebs size={300} spider={true} zIndex={5} />
+      <OverscrollSpider height={150} zIndex={4} />
       <div className="shell">
         <header className="hdr rise">
           <button className="logo" onClick={(e) => {
