@@ -7,6 +7,7 @@ import { Particles, CursorGlow } from "./components/Ambient.jsx";
 import LocalClock from "./components/LocalClock.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
 import BengaluruFooter from "./components/BengaluruFooter.jsx";
+import CornerWebs from "./components/CornerWebs.jsx";
 import Home from "./pages/Home.jsx";
 
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
@@ -65,6 +66,7 @@ export default function App() {
       <a href="#main" className="skiplink">Skip to content</a>
       <div className="aurora" aria-hidden="true" /><div className="gridbg" aria-hidden="true" />
       <Particles reduced={reduced} theme={theme} /><CursorGlow reduced={reduced} />
+      <CornerWebs size={300} spider={true} zIndex={5} />
       <div className="shell">
         <header className="hdr rise">
           <button className="logo" onClick={(e) => {
