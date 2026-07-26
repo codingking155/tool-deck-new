@@ -139,13 +139,20 @@ const COUNTER_ENDPOINT = ""; // e.g. "https://your-worker.example.workers.dev/hi
 let visitCounted = false;
 
 export function useVisitCount() {
-  const [count, setCount] = useState(null);
+  // Initialize synchronously from localStorage so counter displays immediately (real-time)
+  const [count, setCount] = useState(() => {
+    if (typeof localStorage !== "undefined") {
+      try { return parseInt(localStorage.getItem("site-visits-total"), 10) || 1; } catch { return 1; }
+    }
+    return 1;
+  });
+  
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         if (typeof window !== "undefined" && window.storage) {
-          let cur = 0;
+          let cur = count;
           try { const r = await window.storage.get("site-visits-total", true); cur = r && r.value ? parseInt(r.value, 10) || 0 : 0; } catch { /* first visit */ }
           if (!visitCounted) {
             visitCounted = true; cur += 1;
@@ -161,8 +168,7 @@ export function useVisitCount() {
         }
         // Fallback to localStorage
         if (typeof localStorage !== "undefined") {
-          let cur = 0;
-          try { cur = parseInt(localStorage.getItem("site-visits-total"), 10) || 0; } catch { /* first visit */ }
+          let cur = count;
           if (!visitCounted) {
             visitCounted = true; cur += 1;
             try { localStorage.setItem("site-visits-total", String(cur)); } catch { /* private mode or full storage */ }
@@ -170,7 +176,7 @@ export function useVisitCount() {
           if (alive) setCount(cur);
           return;
         }
-      } catch { /* leave placeholder */ }
+      } catch { /* keep current count */ }
     })();
     return () => { alive = false; };
   }, []);
