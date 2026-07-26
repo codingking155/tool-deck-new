@@ -36,12 +36,17 @@ function isPrivateHost(host: string): boolean {
    Absence is not negative evidence (headless stores disable these), and
    every probe is size-capped and time-boxed. */
 async function probeEndpoints(origin: string, signal: AbortSignal) {
+  /* platform headers on probe RESPONSES count too: a bot-blocked homepage
+     serves a bare 429, but /cart.js served by Shopify still stamps
+     powered-by / x-shopid — evidence the main fetch never saw */
+  const probeHeaders: Record<string, string> = {};
   const get = async (path: string, cap: number): Promise<string | null> => {
     try {
       const r = await fetch(origin + path, {
         redirect: "follow", signal,
         headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check", "Accept": "application/json, text/plain, */*" },
       });
+      if (r.ok) for (const k of HEADER_SAMPLE_KEYS) { const v = r.headers.get(k); if (v != null && probeHeaders[k] == null) probeHeaders[k] = v; }
       if (!r.ok) return null;
       const reader = r.body?.getReader();
       if (!reader) return null;
@@ -89,7 +94,7 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
   if (robotsRaw != null) {
     probes.robots = { shopify: /shopify/i.test(robotsRaw) && /sitemap\.xml/i.test(robotsRaw) };
   }
-  return probes;
+  return { probes, probeHeaders };
 }
 
 Deno.serve(async (req) => {
@@ -143,8 +148,11 @@ Deno.serve(async (req) => {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 6_000);
-    probes = await probeEndpoints(new URL(finalUrl).origin, ctrl.signal);
+    const pr = await probeEndpoints(new URL(finalUrl).origin, ctrl.signal);
     clearTimeout(timer);
+    probes = pr.probes;
+    /* merge platform headers found on probe responses (main fetch wins ties) */
+    for (const [k, v] of Object.entries(pr.probeHeaders)) if (headers[k] == null) headers[k] = v;
   } catch { /* probes are additive-only; failure changes nothing */ }
   const res = applyProbeSignals(withHeaders, probes);
 
