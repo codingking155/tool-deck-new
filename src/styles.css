@@ -467,3 +467,33 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .st-m b{font-size:14.5px;color:var(--tx)}
 @media (max-width:560px){.st-mgrid{grid-template-columns:1fr 1fr}.st-num{font-size:42px}.st-hero b{font-size:30px}}
 @media (prefers-reduced-motion: reduce){.st-bar i{transition:none}}
+
+/* ─── Speed test v4: append to src/styles.css ─────────────────────────────
+   (keeps every existing .spd-* rule from v3; only these are new) */
+
+/* full-width primary action on the ready screen — the one thing to do */
+.spd-start{width:100%;padding:14px 0;font-size:15.5px;letter-spacing:.01em}
+
+/* running-state metric grid: placeholder ellipses breathe gently */
+.st-m b:empty::after{content:"…"}
+@keyframes spd-pulse{0%,100%{opacity:.35}50%{opacity:.9}}
+.st-m b{transition:opacity .2s}
+.st-mgrid .st-m b{min-height:1.2em}
+
+/* result actions row: primary + pill share a line, wrap on small screens */
+.pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pillrow .btn.pri{flex:1 1 160px}
+
+/* touch targets on phones — every interactive element ≥44px tall */
+@media (max-width:560px){
+  .pill{min-height:38px}
+  .btn{min-height:46px}
+  .spd-wrap{max-width:220px}
+  .st-mgrid{grid-template-columns:1fr 1fr}
+  .spd-tipbox{left:auto;right:0;transform:none}
+}
+
+/* very narrow phones: heroes stack instead of squeezing */
+@media (max-width:380px){
+  .st-heroes{grid-template-columns:1fr}
+}
