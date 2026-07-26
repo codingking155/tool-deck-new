@@ -139,7 +139,11 @@ export default function SpeedTool({ notify }) {
                 <div className="st-m"><span>Jitter</span><b>{res.jitter ?? "—"} ms</b></div>
                 <div className="st-m"><span>Loaded ↓ latency</span><b>{res.loadedDown ?? "—"} ms</b></div>
                 <div className="st-m"><span>Loaded ↑ latency</span><b>{res.loadedUp ?? "—"} ms</b></div>
-                <div className="st-m"><span>Packet loss</span><b title="Browser HTTP transfers retransmit lost packets invisibly, so loss can't be measured honestly here.">Unavailable</b></div>
+                <div className="st-m"><span>Packet loss</span>
+                  {res.loss != null
+                    ? <b title={`Downstream estimate from the edge server's TCP counters: ${res.lossDetail?.lost ?? 0} lost + ${res.lossDetail?.retrans ?? 0} retransmitted of ${res.lossDetail?.sent ?? 0} packets sent.`}>{res.loss === 0 ? "0%" : res.loss < 0.01 ? "<0.01%" : `${res.loss}%`}</b>
+                    : <b title="This server doesn't expose TCP-level counters, so loss can't be measured honestly here.">Unavailable</b>}
+                </div>
                 <div className="st-m"><span>Data used</span><b>{res.dataUsed} MB</b></div>
               </div>
               {res.loadedDown != null && res.ping != null && res.loadedDown > res.ping * 3 && (
