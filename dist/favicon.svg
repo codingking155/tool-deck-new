@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <style>
+    .tile{fill:#EA6A15}.bolt{fill:#FFF7EE}.hl{stroke:#FFD9A8}
+    @media (prefers-color-scheme: dark){.tile{fill:#1C1917}.bolt{fill:#FF8A2A}.hl{stroke:#FFB454}}
+  </style>
+  <rect class="tile" width="64" height="64" rx="15"/>
+  <path class="bolt" d="M 36 9 L 18.5 36 L 29.5 36 L 24 55 L 44.5 27 L 33 27 Z"/>
+  <path class="hl" d="M 36 9 L 18.5 36 L 29.5 36 L 26.5 46" fill="none" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
