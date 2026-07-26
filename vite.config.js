@@ -26,6 +26,10 @@ export default defineConfig(({ mode }) => {
         // React in its own long-cached chunk; each tool route is already
         // split automatically via React.lazy() dynamic imports.
         manualChunks: { vendor: ["react", "react-dom"] },
+        // Optimize chunk size with better naming for caching
+        chunkFileNames: "js/[name]-[hash].js",
+        entryFileNames: "js/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
   },

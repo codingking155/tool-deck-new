@@ -132,19 +132,27 @@ export function useIpLocale() {
 /* ─── all-time visitor counter ──────────────────────────────────────────── */
 /* 1) Claude artifact preview: shared persistent storage (one shared number).
    2) Self-hosted: point COUNTER_ENDPOINT at a URL returning { count }.
-   3) Neither: renders a friendly placeholder instead of a fake number. */
+   3) Browser localStorage fallback: persists per-browser/device.
+   4) Neither: renders a friendly placeholder instead of a fake number. */
 
 const COUNTER_ENDPOINT = ""; // e.g. "https://your-worker.example.workers.dev/hit"
 let visitCounted = false;
 
 export function useVisitCount() {
-  const [count, setCount] = useState(null);
+  // Initialize synchronously from localStorage so counter displays immediately (real-time)
+  const [count, setCount] = useState(() => {
+    if (typeof localStorage !== "undefined") {
+      try { return parseInt(localStorage.getItem("site-visits-total"), 10) || 1; } catch { return 1; }
+    }
+    return 1;
+  });
+  
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         if (typeof window !== "undefined" && window.storage) {
-          let cur = 0;
+          let cur = count;
           try { const r = await window.storage.get("site-visits-total", true); cur = r && r.value ? parseInt(r.value, 10) || 0 : 0; } catch { /* first visit */ }
           if (!visitCounted) {
             visitCounted = true; cur += 1;
@@ -156,8 +164,19 @@ export function useVisitCount() {
         if (COUNTER_ENDPOINT) {
           const j = await (await fetch(COUNTER_ENDPOINT)).json();
           if (alive && j && typeof j.count === "number") setCount(j.count);
+          return;
         }
-      } catch { /* leave placeholder */ }
+        // Fallback to localStorage
+        if (typeof localStorage !== "undefined") {
+          let cur = count;
+          if (!visitCounted) {
+            visitCounted = true; cur += 1;
+            try { localStorage.setItem("site-visits-total", String(cur)); } catch { /* private mode or full storage */ }
+          }
+          if (alive) setCount(cur);
+          return;
+        }
+      } catch { /* keep current count */ }
     })();
     return () => { alive = false; };
   }, []);

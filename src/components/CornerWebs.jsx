@@ -70,13 +70,24 @@ export default function CornerWebs({
     if (!el) return;
 
     let frame = 0;
+    let lastY = -1, lastFromEnd = -1;
     const read = () => {
       frame = 0;
       const y = window.scrollY;
       const fromEnd =
         document.documentElement.scrollHeight - (y + window.innerHeight);
-      el.style.setProperty("--w-top", envelope(y).toFixed(3));
-      el.style.setProperty("--w-bot", envelope(fromEnd).toFixed(3));
+      
+      // Only update CSS if values actually changed (avoid forced reflow)
+      const topVal = envelope(y);
+      const botVal = envelope(fromEnd);
+      if (Math.abs(topVal - lastY) > 0.01) {
+        el.style.setProperty("--w-top", topVal.toFixed(3));
+        lastY = topVal;
+      }
+      if (Math.abs(botVal - lastFromEnd) > 0.01) {
+        el.style.setProperty("--w-bot", botVal.toFixed(3));
+        lastFromEnd = botVal;
+      }
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(read);
