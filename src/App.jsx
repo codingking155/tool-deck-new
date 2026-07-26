@@ -79,7 +79,7 @@ export default function App() {
             <span className="logomark" aria-hidden="true">
               <svg viewBox="0 0 48 48" width="26" height="26"><path className="bolt" d="M 27 6 L 13.5 27 L 22 27 L 17.5 42 L 33.5 20.5 L 24.5 20.5 Z" /><path className="boltline" d="M 27 6 L 13.5 27 L 22 27 L 19.7 34.6" fill="none" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" /></svg>
             </span>
-            <span><h1>ToolDeck <span style={{ color: "var(--pri2)" }}>BLR</span><small>everyday utilities · Bengaluru</small></h1></span>
+            <span><h1>ToolDeck <small style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontStyle: 'italic' }}>everyday utilities</small></h1></span>
           </button>
           <div className="sp" />
           <LocalClock now={now} />
