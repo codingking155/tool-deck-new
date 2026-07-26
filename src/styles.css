@@ -55,7 +55,8 @@
 .light .skel{background:linear-gradient(90deg,#F3EADD 25%,#FBF6F0 50%,#F3EADD 75%);background-size:600px 100%}
 .light .footer{background:linear-gradient(180deg,transparent,rgba(234,106,21,.06))}
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{background:var(--bg)}
 .app{min-height:100vh;background:var(--bg);color:var(--tx);font-family:var(--body);position:relative;overflow-x:hidden}
 .aurora{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.85;
   background:radial-gradient(900px 520px at 78% -8%,rgba(255,138,42,.10),transparent 60%),
