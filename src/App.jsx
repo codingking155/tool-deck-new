@@ -15,21 +15,26 @@ import Home from "./pages/Home.jsx";
 const UtcTool = lazy(() => import("./tools/UtcTool.jsx"));
 const PhoneTool = lazy(() => import("./tools/PhoneTool.jsx"));
 const ShopifyTool = lazy(() => import("./tools/ShopifyTool.jsx"));
+const ShopifyDetectorTool = lazy(() => import("./tools/ShopifyDetectorTool.jsx"));
 const SpeedTool = lazy(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazy(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
-  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool,
+  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool,
 };
 
 function ToolFallback() {
   return (
-    <div className="grid2" aria-hidden="true">
-      <div className="skel" style={{ height: 320, borderRadius: 18 }} />
-      <div className="skel" style={{ height: 320, borderRadius: 18 }} />
+    <div style={{ padding: "40px 20px" }}>
+      <div className="grid2" aria-hidden="true">
+        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
+        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
+      </div>
+      <div className="skel" style={{ height: 120, borderRadius: 18, marginTop: 20 }} />
+      <p style={{ textAlign: "center", color: "var(--tx3)", fontSize: "13px", marginTop: 16 }}>Loading tool...</p>
     </div>
   );
 }

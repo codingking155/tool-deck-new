@@ -24,6 +24,13 @@ export const TOOLS = [
       ["Is the Shopify checker free?", "Yes, it's free and needs no sign-up. It tries the site directly, falls back to read-only proxies, and can also read pasted page source."],
       ["Why does a check sometimes fail?", "Some stores block cross-origin reads. Paste the page source (Ctrl+U) or deploy your own server proxy for one-click checks."],
     ] },
+  { id: "shopifydetector", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "search",
+    blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Powered by the ShopifyOrNot API.",
+    faqs: [
+      ["What does the Shopify detector do?", "Enter a website URL and the tool checks if it's a Shopify store, returning a confidence score, detected shop domain, and technical signals."],
+      ["How accurate is the detection?", "The detection uses the external ShopifyOrNot API which analyzes response headers, body content, and other technical markers to determine Shopify usage with a confidence percentage."],
+      ["Can I check multiple stores at once?", "Currently the tool checks one URL at a time. Enter the domain and wait for the result, then check another if needed."],
+    ] },
   { id: "speed", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
     blurb: "Measure ping, jitter, download and upload speed from your browser against Cloudflare's public edge — no redirects, no app. A full run transfers roughly 20–35 MB.",
     faqs: [
@@ -51,5 +58,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon & Flipkart prices",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon & Flipkart prices", "Detect Shopify storefronts",
 ];
