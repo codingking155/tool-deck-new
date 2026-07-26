@@ -18,6 +18,24 @@ function dl(name, text, type) {
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
+function detectBrowser() {
+  const ua = navigator.userAgent;
+  if (/Firefox/.test(ua)) return "Firefox";
+  if (/Chrome/.test(ua)) return "Chrome";
+  if (/Safari/.test(ua) && !/Chrome/.test(ua)) return "Safari";
+  if (/Edg/.test(ua)) return "Edge";
+  if (/Opera|OPR/.test(ua)) return "Opera";
+  return "Unknown";
+}
+function detectOS() {
+  const ua = navigator.userAgent;
+  if (/Windows/.test(ua)) return "Windows";
+  if (/Mac OS X/.test(ua)) return "macOS";
+  if (/Linux/.test(ua)) return "Linux";
+  if (/iPhone|iPad|iPod/.test(ua)) return "iOS";
+  if (/Android/.test(ua)) return "Android";
+  return "Unknown";
+}
 
 export default function SpeedTool({ notify }) {
   const servers = useMemo(availableServers, []);
@@ -142,9 +160,8 @@ export default function SpeedTool({ notify }) {
                 <div className="st-m"><span>Packet loss</span>
                   {res.loss != null
                     ? <b title={`Downstream estimate from the edge server's TCP counters: ${res.lossDetail?.lost ?? 0} lost + ${res.lossDetail?.retrans ?? 0} retransmitted of ${res.lossDetail?.sent ?? 0} packets sent.`}>{res.loss === 0 ? "0%" : res.loss < 0.01 ? "<0.01%" : `${res.loss}%`}</b>
-                    : <b title="This server doesn't expose TCP-level counters, so loss can't be measured honestly here.">Unavailable</b>}
+                    : <b title="This server doesn't expose TCP-level counters via Server-Timing cfL4 headers, so packet loss can't be measured. Only Cloudflare edge servers report their TCP retransmission counters.">Unavailable</b>}
                 </div>
-                <div className="st-m"><span>Data used</span><b>{res.dataUsed} MB</b></div>
               </div>
               {res.loadedDown != null && res.ping != null && res.loadedDown > res.ping * 3 && (
                 <div className="note i" style={{ marginTop: 10 }}><b>Bufferbloat detected · </b>latency under load is {Math.round(res.loadedDown / res.ping)}× idle — video calls may stutter while downloads run. Router SQM/QoS usually fixes this.</div>
@@ -155,7 +172,7 @@ export default function SpeedTool({ notify }) {
               <div className="kv" style={{ padding: "10px 0 0", borderBottom: 0 }}><span className="k">Server</span><span className="v">{res.server}</span></div>
               <div className="kv" style={{ padding: "6px 0", borderBottom: 0 }}><span className="k">Tested</span><span className="v">{res.when}</span></div>
               <div className="pillrow" style={{ marginTop: 12 }}>
-                <button className="pill" onClick={start}>↻ Retest</button>
+                <button className="pill" onClick={start} style={{ background: "linear-gradient(135deg, var(--pri), var(--teal))", borderColor: "var(--pri-line)", color: "#fff", fontWeight: 600 }}>↻ Retest</button>
                 <button className="pill" onClick={() => navigator.clipboard.writeText(summaryText(res)).then(() => notify("Result copied.")).catch(() => notify("Copy blocked."))}>⧉ Copy result</button>
                 <button className="pill" onClick={() => dl("speedtest-history.csv", historyCsv(history), "text/csv")}>CSV</button>
                 <button className="pill" onClick={() => dl("speedtest-history.json", JSON.stringify(history, null, 2), "application/json")}>JSON</button>
@@ -178,6 +195,8 @@ export default function SpeedTool({ notify }) {
             {meta === undefined && <><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18 }} /></>}
             {meta !== undefined && <>
               {kv("Connected via", meta?.ipVersion)}
+              {kv("Browser", detectBrowser())}
+              {kv("Operating system", detectOS())}
               {kv("Server location", meta?.serverLoc)}
               {kv("Your IP address", meta?.ip)}
               {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}

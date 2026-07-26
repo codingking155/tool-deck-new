@@ -2,7 +2,7 @@
     The detection engine itself lives in shared/shopifyCore/detect.mjs so the
     server API (supabase/functions/shopify-check) scores identically. */
 
-export { SHOPIFY_SIGNALS, HEADER_SIGNALS, analyzeShopify, applyHeaderSignals, buildReport } from "../../shared/shopifyCore/detect.mjs";
+export { SHOPIFY_SIGNALS, HEADER_SIGNALS, PROBE_SIGNALS, PLATFORM_SIGNALS, analyzeShopify, applyHeaderSignals, applyProbeSignals, detectPlatform, buildReport } from "../../shared/shopifyCore/detect.mjs";
 import { analyzeShopify, applyHeaderSignals } from "../../shared/shopifyCore/detect.mjs";
 
 /* Fetch page HTML: try direct first, then public read-only CORS proxies so a

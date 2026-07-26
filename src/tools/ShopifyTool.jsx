@@ -36,7 +36,9 @@ export default function ShopifyTool({ notify, arg }) {
         confidence: api.confidence_pct ?? Math.round((api.confidence ?? 0) * 100),
         hits: api.signals_detail ?? (api.detected_signals ?? []).map((label) => ({ label, w: "" })),
         plus: !!api.plus, theme: api.theme ?? null, shopDomain: api.shop_domain ?? null,
-        currency: api.currency ?? null, signalsChecked: 15,
+        currency: api.currency ?? null, platform: api.platform ?? null,
+        productCount: api.product_count ?? null, evidence: api.evidence ?? "text",
+        probes: api.probes ?? null, signalsChecked: 18,
       });
       setState("done"); return;
     }
@@ -60,7 +62,7 @@ export default function ShopifyTool({ notify, arg }) {
   return (
     <div className="grid2">
       <div className="panel rise d1">
-        <div className="ph"><h3>Check a website</h3><p>Nine independent Shopify signals scored into one confidence value.</p></div>
+        <div className="ph"><h3>Check a website</h3><p>Eighteen independent signals — page markers, response headers and live Shopify endpoints — scored into one confidence value.</p></div>
         <div className="pb">
           <div className="field"><label htmlFor="surl">Store URL</label>
             <input id="surl" type="text" placeholder="https://store-example.com" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && scan()} /></div>
