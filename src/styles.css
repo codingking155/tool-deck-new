@@ -467,3 +467,29 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .st-m b{font-size:14.5px;color:var(--tx)}
 @media (max-width:560px){.st-mgrid{grid-template-columns:1fr 1fr}.st-num{font-size:42px}.st-hero b{font-size:30px}}
 @media (prefers-reduced-motion: reduce){.st-bar i{transition:none}}
+
+/* ── Speed test v3: speedometer, graphs, score, tooltips ── */
+.spd-wrap{position:relative;max-width:300px;margin:4px auto 0}
+.spd-svg{width:100%;display:block}
+.spd-tick{font-size:9px;fill:var(--tx3);font-family:var(--mono)}
+.spd-read{position:absolute;left:0;right:0;bottom:12px;text-align:center}
+.spd-read b{font-family:var(--disp);font-size:34px;display:block;line-height:1}
+.spd-read span{font-size:11.5px;color:var(--tx3)}
+.spd-graph{margin:8px 0 2px}
+.spd-graph svg{width:100%;height:56px;display:block;background:var(--panel);border:1px solid var(--line2);border-radius:10px}
+.spd-graph .hint{display:block;text-align:right;margin-top:3px}
+.spd-score{margin-top:12px;padding:12px 14px;border-radius:13px;background:var(--panel);border:1px solid var(--line2)}
+.spd-scorenum b{font-family:var(--disp);font-size:34px}
+.spd-scorenum span{color:var(--tx3);font-size:12.5px;margin-left:6px}
+.spd-subs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.spd-sub{position:relative;font-size:10.5px;color:var(--tx3);padding:3px 8px;border:1px solid var(--line2);border-radius:99px;overflow:hidden}
+.spd-sub i{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb, var(--teal) 18%, transparent);z-index:0}
+.qrow .mid{color:var(--warn,#f59e0b)}
+.spd-tip{position:relative;cursor:help;color:var(--tx3)}
+.spd-tipbox{display:none;position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:130%;width:min(260px,70vw);background:var(--bg2,#10151c);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11.5px;line-height:1.45;color:var(--tx2)}
+.spd-tip:hover .spd-tipbox,.spd-tip:focus .spd-tipbox{display:block}
+.sh-toggle{background:none;border:none;color:var(--tx3);font-size:12.5px;cursor:pointer;padding:0;display:flex;align-items:center;gap:6px}
+.sh-toggle:hover{color:var(--tx)}
+.sh-tech{margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line2);display:grid;gap:10px}
+@media (prefers-reduced-motion: reduce){.spd-svg *{transition:none!important}}
+@media (max-width:720px){.spd-wrap{max-width:240px}.spd-read b{font-size:28px}}

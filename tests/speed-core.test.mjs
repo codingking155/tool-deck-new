@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { median, cleanSamples, jitterOf, mbps, windowMbps, finalMbps, summaryText, historyCsv, compareRuns, parseCfL4, aggregateLoss, isStable } from "../src/lib/speedCore.mjs";
+import { median, cleanSamples, jitterOf, mbps, windowMbps, finalMbps, summaryText, historyCsv, compareRuns, parseCfL4, aggregateLoss, isStable, consistencyOf, bufferbloatGrade, healthScore, activityGrades, classifyIp, parseClient, diagnose, gaugeAngle, migrateHistory, maskIp, HISTORY_VERSION } from "../src/lib/speedCore.mjs";
 
 test("median: odd, even, empty", () => {
   assert.equal(median([3, 1, 2]), 2);
@@ -45,7 +45,7 @@ test("finalMbps excludes the warm-up fraction", () => {
 test("summary text never fabricates: nulls become dashes, loss labelled honestly", () => {
   const txt = summaryText({ when: "2026-07-24 10:00", down: 92.4, up: null, ping: 12, jitter: 2, loadedDown: 40, loadedUp: null, loss: null, server: "Cloudflare · BLR" });
   assert.match(txt, /↑ —/);
-  assert.match(txt, /Packet loss: Unavailable over HTTP/);
+  assert.match(txt, /Packet loss: Not supported by this measurement provider/);
   const txt2 = summaryText({ when: "x", down: 1, up: 1, ping: 1, jitter: 1, loadedDown: 1, loadedUp: 1, loss: 0.34, server: "s" });
   assert.match(txt2, /Packet loss: 0.34%/);
   assert.match(txt, /Server: Cloudflare · BLR/);
@@ -93,4 +93,112 @@ test("isStable fires only on flat throughput after enough samples", () => {
   assert.equal(isStable([50, 98, 100, 101, 99, 100], 5, 0.05), true);
   assert.equal(isStable([50, 60, 100, 101, 99, 100], 5, 0.05), false); // 60 in tail
   assert.equal(isStable([0, 0, 0, 0, 0], 5), false);            // no signal yet
+});
+
+/* ── Phase 1 diagnostics core ───────────────────────────────────────── */
+
+test("consistencyOf: steady line scores high, choppy line scores low", () => {
+  const steady = consistencyOf([100, 98, 102, 99, 101, 100]);
+  assert.ok(steady.score >= 95);
+  assert.equal(steady.majorDrops, 0);
+  const choppy = consistencyOf([100, 20, 90, 15, 95, 10, 100, 25]);
+  assert.ok(choppy.score < steady.score);
+  assert.ok(choppy.majorDrops >= 3);
+  assert.equal(consistencyOf([1, 2]), null); // too few samples to be honest
+});
+
+test("bufferbloatGrade: deterministic thresholds and direction-aware text", () => {
+  assert.equal(bufferbloatGrade(10, 20, 15).grade, "A+");
+  assert.equal(bufferbloatGrade(10, 45, 30).grade, "A");
+  assert.equal(bufferbloatGrade(10, 100, 30).grade, "B");
+  assert.equal(bufferbloatGrade(10, 30, 200).grade, "C");
+  assert.equal(bufferbloatGrade(10, 30, 300).grade, "D");
+  assert.equal(bufferbloatGrade(10, 600, 30).grade, "F");
+  assert.match(bufferbloatGrade(10, 30, 400).explanation, /uploading/);
+  assert.equal(bufferbloatGrade(null, 100, 100), null);
+});
+
+test("healthScore: speed cannot buy an excellent score on an unstable line", () => {
+  const fastStable = healthScore({ down: 300, up: 100, ping: 10, bufferbloatWorst: 10, jitter: 2, lossPct: 0, consistencyScore: 95 });
+  assert.ok(fastStable.score >= 90);
+  const fastUnstable = healthScore({ down: 300, up: 100, ping: 10, bufferbloatWorst: 480, jitter: 45, lossPct: 2, consistencyScore: 10 });
+  assert.ok(fastUnstable.score <= 70, `unstable must not score excellent, got ${fastUnstable.score}`);
+});
+
+test("healthScore: missing metrics reweight and lower confidence, never count as failure", () => {
+  const partial = healthScore({ down: 100, up: 40, ping: 15 });
+  assert.ok(partial.score >= 70, "absent loss/consistency must not drag the score down");
+  assert.ok(partial.confidence < 1);
+  assert.equal(healthScore({}), null);
+});
+
+test("activityGrades: gaming judged on latency, backup on upload", () => {
+  const slowButSnappy = Object.fromEntries(activityGrades({ down: 12, up: 2, ping: 15, jitter: 3, lossPct: 0, consistencyScore: 90, bufferbloatWorst: 20 }).map(r => [r.label, r.status]));
+  assert.equal(slowButSnappy["Online gaming"], "good");
+  assert.equal(slowButSnappy["4K streaming"], "poor");
+  assert.equal(slowButSnappy["Cloud backup"], "poor");
+  const fatButLaggy = Object.fromEntries(activityGrades({ down: 400, up: 100, ping: 180, jitter: 40, lossPct: 2, consistencyScore: 90, bufferbloatWorst: 300 }).map(r => [r.label, r.status]));
+  assert.equal(fatButLaggy["Online gaming"], "poor");
+  assert.equal(fatButLaggy["Large downloads"], "good");
+});
+
+test("classifyIp: honest states, never a definitive static claim", () => {
+  assert.equal(classifyIp(null).state, "Unknown");
+  assert.equal(classifyIp("1.2.3.4", []).state, "Cannot be determined automatically");
+  assert.equal(classifyIp("1.2.3.4", [{ ip: "1.2.3.4", iso: "2026-07-26T00:00:00Z" }]).state, "Cannot be determined automatically");
+  const changed = classifyIp("1.2.3.5", [{ ip: "1.2.3.5", iso: "2026-07-26T00:00:00Z" }, { ip: "1.2.3.4", iso: "2026-07-20T00:00:00Z" }]);
+  assert.equal(changed.state, "Dynamic (observed)");
+  const stableWeek = classifyIp("1.2.3.4", [{ ip: "1.2.3.4", iso: "2026-07-26T00:00:00Z" }, { ip: "1.2.3.4", iso: "2026-07-10T00:00:00Z" }]);
+  assert.equal(stableWeek.state, "Possibly static");
+  assert.match(stableWeek.detail, /only your ISP can confirm/i);
+  const stableDay = classifyIp("1.2.3.4", [{ ip: "1.2.3.4", iso: "2026-07-26T10:00:00Z" }, { ip: "1.2.3.4", iso: "2026-07-26T01:00:00Z" }]);
+  assert.equal(stableDay.state, "Likely dynamic");
+});
+
+test("parseClient: client hints beat UA, sensible fallbacks", () => {
+  const ch = parseClient({ uaData: { brands: [{ brand: "Google Chrome" }, { brand: "Chromium" }], platform: "Windows", mobile: false, uaFullVersion: "126.0.1.2" }, ua: "Mozilla/5.0 Chrome/126.0" });
+  assert.deepEqual([ch.browser, ch.os, ch.device, ch.version], ["Chrome", "Windows", "Windows desktop", "126"]);
+  const ff = parseClient({ ua: "Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0" });
+  assert.deepEqual([ff.browser, ff.os, ff.device], ["Firefox", "Linux", "Linux desktop"]);
+  const saf = parseClient({ ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Safari/604.1" });
+  assert.deepEqual([saf.browser, saf.device], ["Safari", "iPhone"]);
+  const ipad = parseClient({ ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/17.5 Safari/605.1.15", platform: "MacIntel", touchPoints: 5 });
+  assert.equal(ipad.device, "Tablet");
+});
+
+test("diagnose: every recommendation is tied to observed evidence", () => {
+  const clean = diagnose({ down: 100, up: 40, ping: 12, lossPct: 0, bufferbloat: { grade: "A+", worst: 5 }, consistency: { score: 95, variationPct: 4, majorDrops: 0 } });
+  assert.match(clean.lines[0], /fast and stable/);
+  assert.equal(clean.recs.length, 0);
+  const bloated = diagnose({ down: 100, up: 40, ping: 12, lossPct: 0, bufferbloat: { grade: "D", worst: 400, addedUp: 400, addedDown: 20 }, consistency: { score: 90, variationPct: 8, majorDrops: 0 } });
+  assert.match(bloated.lines.join(" "), /under load/);
+  assert.match(bloated.recs.join(" "), /SQM|backups/);
+  const slowVsHistory = diagnose({ down: 30, up: 10, ping: 20, lossPct: 0 }, 60);
+  assert.match(slowVsHistory.lines.join(" "), /50% below your recent median/);
+});
+
+test("gaugeAngle: log-scaled, clamped, monotonic", () => {
+  assert.equal(gaugeAngle(0), 0);
+  assert.equal(gaugeAngle(1000, 1000), 240);
+  assert.ok(gaugeAngle(10) < gaugeAngle(100));
+  const mid = gaugeAngle(10, 1000);   // 0.1→1000 log-range: 10 is halfway
+  assert.ok(Math.abs(mid - 120) < 1, `expected ~120°, got ${mid}`);
+  assert.equal(gaugeAngle(99999, 1000), 240);
+});
+
+test("history migration: v2 rows become v3 without losing data", () => {
+  const v2 = [{ iso: "2026-07-20T10:00:00Z", when: "20 Jul", down: 88.1, up: 30.2, ping: 12, jitter: 2, loadedDown: 40, loadedUp: 90, loss: 0.2, server: "Cloudflare edge", serverId: "cf", dataUsed: 180 }];
+  const out = migrateHistory(v2);
+  assert.equal(out[0].v, HISTORY_VERSION);
+  assert.equal(out[0].lossPct, 0.2);
+  assert.equal(out[0].provider, "Cloudflare edge");
+  assert.equal(out[0].down, 88.1);
+  assert.equal(migrateHistory(out)[0], out[0]); // idempotent
+  assert.deepEqual(migrateHistory(null), []);
+});
+
+test("maskIp keeps only network prefix for both families", () => {
+  assert.equal(maskIp("103.186.40.202"), "103.186.40.x");
+  assert.equal(maskIp("2401:4900:1c5b:aa::1"), "2401:4900:1c5b::…");
+  assert.equal(maskIp(null), null);
 });

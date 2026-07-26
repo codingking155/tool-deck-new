@@ -3,7 +3,7 @@
     tested formulas in speedCore.mjs. Cancellation aborts every in-flight
     request; a global byte counter enforces the ~200 MB data budget. */
 
-import { median, cleanSamples, jitterOf, windowMbps, finalMbps, parseCfL4, aggregateLoss, isStable } from "./speedCore.mjs";
+import { median, cleanSamples, jitterOf, windowMbps, finalMbps, parseCfL4, aggregateLoss, isStable, consistencyOf, bufferbloatGrade } from "./speedCore.mjs";
 export { summaryText, historyCsv, compareRuns } from "./speedCore.mjs";
 
 const DATA_BUDGET = 200 * 1024 * 1024;
@@ -14,7 +14,8 @@ const COLO_CITY = { BLR: "Bengaluru", MAA: "Chennai", BOM: "Mumbai", DEL: "New D
 
 export function availableServers() {
   const list = [{
-    id: "cf", name: "Cloudflare edge (nearest city)",
+    id: "cf", name: "Cloudflare edge (nearest city)", provider: "Cloudflare",
+    capabilities: { down: true, up: true, idleLatency: true, loadedLatency: true, jitter: true, packetLoss: true, cancellation: true, progress: true },
     ping: "https://speed.cloudflare.com/__down?bytes=0",
     down: (b) => `https://speed.cloudflare.com/__down?bytes=${b}`,
     up: "https://speed.cloudflare.com/__up",
@@ -24,7 +25,8 @@ export function availableServers() {
   if (base) {
     const fn = `${base}/functions/v1/speedtest`;
     list.push({
-      id: "td", name: "ToolDeck server",
+      id: "td", name: "ToolDeck server", provider: "ToolDeck",
+      capabilities: { down: true, up: true, idleLatency: true, loadedLatency: true, jitter: true, packetLoss: false, cancellation: true, progress: true },
       ping: `${fn}?op=ping`, down: (b) => `${fn}?op=down&bytes=${b}`, up: `${fn}?op=up`, meta: `${fn}?op=meta`,
     });
   }
@@ -104,7 +106,7 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
   const sizes = [10e6, 25e6, 50e6];
   const samples = [{ t: performance.now(), bytes: 0 }];
   const cfL4 = [];
-  const stability = [];
+  const stability = [], series = [];
   const t0 = performance.now();
   let sizeIdx = 0, done = false, lastStab = t0;
 
@@ -114,7 +116,9 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
     /* sample the sliding window ~every 300 ms; stop once it's flat */
     if (now - lastStab >= 300) {
       lastStab = now;
-      stability.push(windowMbps(samples));
+      const w = windowMbps(samples);
+      stability.push(w);
+      series.push({ t: Math.round(now - t0), mbps: +w.toFixed(1) });
       if (now - t0 > minMs && isStable(stability, 5, 0.05)) return true;
     }
     return false;
@@ -161,8 +165,8 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
     }));
   }
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
-  if (bytes < 200000) return { mbps: null, bytes, loss: null };   // not enough data to be honest
-  return { mbps: +finalMbps(samples).toFixed(1), bytes, loss: aggregateLoss(cfL4) };
+  if (bytes < 200000) return { mbps: null, bytes, loss: null, series };   // not enough data to be honest
+  return { mbps: +finalMbps(samples).toFixed(1), bytes, loss: aggregateLoss(cfL4), series };
 }
 
 /* ── upload ───────────────────────────────────────────────────────────── */
@@ -178,14 +182,16 @@ function randomPayload(n) {
 export async function runUpload(server, { signal, onLive, budget, minMs = 4000, maxMs = 8000, streams = 4 } = {}) {
   const payloads = [2e6, 8e6, 16e6].map(randomPayload);
   const samples = [{ t: performance.now(), bytes: 0 }];
-  const stability = [];
+  const stability = [], series = [];
   const t0 = performance.now();
   let sizeIdx = 0, done = false;
 
   const shouldStop = () => {
     const now = performance.now();
     if (now - t0 > maxMs) return true;
-    stability.push(windowMbps(samples, 3000));
+    const w = windowMbps(samples, 3000);
+    stability.push(w);
+    series.push({ t: Math.round(now - t0), mbps: +w.toFixed(1) });
     return now - t0 > minMs && isStable(stability, 4, 0.08);
   };
 
@@ -205,8 +211,8 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
 
   await Promise.all(Array.from({ length: streams }, stream));
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
-  if (bytes < 200000) return { mbps: null, bytes };
-  return { mbps: +finalMbps(samples).toFixed(1), bytes };
+  if (bytes < 200000) return { mbps: null, bytes, series };
+  return { mbps: +finalMbps(samples).toFixed(1), bytes, series };
 }
 
 /* ── metadata (connection panel) ──────────────────────────────────────── */
@@ -283,6 +289,14 @@ export async function runFullTest(server, servers, cb, signal) {
 
     cb("calc");
     const when = new Date();
+    const consistency = consistencyOf([...(down.series ?? []).map((x) => x.mbps)]);
+    const bufferbloat = bufferbloatGrade(idle.ping, loadedDown, loadedUp);
+    const caps = srv.capabilities ?? {};
+    /* packet loss: measured (cfL4 counters) vs genuinely unsupported —
+       never a bare "Unavailable", and never silently zero */
+    const packetLoss = caps.packetLoss
+      ? (down.loss ? { status: "measured", pct: down.loss.pct, detail: down.loss } : { status: "unsupported", reason: "The measurement server did not expose TCP-level counters during this run." })
+      : { status: "unsupported", reason: "This measurement provider does not expose the TCP counters needed for an honest loss estimate." };
     return {
       when: when.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
       iso: when.toISOString(),
@@ -290,11 +304,11 @@ export async function runFullTest(server, servers, cb, signal) {
       ping: idle.ping, jitter: idle.jitter,
       down: down.mbps, up: up.mbps,
       loadedDown, loadedUp,
-      /* Downstream loss estimate from the edge server's own TCP counters
-         (Server-Timing cfL4: lost + retransmitted / sent). Null when the
-         chosen server doesn't expose them. */
-      loss: down.loss?.pct ?? null,
-      lossDetail: down.loss ?? null,
+      loss: packetLoss.status === "measured" ? packetLoss.pct : null,
+      packetLoss,
+      consistency, bufferbloat,
+      downSeries: down.series ?? [], upSeries: up.series ?? [],
+      provider: srv.provider ?? srv.name, capabilities: caps,
       dataUsed: Math.round(budget.used / 1e6),
       tabHidden: hiddenDuring,
       partial: down.mbps == null || up.mbps == null,
@@ -304,12 +318,4 @@ export async function runFullTest(server, servers, cb, signal) {
   }
 }
 
-export function qualityLabels(down, up, ping) {
-  return [
-    { l: "WhatsApp video calls", ok: down >= 1.5 && up >= 1.5 },
-    { l: "HD streaming", ok: down >= 5 },
-    { l: "4K streaming", ok: down >= 25 },
-    { l: "Online gaming", ok: ping <= 60 && down >= 10 },
-    { l: "Work from home", ok: down >= 20 && up >= 5 },
-  ];
-}
+
