@@ -5,9 +5,11 @@
    .light block only overrides tokens, so theme switching never re-parses CSS.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* fonts load via preconnect + <link> in index.html — no render-blocking @import */
+/* Theme tokens, defined on the root element */
 :root{
+  color-scheme: dark;
   --bg:#07090F;--bg2:#0B0F18;--panel:#101625;--panel2:#151D30;--line:#20293E;--line2:#182034;
+  --grid-line: rgba(255, 255, 255, 0.04);
   --tx:#EAEEF7;--tx2:#95A1B8;--tx3:#5D6B86;
   --pri:#FF8A2A;--pri2:#FFB454;--pri-soft:rgba(255,138,42,.12);--pri-line:rgba(255,138,42,.4);
   --teal:#4DD6C8;--teal-soft:rgba(77,214,200,.1);--good:#5BD68A;--bad:#F26D6D;--warn:#F5C15C;
@@ -15,7 +17,9 @@
   --glass:rgba(16,22,37,.72);
 }
 .light{
+  color-scheme: light;
   --bg:#FBF7F1;--bg2:#FFFDFA;--panel:#FFFFFF;--panel2:#FBF4EC;--line:#E7DACB;--line2:#F0E7DB;
+  --grid-line: rgba(0, 0, 0, 0.06);
   --tx:#241A2E;--tx2:#584C69;--tx3:#877A96;--glass:rgba(255,255,255,.9);
   --pri:#EA6A15;--pri2:#C24A03;--pri-soft:rgba(234,106,21,.1);--pri-line:rgba(234,106,21,.42);
   --teal:#0C8577;--teal-soft:rgba(12,133,119,.09);--good:#15803D;--bad:#D2312B;--warn:#B45309;
@@ -62,9 +66,9 @@ body{background:var(--bg)}
   background:radial-gradient(900px 520px at 78% -8%,rgba(255,138,42,.10),transparent 60%),
              radial-gradient(760px 480px at 8% 20%,rgba(77,214,200,.08),transparent 55%),
              radial-gradient(800px 600px at 55% 115%,rgba(120,90,255,.08),transparent 60%);}
-.gridbg{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
-  background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);
-  background-size:56px 56px;mask-image:radial-gradient(700px 500px at 50% 0%,#000 30%,transparent 75%)}
+.gridbg{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(to right,var(--grid-line) 1px,transparent 1px),linear-gradient(to bottom,var(--grid-line) 1px,transparent 1px);
+  background-size:80px 80px}
 canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none}
 .glow{position:fixed;width:420px;height:420px;border-radius:50%;pointer-events:none;z-index:1;
   background:radial-gradient(circle,rgba(255,138,42,.09),transparent 65%);transform:translate(-50%,-50%);transition:opacity .3s}
