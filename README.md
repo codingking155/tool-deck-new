@@ -11,7 +11,7 @@ npm install
 npm run dev        # local dev server with HMR
 npm run build      # production build → dist/
 npm run preview    # serve the production build locally
-npm test           # 30 node tests (time core + price-alert core)
+npm test           # node tests (time, speed, shopify detector, price-alert core)
 ```
 
 ## Architecture

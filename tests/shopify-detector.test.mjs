@@ -104,7 +104,7 @@ test("confidence is capped at 98 — detection is never claimed as certain", () 
 });
 
 test("verdict thresholds: 55+ yes, 25–54 uncertain, <25 no", () => {
-  assert.equal(analyzeShopify(`<b>window.Shopify</b><i>cdn.shopify.com</i>`, "").verdict, "yes"); // 25+30
+  assert.equal(analyzeShopify(`<b>window.Shopify</b><link href="https://cdn.shopify.com/s/x.css">`, "").verdict, "yes"); // 25+30 (CDN needs attribute context)
   assert.equal(analyzeShopify(`<b>window.Shopify</b>`, "").verdict, "uncertain"); // 25
   assert.equal(analyzeShopify(`<b>shopify-section</b>`, "").verdict, "no"); // 10
 });

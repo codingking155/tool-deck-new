@@ -1,11 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
-import { readParams, writeParams } from '../hooks/index.js';
 
-const soft = (v, pct) => `color-mix(in srgb, var(${v}) ${pct}%, transparent)`;
-
-export default function ShopifyDetectorTool({ arg }) {
-  const [url, setUrl] = useState(() => arg || readParams().get('u') || '');
+export default function ShopifyDetectorTool() {
+  const [url, setUrl] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -81,13 +78,6 @@ export default function ShopifyDetectorTool({ arg }) {
     }
   }, []);
 
-  useEffect(() => { writeParams({ u: url.trim() || null }); }, [url]);
-
-  const autoRan = useRef(false);
-  useEffect(() => {
-    if (arg && !autoRan.current) { autoRan.current = true; checkUrl(arg); }
-  }, [arg, checkUrl]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
     checkUrl(url);
@@ -108,18 +98,26 @@ export default function ShopifyDetectorTool({ arg }) {
     }
   };
 
-  const getStatus = () => {
-    if (!result) return { color: '', bg: '' };
-    const v = result.isShopify ? '--good' : result.confidence > 0.3 ? '--warn' : '--bad';
-    return { color: `var(${v})`, bg: soft(v, 12) };
-  };
-
   const getStatusIcon = () => {
     if (!result) return null;
-    const style = { color: getStatus().color };
-    if (result.isShopify) return <CheckCircle className="w-6 h-6" style={style} />;
-    if (result.confidence > 0.3) return <AlertCircle className="w-6 h-6" style={style} />;
-    return <XCircle className="w-6 h-6" style={style} />;
+    if (result.isShopify) return <CheckCircle size={24} style={{ color: '#00A56A' }} />;
+    if (result.confidence > 0.3) return <AlertCircle size={24} style={{ color: '#FFC453' }} />;
+    return <XCircle size={24} style={{ color: '#D72C0D' }} />;
+  };
+
+  /* plain values: this project has no Tailwind, so utility class names never applied */
+  const getStatusColor = () => {
+    if (!result) return undefined;
+    if (result.isShopify) return '#00A56A';
+    if (result.confidence > 0.3) return '#FFC453';
+    return '#D72C0D';
+  };
+
+  const getStatusBg = () => {
+    if (!result) return undefined;
+    if (result.isShopify) return '#E6F7F1';
+    if (result.confidence > 0.3) return '#FFF8E6';
+    return '#FFF0ED';
   };
 
   return (
@@ -189,7 +187,7 @@ export default function ShopifyDetectorTool({ arg }) {
 
       {/* Error */}
       {error && (
-        <div style={{ padding: '16px', backgroundColor: soft('--bad', 12), border: `1px solid ${soft('--bad', 35)}`, borderRadius: '8px', marginBottom: '24px', color: 'var(--bad)' }}>
+        <div style={{ padding: '16px', backgroundColor: '#FFF0ED', border: '1px solid #FFD9D2', borderRadius: '8px', marginBottom: '24px', color: '#D72C0D' }}>
           {error}
         </div>
       )}
@@ -206,11 +204,11 @@ export default function ShopifyDetectorTool({ arg }) {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ padding: '12px', backgroundColor: getStatus().bg, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ padding: '12px', backgroundColor: getStatusBg(), borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {getStatusIcon()}
               </div>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 600, color: getStatus().color }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 600, color: getStatusColor() }}>
                   {result.isShopify ? 'Shopify Store Detected!' : 'Not a Shopify Store'}
                 </h2>
                 {result.confidence > 0 && (
@@ -262,12 +260,12 @@ export default function ShopifyDetectorTool({ arg }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace' }}>
             <Globe size={14} style={{ color: 'var(--tx3)' }} />
             <span style={{ wordBreak: 'break-all' }}>{result.url}</span>
-            {result.shop_domain && <span style={{ color: 'var(--good)', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
+            {result.shop_domain && <span style={{ color: '#008060', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
           </div>
 
           {/* Message */}
-          <div style={{ padding: '12px', backgroundColor: getStatus().bg, borderRadius: '6px', marginBottom: '16px' }}>
-            <p style={{ fontWeight: 600, color: getStatus().color }}>{result.message}</p>
+          <div style={{ padding: '12px', backgroundColor: getStatusBg(), borderRadius: '6px', marginBottom: '16px' }}>
+            <p style={{ fontWeight: 600, color: getStatusColor() }}>{result.message}</p>
             {result.details && <p style={{ fontSize: '12px', color: 'var(--tx)', marginTop: '4px' }}>{result.details}</p>}
           </div>
 
@@ -276,14 +274,14 @@ export default function ShopifyDetectorTool({ arg }) {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
                 <span style={{ fontWeight: 500 }}>Detection Confidence</span>
-                <span style={{ fontWeight: 600, color: getStatus().color }}>{Math.round(result.confidence * 100)}%</span>
+                <span style={{ fontWeight: 600, color: '#008060' }}>{Math.round(result.confidence * 100)}%</span>
               </div>
               <div style={{ height: '8px', backgroundColor: 'var(--panel2)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
                     width: `${result.confidence * 100}%`,
-                    background: getStatus().color,
+                    background: result.confidence > 0.7 ? 'linear-gradient(90deg, #00A56A 0%, #008060 100%)' : result.confidence > 0.3 ? 'linear-gradient(90deg, #FFC453 0%, #FFB020 100%)' : 'linear-gradient(90deg, #E34850 0%, #D72C0D 100%)',
                     transition: 'width 0.8s ease',
                   }}
                 />

@@ -32,7 +32,9 @@ export async function serverCheck(full) {
   const base = import.meta.env?.VITE_SUPABASE_URL;
   if (!base) return null;
   try {
-    const r = await fetch(`${base}/functions/v1/shopify-check?url=${encodeURIComponent(full)}`, { cache: "no-store" });
+    const anon = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+    const headers = anon ? { apikey: anon, Authorization: `Bearer ${anon}` } : {};
+    const r = await fetch(`${base}/functions/v1/shopify-check?url=${encodeURIComponent(full)}`, { cache: "no-store", headers });
     if (!r.ok) return null;
     const j = await r.json();
     if (!j || j.error) return null;

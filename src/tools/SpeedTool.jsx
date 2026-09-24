@@ -16,15 +16,16 @@ function saveHistory(h) { try { localStorage.setItem(HKEY, JSON.stringify(h.slic
 function dl(name, text, type) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type }));
-  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 function detectBrowser() {
   const ua = navigator.userAgent;
+  /* order matters: Edge and Opera UAs also contain "Chrome", Chrome's contains "Safari" */
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/Opera|OPR\//.test(ua)) return "Opera";
   if (/Firefox/.test(ua)) return "Firefox";
-  if (/Chrome/.test(ua)) return "Chrome";
-  if (/Safari/.test(ua) && !/Chrome/.test(ua)) return "Safari";
-  if (/Edg/.test(ua)) return "Edge";
-  if (/Opera|OPR/.test(ua)) return "Opera";
+  if (/Chrome\//.test(ua)) return "Chrome";
+  if (/Safari\//.test(ua)) return "Safari";
   return "Unknown";
 }
 function detectOS() {
@@ -46,7 +47,6 @@ export default function SpeedTool({ notify }) {
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
   const [history, setHistory] = useState(loadHistory);
-  const [hasStarted, setHasStarted] = useState(false);
   const abortRef = useRef(null);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
@@ -87,14 +87,6 @@ export default function SpeedTool({ notify }) {
     }
   }, [running, servers, notify]);
 
-  /* auto-start the test on first load */
-  useEffect(() => {
-    if (!hasStarted && stage === "ready" && servers.length > 0) {
-      setHasStarted(true);
-      start();
-    }
-  }, [hasStarted, stage, servers, start]);
-
   const cancel = () => abortRef.current?.abort();
   const prev = history.find((h) => res && h.iso !== res.iso);
   const delta = res && prev ? compareRuns(res, prev) : null;
@@ -128,7 +120,11 @@ export default function SpeedTool({ notify }) {
           )}
 
           {stage === "ready" && (
-            <div className="hint" style={{ marginTop: 10 }}>A speed test may consume up to 200 MB of data.</div>
+            <>
+              {/* The test only runs on an explicit click: it can move up to 200 MB, which matters on mobile data. */}
+              <button className="btn pri" onClick={start}>Start speed test</button>
+              <div className="hint" style={{ marginTop: 10 }}>A speed test may consume up to 200 MB of data.</div>
+            </>
           )}
           {running && <button className="btn gh" style={{ width: "100%" }} onClick={cancel}>Cancel test</button>}
           {(stage === "failed" || stage === "cancelled" || stage === "offline") && (

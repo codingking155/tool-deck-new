@@ -83,6 +83,18 @@ test("signed-in may enable only email without a phone", () => {
   assert.ok(r.ok, JSON.stringify(r.errors));
 });
 
+test("guest may enable only email without a phone", () => {
+  const r = validateAlertInput({ ...base, whatsappEnabled: false, phone: "" }, { signedIn: false });
+  assert.ok(r.ok, JSON.stringify(r.errors));
+  assert.equal(r.value.phone, null);
+});
+
+test("guest enabling WhatsApp must still give a phone", () => {
+  const r = validateAlertInput({ ...base, whatsappEnabled: true, phone: "" }, { signedIn: false });
+  assert.ok(!r.ok);
+  assert.ok(r.errors.phone);
+});
+
 test("dedupe key is identical for same product+contact+target", () => {
   const a = dedupeKey({ productId: "P", userId: "u1", email: "A@b.com", phone: "+91999", targetPrice: 100 });
   const b = dedupeKey({ productId: "P", userId: "u1", email: "a@b.com", phone: "+91999", targetPrice: 100.0 });

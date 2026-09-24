@@ -10,8 +10,10 @@ import { makeManageToken } from "../../../shared/priceAlertsCore/tokens.mjs";
 Deno.serve(async (req) => {
   const pre = preflight(req); if (pre) return pre;
 
+  // Fail CLOSED: with no CRON_SECRET configured nobody can trigger the job.
   const secret = env("CRON_SECRET");
-  if (secret && req.headers.get("x-cron-secret") !== secret) {
+  if (!secret) { log("check_misconfigured", { reason: "CRON_SECRET unset" }); return fail(503, "not_configured", "CRON_SECRET is not set."); }
+  if (req.headers.get("x-cron-secret") !== secret) {
     return fail(401, "unauthorized", "Invalid cron secret.");
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
 import { TOOLS, tint } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams } from "./hooks/index.js";
@@ -25,6 +25,26 @@ const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool,
 };
+
+function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
+
+/* One bad query-string value (e.g. ?tz=Nope) must not blank the whole app. */
+class ToolErrorBoundary extends Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="panel" style={{ padding: 22 }}>
+        <div className="note w"><b>This tool hit an error · </b>{String(this.state.err?.message || this.state.err)}</div>
+        <button className="btn gh" style={{ marginTop: 12 }} onClick={() => { window.history.replaceState(null, "", window.location.pathname); this.setState({ err: null }); }}>
+          Reset this tool
+        </button>
+      </div>
+    );
+  }
+}
 
 function ToolFallback() {
   return (
@@ -61,7 +81,7 @@ export default function App() {
   const slash = seg ? seg.indexOf("/") : -1;
   const toolId = seg == null ? null : slash === -1 ? seg : seg.slice(0, slash);
   /* prefix trick: /tool/shopify/<any-domain> auto-checks it, like a URL prefix */
-  const toolArg = seg != null && slash !== -1 ? decodeURIComponent(seg.slice(slash + 1)) : null;
+  const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
   const ToolView = tool ? TOOL_VIEWS[tool.id] : null;
 
@@ -104,9 +124,11 @@ export default function App() {
               <div className="crumb">
                 <button onClick={() => nav("/tool/price")}>← Price tracker</button><span>/</span><span>My alerts</span>
               </div>
-              <Suspense fallback={<ToolFallback />}>
-                <MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} />
-              </Suspense>
+              <ToolErrorBoundary resetKey={route}>
+                <Suspense fallback={<ToolFallback />}>
+                  <MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} />
+                </Suspense>
+              </ToolErrorBoundary>
             </div>
           )}
           {tool && (
@@ -114,9 +136,11 @@ export default function App() {
               <div className="crumb"><button onClick={() => nav("/")}>← All tools</button><span>/</span><span>{tool.name}</span></div>
               <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70") }}>{tool.icon}</div>
                 <div><h2>{tool.name}</h2><p>{tool.desc}</p></div></div>
-              <Suspense fallback={<ToolFallback />}>
-                <ToolView notify={notify} nav={nav} arg={toolArg} />
-              </Suspense>
+              <ToolErrorBoundary resetKey={route}>
+                <Suspense fallback={<ToolFallback />}>
+                  <ToolView notify={notify} nav={nav} arg={toolArg} />
+                </Suspense>
+              </ToolErrorBoundary>
               {tool.faqs && <FaqSection tool={tool} />}
             </div>
           )}

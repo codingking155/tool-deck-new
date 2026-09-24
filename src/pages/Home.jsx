@@ -21,7 +21,7 @@ export default function Home({ nav, reduced }) {
   const [q, setQ] = useState("");
   const [ri, setRi] = useState(0);
   useEffect(() => { const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, []);
-  const c1 = useCountUp(6), c2 = useCountUp(240), c3 = useCountUp(100);
+  const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(100);
   const list = TOOLS.filter((t) => (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
   const th = tiltHandlers(reduced);
   return (
