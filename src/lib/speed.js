@@ -201,7 +201,8 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
       const p = payloads[Math.min(sizeIdx, payloads.length - 1)];
       if (budget && !budget.take(p.length)) { done = true; break; }
       try {
-        const r = await fetch(server.up(), { cache: "no-store", method: "POST", body: p, signal });
+        /* server.up is a plain URL (unlike .down, it isn't parameterized by size) */
+        const r = await fetch(server.up, { cache: "no-store", method: "POST", body: p, signal });
         if (!r.ok) { await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300)); if (shouldStop()) done = true; continue; }
         samples.push({ t: performance.now(), bytes: p.length });
         onLive && onLive(windowMbps(samples, 3000));
