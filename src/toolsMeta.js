@@ -24,7 +24,7 @@ export const TOOLS = [
       ["Is the Shopify checker free?", "Yes, it's free and needs no sign-up. It tries the site directly, falls back to read-only proxies, and can also read pasted page source."],
       ["Why does a check sometimes fail?", "Some stores block cross-origin reads. Paste the page source (Ctrl+U) or deploy your own server proxy for one-click checks."],
     ] },
-  { id: "shopifydetector", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "search",
+  { id: "shopifydetector", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "scan",
     blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Powered by the ShopifyOrNot API.",
     faqs: [
       ["What does the Shopify detector do?", "Enter a website URL and the tool checks if it's a Shopify store, returning a confidence score, detected shop domain, and technical signals."],

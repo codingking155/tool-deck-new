@@ -98,25 +98,18 @@ export default function ShopifyDetectorTool() {
     }
   };
 
+  const getStatus = () => {
+    if (!result) return { color: '', bg: '', gradient: '' };
+    if (result.isShopify) return { color: '#00A56A', bg: '#E6F7F1', gradient: 'linear-gradient(90deg, #00A56A 0%, #008060 100%)' };
+    if (result.confidence > 0.3) return { color: '#FFC453', bg: '#FFF8E6', gradient: 'linear-gradient(90deg, #FFC453 0%, #FFB020 100%)' };
+    return { color: '#D72C0D', bg: '#FFF0ED', gradient: 'linear-gradient(90deg, #E34850 0%, #D72C0D 100%)' };
+  };
+
   const getStatusIcon = () => {
     if (!result) return null;
     if (result.isShopify) return <CheckCircle className="w-6 h-6" style={{ color: '#00A56A' }} />;
     if (result.confidence > 0.3) return <AlertCircle className="w-6 h-6" style={{ color: '#FFC453' }} />;
     return <XCircle className="w-6 h-6" style={{ color: '#D72C0D' }} />;
-  };
-
-  const getStatusColor = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'text-[#00A56A]';
-    if (result.confidence > 0.3) return 'text-[#FFC453]';
-    return 'text-[#D72C0D]';
-  };
-
-  const getStatusBg = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'bg-[#E6F7F1]';
-    if (result.confidence > 0.3) return 'bg-[#FFF8E6]';
-    return 'bg-[#FFF0ED]';
   };
 
   return (
@@ -203,11 +196,11 @@ export default function ShopifyDetectorTool() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ padding: '12px', backgroundColor: getStatusBg(), borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ padding: '12px', backgroundColor: getStatus().bg, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {getStatusIcon()}
               </div>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 600, color: getStatusColor() }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 600, color: getStatus().color }}>
                   {result.isShopify ? 'Shopify Store Detected!' : 'Not a Shopify Store'}
                 </h2>
                 {result.confidence > 0 && (
@@ -263,8 +256,8 @@ export default function ShopifyDetectorTool() {
           </div>
 
           {/* Message */}
-          <div style={{ padding: '12px', backgroundColor: getStatusBg(), borderRadius: '6px', marginBottom: '16px' }}>
-            <p style={{ fontWeight: 600, color: getStatusColor() }}>{result.message}</p>
+          <div style={{ padding: '12px', backgroundColor: getStatus().bg, borderRadius: '6px', marginBottom: '16px' }}>
+            <p style={{ fontWeight: 600, color: getStatus().color }}>{result.message}</p>
             {result.details && <p style={{ fontSize: '12px', color: 'var(--tx)', marginTop: '4px' }}>{result.details}</p>}
           </div>
 
@@ -280,7 +273,7 @@ export default function ShopifyDetectorTool() {
                   style={{
                     height: '100%',
                     width: `${result.confidence * 100}%`,
-                    background: result.confidence > 0.7 ? 'linear-gradient(90deg, #00A56A 0%, #008060 100%)' : result.confidence > 0.3 ? 'linear-gradient(90deg, #FFC453 0%, #FFB020 100%)' : 'linear-gradient(90deg, #E34850 0%, #D72C0D 100%)',
+                    background: getStatus().gradient,
                     transition: 'width 0.8s ease',
                   }}
                 />
