@@ -178,7 +178,8 @@ export default function ShopifyTool({ notify, arg }) {
             {/* stat cards */}
             <div className="sh-cards">
               <div className="sh-card"><span className="i">🛍</span><span className="k">Platform</span><b>{res.verdict === "yes" ? "Shopify" : res.verdict === "uncertain" ? "Unclear" : "Other"}</b></div>
-              <div className="sh-card"><span className="i">🛡</span><span className="k">SSL</span><b>{/^http:\/\//i.test(url.trim()) ? "None ⚠" : "Secure"}</b></div>
+              {/* Shows the protocol as typed, not a security verdict — a scheme isn't a certificate check. */}
+              <div className="sh-card"><span className="i">🔗</span><span className="k">Protocol</span><b>{!url.trim() ? "—" : /^http:\/\//i.test(url.trim()) ? "http" : "https"}</b></div>
               <div className="sh-card"><span className="i">⚡</span><span className="k">Response</span><b>{ms == null ? "—" : ms < 800 ? "Fast" : ms < 2500 ? "OK" : "Slow"}{ms != null && <small> {ms} ms</small>}</b></div>
             </div>
             {/* technical details */}
