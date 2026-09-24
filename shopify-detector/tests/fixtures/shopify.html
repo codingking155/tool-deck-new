@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Demo Outfitters</title>
+  <meta name="shopify-digital-wallet" content="/12345678/digital_wallets/dialog">
+  <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+  <link href="//demo-outfitters.com/cdn/shop/t/12/assets/base.css?v=1" rel="stylesheet">
+  <script>
+    window.Shopify = window.Shopify || {};
+    Shopify.shop = "demo-outfitters.myshopify.com";
+    Shopify.locale = "en";
+    Shopify.theme = {"name":"Dawn","id":123456,"role":"main"};
+    Shopify.routes = Shopify.routes || {};
+    Shopify.routes.root = "/";
+  </script>
+  <script id="shopify-features" type="application/json">{"accessToken":"abc","betas":["rich-media-storefront-analytics"]}</script>
+  <script>window.ShopifyAnalytics = window.ShopifyAnalytics || {};</script>
+</head>
+<body>
+  <a href="/cart">Cart</a>
+  <form action="/cart" method="post"><button name="checkout">Check out</button></form>
+  <img src="//demo-outfitters.com/cdn/shop/files/hero.jpg" alt="Hero">
+  <script src="https://cdn.shopify.com/shopifycloud/shop-js/client.js"></script>
+</body>
+</html>

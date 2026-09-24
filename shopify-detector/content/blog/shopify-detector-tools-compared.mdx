@@ -1,0 +1,66 @@
+---
+title: "Shopify detector tools compared: what actually matters for sales teams"
+description: "Browser extensions, technology databases, single-purpose checkers and APIs all answer 'is this Shopify?' — but they fail in very different ways. Here's how to choose."
+date: 2026-09-18
+readTime: "7 min read"
+tags: ["comparison", "tools", "lead-qualification"]
+featured: true
+---
+
+Every Shopify app company eventually builds a lead list that is only partly made of Shopify stores. The question "is this site on Shopify?" sounds trivial, and for one site it is. For five thousand sites, the tool you pick decides whether qualification takes an afternoon or a quarter.
+
+This guide compares the four families of tools people actually use, and the criteria that separate a good answer from a confident wrong one.
+
+## The four kinds of tools
+
+### 1. Manual inspection
+
+Open the site, view the source, search for `cdn.shopify.com`. It's free and surprisingly reliable for a single site, and it's how every other method started. It does not scale, and it's easy to misread a page that only *mentions* Shopify — a blog post, an agency portfolio, a comparison article like this one.
+
+### 2. Technology-profiler browser extensions
+
+Extensions such as Wappalyzer identify the technologies behind the page you're currently viewing. They're great for curiosity and for spot checks while browsing, and they recognise far more than just e-commerce platforms. The trade-off: they work one tab at a time, inside a browser, which makes them awkward for a list.
+
+### 3. Technology lookup databases
+
+Some services crawl the web continuously and let you search their index: "show me every site using Shopify". This is the fastest way to *build* a list. The catch is freshness — a crawl can be weeks old, and stores migrate platforms, relaunch, or go dark. They're usually priced for enterprise sales teams.
+
+### 4. Single-purpose checkers and APIs
+
+A dedicated checker fetches the site *right now* and answers one question well. Paired with an API, it slots into the tools your team already uses — a CRM enrichment step, a Zapier filter, an n8n workflow — so qualification happens without anyone opening a browser.
+
+<CheckCta />
+
+## The criteria that matter
+
+| Criterion | Why it matters | What to look for |
+| --- | --- | --- |
+| Freshness | A store that migrated last month is a different lead | Live checks, or clearly dated results |
+| Evidence | "Shopify: yes" is hard to trust at scale | The actual signals behind each verdict |
+| Edge cases | Headless, password-protected and bot-protected stores | A confidence score instead of a bare yes/no |
+| Automation | Lists live in CRMs, not browser tabs | A documented API with predictable errors |
+| Throughput | Qualification happens in batches | Bulk endpoints, caching and clear rate limits |
+
+### Freshness beats coverage for qualification
+
+If you're *prospecting*, coverage wins — you want the biggest possible list. If you're *qualifying* leads that already exist in your pipeline, freshness wins. A live check reflects the site as it is today.
+
+### Demand evidence, not just a verdict
+
+The most useful tools show their working. When a checker tells you it found `header:x-shopid`, `body:Shopify.theme` and `body:cdn.shopify.com`, you can trust the answer — and when it finds only one weak signal, you know to look closer.
+
+### Ask how edge cases are handled
+
+Three situations trip up naive detectors:
+
+- **Headless storefronts** built on Shopify's APIs may not load the classic theme assets. Endpoint probes like `/cart.js` help here.
+- **Password-protected stores** still send Shopify response headers, even when the page itself is a login screen.
+- **Bot protection** can block automated requests entirely. A good tool says "we were blocked" rather than "not Shopify".
+
+## Which one should you use?
+
+- **Checking one site out of curiosity?** An extension or view-source is fine.
+- **Building a new prospect list from scratch?** A lookup database.
+- **Qualifying leads that are already in your CRM, continuously?** A live checker with an API.
+
+Most teams end up using two of these together: a database to find prospects, and a live API to keep the pipeline honest.
