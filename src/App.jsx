@@ -28,6 +28,15 @@ const TOOL_VIEWS = {
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
 
+const THEME_KEY = "toolDeck.theme";
+function initialTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") return saved;
+  } catch { /* storage unavailable — fall through to the OS preference */ }
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 /* One bad query-string value (e.g. ?tz=Nope) must not blank the whole app. */
 class ToolErrorBoundary extends Component {
   constructor(p) { super(p); this.state = { err: null }; }
@@ -61,7 +70,7 @@ function ToolFallback() {
 
 export default function App() {
   const [route, nav] = useRoute();
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(initialTheme);
   const [toast, setToast] = useState("");
   const [cp, setCp] = useState(false);
   const timer = useRef(null);
@@ -75,6 +84,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", f);
   }, []);
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
+  useEffect(() => {
+    try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode / storage full — theme still applies this session */ }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#FBF7F1" : "#07090F");
+  }, [theme]);
 
   const isAlertsPage = route === "/tool/price/alerts";
   const seg = route.startsWith("/tool/") ? route.slice(6) : null;
