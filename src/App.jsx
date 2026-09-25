@@ -15,13 +15,14 @@ import Home from "./pages/Home.jsx";
 const UtcTool = lazy(() => import("./tools/UtcTool.jsx"));
 const PhoneTool = lazy(() => import("./tools/PhoneTool.jsx"));
 const ShopifyTool = lazy(() => import("./tools/ShopifyTool.jsx"));
+const ShopifyDetectorTool = lazy(() => import("./tools/ShopifyDetectorTool.jsx"));
 const SpeedTool = lazy(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazy(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
-  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool,
+  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool,
 };
 
