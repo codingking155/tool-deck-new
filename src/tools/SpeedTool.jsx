@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   availableServers, runFullTest, fetchMeta,
-  summaryText, historyCsv, compareRuns, qualityLabels,
+  compareRuns, qualityLabels,
 } from "../lib/speed.js";
 
 const STAGE_TEXT = {
@@ -13,11 +13,6 @@ const HKEY = "td-speed-history-v2";
 
 function loadHistory() { try { return JSON.parse(localStorage.getItem(HKEY)) || []; } catch { return []; } }
 function saveHistory(h) { try { localStorage.setItem(HKEY, JSON.stringify(h.slice(0, 20))); } catch { /* private mode */ } }
-function dl(name, text, type) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], { type }));
-  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-}
 function detectBrowser() {
   const ua = navigator.userAgent;
   /* order matters: Edge and Opera UAs also contain "Chrome", Chrome's contains "Safari" */
@@ -166,9 +161,6 @@ export default function SpeedTool({ notify }) {
               <div className="kv" style={{ padding: "6px 0", borderBottom: 0 }}><span className="k">Tested</span><span className="v">{res.when}</span></div>
               <div className="pillrow" style={{ marginTop: 12 }}>
                 <button className="pill" onClick={start} style={{ background: "linear-gradient(135deg, var(--pri), var(--teal))", borderColor: "var(--pri-line)", color: "#fff", fontWeight: 600 }}>↻ Retest</button>
-                <button className="pill" onClick={() => navigator.clipboard.writeText(summaryText(res)).then(() => notify("Result copied.")).catch(() => notify("Copy blocked."))}>⧉ Copy result</button>
-                <button className="pill" onClick={() => dl("speedtest-history.csv", historyCsv(history), "text/csv")}>CSV</button>
-                <button className="pill" onClick={() => dl("speedtest-history.json", JSON.stringify(history, null, 2), "application/json")}>JSON</button>
               </div>
             </>
           )}
