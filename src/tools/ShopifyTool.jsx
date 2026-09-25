@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { analyzeShopify, applyHeaderSignals, fetchPageSource, buildReport, serverCheck } from "../lib/shopify.js";
+import { analyzeShopify, applyHeaderSignals, fetchPageSource, buildReport, serverCheck, externalApiCheck } from "../lib/shopify.js";
 import { readParams, writeParams } from "../hooks/index.js";
 
 export default function ShopifyTool({ notify, arg }) {
@@ -10,6 +10,7 @@ export default function ShopifyTool({ notify, arg }) {
   const [res, setRes] = useState(null);
   const [ms, setMs] = useState(null);
   const [via, setVia] = useState(false);
+  const [viaExternal, setViaExternal] = useState(false);
   const [showTech, setShowTech] = useState(false);
   const [showApi, setShowApi] = useState(false);
   const [headers, setHeaders] = useState(null);
@@ -18,7 +19,7 @@ export default function ShopifyTool({ notify, arg }) {
   const scan = async () => {
     const u = url.trim();
     if (!u && !html.trim()) { notify("Paste a URL or page source first."); return; }
-    setState("scanning"); setRes(null); setMs(null); setVia(false); setHeaders(null);
+    setState("scanning"); setRes(null); setMs(null); setVia(false); setViaExternal(false); setHeaders(null);
     if (html.trim()) {
       await new Promise((r) => setTimeout(r, 700));
       setRes(analyzeShopify(html, u)); setState("done"); return;
@@ -49,9 +50,27 @@ export default function ShopifyTool({ notify, arg }) {
       setMs(Math.round(performance.now() - t0));
       setVia(viaProxy);
       setRes(analyzeShopify(text, full)); setState("done");
-    } catch {
-      setState("blocked");
+      return;
+    } catch { /* every direct/proxy read failed — fall through to the last resort below */ }
+    /* 3. last resort: a purpose-built third-party detector that fetches the
+       page itself, for sites that block every direct/proxy read when no
+       ToolDeck API is deployed to check headers server-side instead */
+    const ext = await externalApiCheck(full);
+    if (ext) {
+      setViaExternal(true);
+      setMs(ext.elapsed_ms ?? null);
+      setHeaders(ext.headers_sample && Object.keys(ext.headers_sample).length ? ext.headers_sample : null);
+      setRes({
+        verdict: ext.is_shopify ? "yes" : (ext.confidence ?? 0) > 0.3 ? "uncertain" : "no",
+        confidence: Math.round((ext.confidence ?? 0) * 100),
+        hits: (ext.detected_signals ?? []).map((label) => ({ label, w: "" })),
+        plus: false, theme: null, shopDomain: ext.shop_domain ?? null,
+        currency: null, platform: null, productCount: null, evidence: "text",
+        probes: null, signalsChecked: 18,
+      });
+      setState("done"); return;
     }
+    setState("blocked");
   };
 
   /* prefix trick — /tool/shopify/<domain> lands here and checks immediately */
@@ -72,8 +91,10 @@ export default function ShopifyTool({ notify, arg }) {
           {url.trim() && <button className="btn gh" style={{ width: "100%", marginTop: 10 }} onClick={() => navigator.clipboard.writeText(window.location.href).then(() => notify("Link copied — reopens this URL.")).catch(() => notify("Copy blocked."))}>🔗 Share this check</button>}
           <div className="note i" style={{ marginTop: 14 }}>
             <b>How it fetches · </b>with the ToolDeck API deployed it checks server-side and reads response headers — the
-            strongest evidence there is. Otherwise it tries the site directly, then read-only public proxies. If a store
-            still blocks all of them, paste the page source above. Detection is never 100% — headless or heavily customised
+            strongest evidence there is. Otherwise it tries the site directly, then read-only public proxies, and as a
+            last resort a third-party Shopify-detection service — your URL only ever reaches that service if every
+            attempt before it fails. If a store still blocks all of them, paste the page source above. Detection is
+            never 100% — headless or heavily customised
             stores can hide the usual signals.
           </div>
           <div className="note i" style={{ marginTop: 10 }}>
@@ -194,7 +215,7 @@ export default function ShopifyTool({ notify, arg }) {
                   <div className="sigrow" key={h.label}><span style={{ color: "var(--good)" }}>✓</span>{h.label}<span className="w">+{h.w}</span></div>
                 ))}
                 <div className="sh-sect" style={{ marginTop: 14 }}>Fetch details</div>
-                <div className="kv" style={{ padding: "7px 0" }}><span className="k">Fetched via</span><span className="v">{html.trim() ? "pasted source" : headers ? "ToolDeck API (server)" : via ? "read-only proxy" : "direct request"}</span></div>
+                <div className="kv" style={{ padding: "7px 0" }}><span className="k">Fetched via</span><span className="v">{html.trim() ? "pasted source" : viaExternal ? "external verification service" : headers ? "ToolDeck API (server)" : via ? "read-only proxy" : "direct request"}</span></div>
                 {ms != null && <div className="kv" style={{ padding: "7px 0" }}><span className="k">Response time</span><span className="v" style={{ fontFamily: "var(--mono)" }}>{ms} ms</span></div>}
                 {res.currency && <div className="kv" style={{ padding: "7px 0" }}><span className="k">Store currency</span><span className="v">{res.currency}</span></div>}
                 {res.theme && <div className="kv" style={{ padding: "7px 0" }}><span className="k">Theme</span><span className="v">{res.theme}</span></div>}

@@ -41,3 +41,20 @@ export async function serverCheck(full) {
     return j;
   } catch { return null; }
 }
+
+/* Last resort, only reached when no ToolDeck API is deployed AND the site
+   blocked both a direct read and every public CORS proxy: a purpose-built
+   third-party detector that fetches the page itself, so a check can still
+   succeed instead of dead-ending in "paste the source". The URL is sent to
+   it only at this point — disclosed in the tool's "How it fetches" note. */
+export async function externalApiCheck(full) {
+  try {
+    const r = await fetch(`https://api.shopifyornot.in/check?url=${encodeURIComponent(full)}&source=tooldeck`, {
+      headers: { Accept: "application/json" }, cache: "no-store",
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || typeof j.is_shopify !== "boolean") return null;
+    return j;
+  } catch { return null; }
+}
