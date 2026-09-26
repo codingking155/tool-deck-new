@@ -1,79 +1,125 @@
-import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
 import {
   availableServers, runFullTest, fetchMeta,
   compareRuns, qualityLabels,
 } from "../lib/speed.js";
 
 /* ────────────────────────────────────────────────────────────────────────────
-   SPEEDOMETER — SVG needle driven by rAF spring physics (critically damped)
+   SPEEDOMETER — speedtest-style 270° gauge; needle driven by a time-based rAF spring
    ──────────────────────────────────────────────────────────────────────────── */
 
+/* piecewise scale like speedtest.net: every labelled step gets an equal slice of
+   the 270° sweep, which starts at 135° (lower-left) and ends at 45° (lower-right) */
+const G_TICKS = [0, 5, 10, 50, 100, 250, 500, 750, 1000];
+const G_SWEEP = 270, G_START = 135, G_SEG = G_SWEEP / (G_TICKS.length - 1);
+
+function gaugeAngle(v) {
+  if (!v || v <= 0) return 0;
+  if (v >= G_TICKS[G_TICKS.length - 1]) return G_SWEEP;
+  const i = G_TICKS.findIndex((t) => t > v) - 1;
+  return (i + (v - G_TICKS[i]) / (G_TICKS[i + 1] - G_TICKS[i])) * G_SEG;
+}
+
+const reducedMotion = () =>
+  typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const fmtMbps = (v) => (v >= 100 ? v.toFixed(1) : v.toFixed(2));
+
 const Speedometer = ({ mbps, phase, label }) => {
-  const [angle, setAngle] = useState(0);
-  const target = useRef(0), current = useRef(0), vel = useRef(0), raf = useRef(0);
+  const uid = useId().replace(/:/g, "");
+  const angleGoal = gaugeAngle(mbps ?? 0);
+  const valueGoal = mbps != null && mbps > 0 ? mbps : 0;
+  const [view, setView] = useState({ a: 0, v: 0 });
+  const sim = useRef({ a: 0, vel: 0, v: 0, last: 0, raf: 0 });
+  const goal = useRef({ a: angleGoal, v: valueGoal });
+  goal.current = { a: angleGoal, v: valueGoal };
 
-  const gaugeAngle = (mbps) => {
-    if (!mbps || mbps <= 0) return 0;
-    const log = Math.log10(Math.max(0.1, Math.min(1000, mbps)));
-    return (log + 1) * 80;
-  };
-
-  target.current = gaugeAngle(mbps ?? 0);
-
+  /* the loop only runs while the needle is moving — it stops once settled and
+     restarts (keeping its velocity) whenever a new sample arrives */
   useEffect(() => {
-    const prefersReducedMotion = () =>
-      typeof matchMedia !== "undefined" &&
-      matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (prefersReducedMotion()) {
-      setAngle(target.current);
+    const s = sim.current;
+    if (reducedMotion()) {
+      s.a = angleGoal; s.v = valueGoal; s.vel = 0;
+      setView({ a: angleGoal, v: valueGoal });
       return;
     }
-
-    const tick = () => {
-      const k = 0.012, damp = 0.86;
-      vel.current = (vel.current + (target.current - current.current) * k) * damp;
-      current.current += vel.current;
-      setAngle(current.current);
-      raf.current = requestAnimationFrame(tick);
+    s.last = 0;
+    const step = (now) => {
+      const dt = s.last ? Math.min(0.05, (now - s.last) / 1000) : 1 / 60;
+      s.last = now;
+      const g = goal.current;
+      /* near-critically damped (ζ≈0.85): snappy like a real test needle, only a hint of settle */
+      const w = 10, z = 0.85;
+      s.vel += (w * w * (g.a - s.a) - 2 * z * w * s.vel) * dt;
+      s.a += s.vel * dt;
+      /* readout eases without overshoot so the number never shows a value that wasn't measured */
+      s.v += (g.v - s.v) * (1 - Math.exp(-dt / 0.14));
+      const settled = Math.abs(g.a - s.a) < 0.05 && Math.abs(s.vel) < 0.05 && Math.abs(g.v - s.v) < 0.002;
+      if (settled) { s.a = g.a; s.vel = 0; s.v = g.v; }
+      setView({ a: s.a, v: s.v });
+      s.raf = settled ? 0 : requestAnimationFrame(step);
     };
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, []);
+    s.raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(s.raf);
+  }, [angleGoal, valueGoal]);
 
-  const shown = angle;
-  const col = phase === "up" ? "var(--warn, #f59e0b)" : "var(--teal, #2dd4bf)";
-  const cx = 130, cy = 130, r = 104;
-
-  const arc = (deg) => {
-    const a0 = (150 * Math.PI) / 180;
-    const a1 = ((150 + Math.max(0.01, deg)) * Math.PI) / 180;
-    const large = deg > 180 ? 1 : 0;
-    return `M ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A ${r} ${r} 0 ${large} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)}`;
+  const shown = Math.min(G_SWEEP, Math.max(0, view.a));
+  const up = phase === "up";
+  const cx = 150, cy = 150, r = 120, tw = 26, rin = r - tw / 2;   // track centre radius / width / inner edge
+  const pt = (deg, rad) => {
+    const a = ((G_START + deg) * Math.PI) / 180;
+    return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
   };
-
-  const ticks = [0.1, 1, 5, 10, 25, 50, 100, 250, 500, 1000];
+  const arc = (deg, rad) => {
+    const [x0, y0] = pt(0, rad), [x1, y1] = pt(Math.max(0.01, deg), rad);
+    return `M ${x0} ${y0} A ${rad} ${rad} 0 ${deg > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+  };
+  const [sx0, sy0] = pt(0, rin), [sx1, sy1] = pt(Math.max(0.01, shown), rin);
+  const sweep = `M ${cx} ${cy} L ${sx0} ${sy0} A ${rin} ${rin} 0 ${shown > 180 ? 1 : 0} 1 ${sx1} ${sy1} Z`;
 
   return (
-    <div className="spd-wrap" role="img" aria-label={`${label}: ${mbps == null ? "waiting for samples" : `${mbps.toFixed(1)} megabits per second`}`}>
-      <svg viewBox="0 0 260 200" className="spd-svg" style={{ maxWidth: "100%", height: "auto" }}>
-        <path d={arc(240)} fill="none" stroke="var(--line2)" strokeWidth="12" strokeLinecap="round" />
-        <path d={arc(Math.max(0.5, shown))} fill="none" stroke={col} strokeWidth="12" strokeLinecap="round" />
-        {ticks.map((v) => {
-          const a = ((150 + gaugeAngle(v)) * Math.PI) / 180;
-          return <text key={v} x={cx + (r - 24) * Math.cos(a)} y={cy + (r - 24) * Math.sin(a)}
-            textAnchor="middle" dominantBaseline="middle" className="spd-tick" style={{ fontSize: 11, fill: "var(--text2)" }}>
-            {v >= 1 ? v : ""}
-          </text>;
+    <div className={`spd-wrap ${up ? "up" : "down"}`} role="img"
+      aria-label={`${label}: ${mbps == null ? "unavailable" : `${mbps.toFixed(1)} megabits per second`}`}>
+      {/* viewBox covers the full arc incl. stroke (y 17…244), every label and the readout */}
+      <svg viewBox="0 10 300 240" className="spd-svg">
+        <defs>
+          <linearGradient id={`${uid}f`} gradientUnits="userSpaceOnUse" x1="40" y1="250" x2="260" y2="20">
+            <stop offset="0" className="spd-ga" /><stop offset="1" className="spd-gb" />
+          </linearGradient>
+          <radialGradient id={`${uid}s`} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={rin}>
+            <stop offset="0.45" className="spd-gb" stopOpacity="0" />
+            <stop offset="1" className="spd-gb" stopOpacity="0.22" />
+          </radialGradient>
+          {/* defined in the needle's own (rotated) space: transparent at the hub, solid at the tip */}
+          <linearGradient id={`${uid}n`} gradientUnits="userSpaceOnUse" x1={cx + 30} y1={cy} x2={cx + rin - 8} y2={cy}>
+            <stop offset="0" className="spd-nd" stopOpacity="0" />
+            <stop offset="1" className="spd-nd" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <path d={arc(G_SWEEP, r)} className="spd-track" fill="none" strokeWidth={tw} />
+        {view.a > 0.2 && <path d={sweep} fill={`url(#${uid}s)`} />}
+        <path d={arc(Math.max(0.3, shown), r)} className="spd-fill" fill="none" strokeWidth={tw} stroke={`url(#${uid}f)`} />
+        {G_TICKS.map((v, i) => {
+          const [tx, ty] = pt(i * G_SEG, rin - 20);
+          const on = view.v > 0 && i * G_SEG <= shown + 0.5;
+          return (
+            <text key={v} x={tx} y={ty} textAnchor="middle" dominantBaseline="central" className={`spd-tick${on ? " on" : ""}`}>{v}</text>
+          );
         })}
-        <g transform={`rotate(${150 + shown} ${cx} ${cy})`}>
-          <line x1={cx} y1={cy} x2={cx + r - 14} y2={cy} stroke={col} strokeWidth="3" strokeLinecap="round" />
-          <circle cx={cx} cy={cy} r="7" fill={col} />
+        <g transform={`rotate(${G_START + shown} ${cx} ${cy})`}>
+          <polygon fill={`url(#${uid}n)`}
+            points={`${cx + 30},${cy - 1.5} ${cx + rin - 8},${cy - 6} ${cx + rin - 8},${cy + 6} ${cx + 30},${cy + 1.5}`} />
         </g>
+        <text x={cx} y={cy + 32} textAnchor="middle" dominantBaseline="central" className="spd-num">
+          {mbps == null ? "—" : fmtMbps(view.v)}
+        </text>
       </svg>
-      <div className="spd-read" aria-hidden="true" style={{ textAlign: "center", marginTop: 8, fontSize: 14 }}>
-        <b style={{ color: col, fontSize: 20 }}>{mbps != null && mbps > 0 ? mbps.toFixed(1) : "—"}</b>
-        <span style={{ display: "block", fontSize: 12, color: "var(--text2)" }}>Mbps · {label}</span>
+      <div className="spd-read" aria-hidden="true">
+        <svg viewBox="0 0 16 16" className="spd-ico">
+          <circle cx="8" cy="8" r="7" fill="none" strokeWidth="1.4" />
+          <path d={up ? "M8 11.5V4.5M5 7.5l3-3 3 3" : "M8 4.5v7M5 8.5l3 3 3-3"} fill="none" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>Mbps · {label}</span>
       </div>
     </div>
   );
@@ -109,30 +155,59 @@ function LiveGraph({ series, color, label }) {
    IP CLASSIFICATION — Dynamic vs Static Detection
    ──────────────────────────────────────────────────────────────────────────── */
 
+/* Observations are stored as a one-way fingerprint of the address (never the IP
+   itself), so the page's "isn't stored" promise holds while visits stay comparable. */
+const IP_OBS_KEY = "td-speed-ip-obs-v2";
+const IP_OBS_LEGACY_KEY = "td-speed-ip-obs";
+
+function ipFingerprint(ip) {
+  let h = 0x811c9dc5;                                 // FNV-1a 32-bit
+  for (let i = 0; i < ip.length; i++) { h ^= ip.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+function loadIpObservations() {
+  try {
+    const cur = JSON.parse(localStorage.getItem(IP_OBS_KEY));
+    if (Array.isArray(cur)) return cur;
+    /* one-time migration from the raw-IP format: fingerprint, keep history, drop the raw copy */
+    const legacy = JSON.parse(localStorage.getItem(IP_OBS_LEGACY_KEY)) || [];
+    const migrated = legacy.filter((o) => o && o.ip && o.iso).map((o) => ({ h: ipFingerprint(o.ip), iso: o.iso }));
+    localStorage.setItem(IP_OBS_KEY, JSON.stringify(migrated));
+    localStorage.removeItem(IP_OBS_LEGACY_KEY);
+    return migrated;
+  } catch { return []; }
+}
+
+/* one entry per address per hour — reloads and StrictMode double-mounts shouldn't count as evidence */
+function recordIpObservation(obs, ip) {
+  const h = ipFingerprint(ip), now = Date.now();
+  if (obs[0] && obs[0].h === h && now - new Date(obs[0].iso).getTime() < 3600000) return obs;
+  return [{ h, iso: new Date(now).toISOString() }, ...obs].slice(0, 100);
+}
+
+/** Static vs dynamic from this device's own history — a browser can't ask the ISP,
+    so it only ever reports what the evidence supports. Always returns a valid state. */
 function classifyIp(currentIp, observations = []) {
-  if (!currentIp) return {
-    state: "Unknown",
-    detail: "No public IP was detected in this session."
-  };
-  const seen = observations.filter((o) => o && o.ip);
-  if (seen.length < 2) return {
-    state: "Cannot be determined automatically",
-    detail: "Static versus dynamic addressing usually cannot be determined reliably from a single browser session.",
-  };
-  const distinct = new Set(seen.map((o) => o.ip));
+  if (!currentIp) return { state: "Unknown", detail: "No public IP was detected in this session." };
+  const seen = observations.filter((o) => o && o.h && o.iso);
+  const distinct = new Set([ipFingerprint(currentIp), ...seen.map((o) => o.h)]);
   if (distinct.size > 1) return {
-    state: "Dynamic (observed)",
-    detail: `This device has observed ${distinct.size} different public addresses across ${seen.length} recorded tests — the address changes over time.`,
+    state: "Likely dynamic",
+    detail: `This device has seen ${distinct.size} different public addresses over time.`,
   };
-  const first = new Date(seen[seen.length - 1].iso), last = new Date(seen[0].iso);
-  const days = Math.max(0, (last - first) / 86400000);
+  if (seen.length < 2) return {
+    state: "Unknown",
+    detail: "Not enough history yet — revisit over a few days to compare addresses.",
+  };
+  const days = (Date.now() - new Date(seen[seen.length - 1].iso).getTime()) / 86400000;
   if (days >= 7) return {
-    state: "Possibly static",
-    detail: `The same address has been observed for ${Math.round(days)} days on this device. Long-lease dynamic addresses can look identical — only your ISP can confirm a static assignment.`,
+    state: "Likely static",
+    detail: `Same address for ${Math.round(days)} days. Only your ISP can confirm a static assignment.`,
   };
   return {
     state: "Likely dynamic",
-    detail: "The address has been stable so far, but the observation window is under a week — most consumer connections use dynamic addressing.",
+    detail: "Unchanged so far, but observed for under a week — most consumer connections are dynamic.",
   };
 }
 
@@ -186,9 +261,7 @@ export default function SpeedTool({ notify }) {
   const [history, setHistory] = useState(loadHistory);
   const [downSamples, setDownSamples] = useState([]);
   const [upSamples, setUpSamples] = useState([]);
-  const [ipObservations, setIpObservations] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("td-speed-ip-obs")) || []; } catch { return []; }
-  });
+  const [ipObservations, setIpObservations] = useState(loadIpObservations);
   const abortRef = useRef(null);
   const sampleIndexRef = useRef({ down: 0, up: 0 });
   const currentPhaseRef = useRef(null);
@@ -202,9 +275,9 @@ export default function SpeedTool({ notify }) {
         setMeta(m);
         if (m?.ip) {
           setIpObservations((obs) => {
-            const newObs = [{ ip: m.ip, iso: new Date().toISOString() }, ...obs.slice(0, 99)];
-            try { localStorage.setItem("td-speed-ip-obs", JSON.stringify(newObs)); } catch {}
-            return newObs;
+            const next = recordIpObservation(obs, m.ip);
+            if (next !== obs) { try { localStorage.setItem(IP_OBS_KEY, JSON.stringify(next)); } catch { /* private mode */ } }
+            return next;
           });
         }
       }
@@ -281,15 +354,10 @@ export default function SpeedTool({ notify }) {
 
           {(running || stage === "calc") && (
             <div className="st-livebox" style={{ marginTop: 16, minHeight: 140 }}>
-              {stage === "down" && (
+              {/* one gauge instance for both phases: on down → up the needle sweeps back and re-colours instead of remounting */}
+              {(stage === "down" || stage === "up") && (
                 <>
-                  <Speedometer mbps={live} phase="down" label="Download" />
-                  <div className="st-bar" style={{ marginTop: 12 }}><i style={{ width: `${progressWidth}%` }} /></div>
-                </>
-              )}
-              {stage === "up" && (
-                <>
-                  <Speedometer mbps={live} phase="up" label="Upload" />
+                  <Speedometer mbps={live} phase={stage} label={stage === "up" ? "Upload" : "Download"} />
                   <div className="st-bar" style={{ marginTop: 12 }}><i style={{ width: `${progressWidth}%` }} /></div>
                 </>
               )}
@@ -345,7 +413,7 @@ export default function SpeedTool({ notify }) {
                 <div className="st-m"><span>Packet loss</span>
                   {res.loss != null
                     ? <b title={`Downstream estimate from the edge server's TCP counters: ${res.lossDetail?.lost ?? 0} lost + ${res.lossDetail?.retrans ?? 0} retransmitted of ${res.lossDetail?.sent ?? 0} packets sent.`}>{res.loss === 0 ? "0%" : res.loss < 0.01 ? "<0.01%" : `${res.loss}%`}</b>
-                    : <b title="This server doesn't expose TCP-level counters via Server-Timing cfL4 headers, so packet loss can't be measured. Only Cloudflare edge servers report their TCP retransmission counters.">Unavailable</b>}
+                    : <b title="This server doesn't expose TCP-level counters via Server-Timing cfL4 headers, so packet loss can't be measured. Only the global edge server reports its TCP retransmission counters.">Unavailable</b>}
                 </div>
               </div>
               {res.loadedDown != null && res.ping != null && res.loadedDown > res.ping * 3 && (
@@ -381,9 +449,9 @@ export default function SpeedTool({ notify }) {
               {kv("Operating system", detectOS())}
               {kv("Server location", meta?.serverLoc)}
               {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
-              {meta?.ip && (() => {
-                const ipClass = classifyIp(meta.ip, ipObservations);
-                return kv("IP type", ipClass.state);
+              {(() => {
+                const ipClass = classifyIp(meta?.ip, ipObservations);
+                return kv("IP type", <span title={ipClass.detail}>{ipClass.state}</span>);
               })()}
               {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
               {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}

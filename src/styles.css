@@ -494,11 +494,24 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .pillrow .btn.pri{flex:1 1 160px}
 
 /* ─── Speedometer gauge ─────────────────────────────────────────────────── */
-.spd-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
-.spd-svg{width:100%;max-width:240px;height:auto}
-.spd-tick{font-size:11px;font-weight:600;fill:var(--text2)}
-.spd-read{font-size:14px;color:var(--text2)}
-.spd-read b{font-size:20px;font-weight:700;display:block}
+/* gauge tokens — speedtest-style gradients per phase, tuned per theme */
+:root{--spd-track:#1E2740;--spd-needle:#FFFFFF;--spd-dl-a:#3A8DF0;--spd-dl-b:#7CF0E6;--spd-ul-a:#FF7A1A;--spd-ul-b:#FFD27A}
+.light{--spd-track:#EFE6DA;--spd-needle:#241A2E;--spd-dl-a:#1F6FD6;--spd-dl-b:#0FA99A;--spd-ul-a:#C2410C;--spd-ul-b:#E39A12}
+.spd-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.spd-wrap.down{--spd-a:var(--spd-dl-a);--spd-b:var(--spd-dl-b);--spd-ico:var(--teal)}
+.spd-wrap.up{--spd-a:var(--spd-ul-a);--spd-b:var(--spd-ul-b);--spd-ico:var(--warn)}
+.spd-svg{display:block;width:100%;max-width:300px;height:auto;overflow:visible}
+.spd-track{stroke:var(--spd-track)}
+.spd-fill{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--spd-b) 35%,transparent))}
+.spd-ga{stop-color:var(--spd-a);transition:stop-color .45s ease}
+.spd-gb{stop-color:var(--spd-b);transition:stop-color .45s ease}
+.spd-nd{stop-color:var(--spd-needle)}
+.spd-tick{font-family:var(--body);font-size:15px;font-weight:700;fill:var(--tx3);transition:fill .25s}
+.spd-tick.on{fill:var(--tx)}
+.spd-num{font-family:var(--disp);font-size:42px;font-weight:400;letter-spacing:-.02em;fill:var(--tx);font-variant-numeric:tabular-nums}
+.spd-read{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--tx2)}
+.spd-ico{width:15px;height:15px;flex-shrink:0;stroke:var(--spd-ico)}
+@media (prefers-reduced-motion: reduce){.spd-ga,.spd-gb,.spd-tick{transition:none}}
 
 /* ─── Live throughput graph ─────────────────────────────────────────────── */
 .spd-graph{margin-top:12px}
@@ -508,7 +521,6 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 @media (max-width:560px){
   .pill{min-height:38px}
   .btn{min-height:46px}
-  .spd-wrap{max-width:220px}
   .st-mgrid{grid-template-columns:1fr 1fr}
   .spd-tipbox{left:auto;right:0;transform:none}
 }

@@ -33,11 +33,11 @@ export const TOOLS = [
       ["Can I check multiple stores at once?", "Currently the tool checks one URL at a time. Enter the domain and wait for the result, then check another if needed."],
     ] },
   { id: "speed", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
-    blurb: "Measure ping, jitter, download and upload speed from your browser against Cloudflare's public edge — no redirects, no app. A full run transfers roughly 20–35 MB.",
+    blurb: "Measure ping, jitter, download and upload speed from your browser against a global edge network — no redirects, no app. A full run transfers roughly 20–35 MB.",
     faqs: [
       ["How much data does a speed test use?", "A full run transfers roughly 20–35 MB. There's also a demo run that uses no data."],
       ["What is a good ping and download speed?", "Under 60 ms ping suits gaming; 25 Mbps download handles 4K streaming; 20 Mbps down and 5 up covers most work-from-home needs."],
-      ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against Cloudflare's endpoints."],
+      ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against the live measurement endpoints."],
     ] },
   { id: "ip", icon: "🌐", c: "#8B5CF6", name: "My IP & IPv6 Test", desc: "Public IPv4/IPv6, ISP, and honest IPv6 guidance with enable steps.", pv: "packets",
     blurb: "See your public IPv4 and IPv6 addresses, ISP, and browser details, with honest guidance and step-by-step instructions for enabling IPv6 on Android, iPhone, Windows, macOS and routers.",

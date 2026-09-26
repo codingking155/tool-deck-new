@@ -14,7 +14,7 @@ const COLO_CITY = { BLR: "Bengaluru", MAA: "Chennai", BOM: "Mumbai", DEL: "New D
 
 export function availableServers() {
   const list = [{
-    id: "cf", name: "Cloudflare edge (nearest city)",
+    id: "cf", name: "Global edge (nearest city)",
     ping: "https://speed.cloudflare.com/__down?bytes=0",
     down: (b) => `https://speed.cloudflare.com/__down?bytes=${b}`,
     up: "https://speed.cloudflare.com/__up",
