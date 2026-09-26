@@ -187,7 +187,7 @@ canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none;will-chang
 .bcard .open{margin-top:14px;color:var(--cc,var(--pri2));font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transform:translateZ(30px)}
 /* each tool's own hue is legible on the near-black dark panel, but several fall
    below 4.5:1 on the light panel — darken toward black there, per-hue */
-.light .bcard .open{color:color-mix(in srgb, var(--cc,var(--pri2)) 58%, #000)}
+.light .bcard .open{color:color-mix(in srgb, var(--cc,var(--pri2)) 20%, #000)}
 .bcard .open i{transition:transform .2s;font-style:normal}
 .bcard:hover .open i{transform:translateX(4px)}
 .preview{position:absolute;right:16px;top:16px;width:120px;height:74px;border-radius:12px;border:1px solid var(--line2);
