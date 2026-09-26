@@ -100,7 +100,7 @@ function LiveGraph({ series, color, label }) {
         aria-label={`${label} throughput over time, peaking at ${maxM.toFixed(1)} megabits per second`}>
         <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
       </svg>
-      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>peak {maxM.toFixed(1)} Mbps</span>
+      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>{label} · peak {maxM.toFixed(1)} Mbps</span>
     </div>
   );
 }
