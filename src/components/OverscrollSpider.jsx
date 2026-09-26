@@ -66,6 +66,8 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
         {/* body */}
         <ellipse cx="30" cy="74" rx="6.5" ry="6" className="osp-body" />
         <ellipse cx="30" cy="90" rx="10" ry="13" className="osp-body" />
+        <ellipse cx="26.6" cy="85" rx="2.8" ry="4.8" className="osp-sheen" />
+        <path d="M30 84 L33.4 90 L30 96 L26.6 90 Z" className="osp-mark" />
         {/* eyes */}
         <circle cx="26.5" cy="73" r="1.9" className="osp-eye" />
         <circle cx="33.5" cy="73" r="1.9" className="osp-eye" />
@@ -124,18 +126,28 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
           right: 0;
           pointer-events: none;
           --osp-ink: rgba(30, 27, 24, 0.75);
+          --osp-body: rgba(30, 27, 24, 0.8);
+          --osp-rim: transparent;
+          --osp-sheen: rgba(255, 255, 255, 0.16);
+          --osp-mark: #EA6A15;
           --osp-eye: #ffb02e;
           background: #faf6f2;
         }
         .osp-dark .osp-strip {
-          --osp-ink: rgba(226, 232, 240, 0.85);
+          --osp-ink: #A9B6CC;
+          --osp-body: #1A2135;
+          --osp-rim: #C3CEE0;
+          --osp-sheen: rgba(195, 206, 224, 0.22);
+          --osp-mark: #FF8A2A;
           --osp-eye: #7ef0c2;
           background: #0d1220;
         }
         .osp-bot { transform: scaleY(-1); }
 
         .osp-line  { stroke: var(--osp-ink); }
-        .osp-body  { fill: var(--osp-ink); }
+        .osp-body  { fill: var(--osp-body); stroke: var(--osp-rim); stroke-width: 1; }
+        .osp-sheen { fill: var(--osp-sheen); }
+        .osp-mark  { fill: var(--osp-mark); opacity: 0.9; }
         .osp-eye   { fill: var(--osp-eye); }
 
         .osp-web {

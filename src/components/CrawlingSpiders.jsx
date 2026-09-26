@@ -39,10 +39,15 @@ function SpiderSvg() {
           <path key={l.key} d={l.d} className={`cs-leg cs-${l.phase}`} style={{ transformOrigin: `${l.hx}px ${l.hy}px` }} />
         ))}
       </g>
-      <ellipse cx="14" cy="20" rx="7" ry="5.5" className="cs-ink" />
-      <ellipse cx="23" cy="20" rx="4.2" ry="3.6" className="cs-ink" />
-      <circle cx="26.4" cy="18.9" r="0.8" className="cs-eye" />
-      <circle cx="26.4" cy="21.1" r="0.8" className="cs-eye" />
+      <ellipse cx="14" cy="20" rx="7" ry="5.5" className="cs-body" />
+      <ellipse cx="23" cy="20" rx="4.2" ry="3.6" className="cs-body" />
+      {/* sheen + back marking give the body some form instead of a flat blob */}
+      <ellipse cx="12.2" cy="18.1" rx="3.2" ry="1.5" className="cs-sheen" />
+      <path d="M10.4 20 L13.2 18.5 L16 20 L13.2 21.5 Z" className="cs-mark" />
+      <circle cx="26.4" cy="18.9" r="1.9" className="cs-eyeglow" />
+      <circle cx="26.4" cy="21.1" r="1.9" className="cs-eyeglow" />
+      <circle cx="26.4" cy="18.9" r="0.85" className="cs-eye" />
+      <circle cx="26.4" cy="21.1" r="0.85" className="cs-eye" />
     </svg>
   );
 }
@@ -206,11 +211,23 @@ export default function CrawlingSpiders({ theme, reduced = false, zIndex = 40 })
           pointer-events: none;
           overflow: hidden;
           --cs-ink: rgba(36, 26, 46, 0.82);
+          --cs-body: rgba(36, 26, 46, 0.88);
+          --cs-rim: transparent;
+          --cs-sheen: rgba(255, 255, 255, 0.16);
+          --cs-mark: #EA6A15;
           --cs-eye: #ffb02e;
+          --cs-halo: none;
         }
+        /* dark mode: a glossy near-black body lit by a cool rim, slate legs,
+           glowing eyes and a faint halo so it separates from the dark page */
         .cs-layer.cs-dark {
-          --cs-ink: rgba(226, 232, 240, 0.78);
-          --cs-eye: #7ef0c2;
+          --cs-ink: #A9B6CC;
+          --cs-body: #1A2135;
+          --cs-rim: #C3CEE0;
+          --cs-sheen: rgba(195, 206, 224, 0.22);
+          --cs-mark: #FF8A2A;
+          --cs-eye: #7EF0C2;
+          --cs-halo: drop-shadow(0 0 3px rgba(148, 170, 205, 0.35)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
         }
         .cs-spider {
           display: none;
@@ -225,10 +242,14 @@ export default function CrawlingSpiders({ theme, reduced = false, zIndex = 40 })
           touch-action: none;
           --gait: 0.14s;
         }
-        .cs-spider svg { width: 100%; height: 100%; display: block; overflow: visible; }
-        .cs-ink { fill: var(--cs-ink); }
+        .cs-spider svg { width: 100%; height: 100%; display: block; overflow: visible; filter: var(--cs-halo); }
         .cs-ink-stroke { stroke: var(--cs-ink); }
+        .cs-body { fill: var(--cs-body); stroke: var(--cs-rim); stroke-width: 0.7; }
+        .cs-sheen { fill: var(--cs-sheen); }
+        .cs-mark { fill: var(--cs-mark); opacity: 0.9; }
         .cs-eye { fill: var(--cs-eye); }
+        .cs-eyeglow { fill: var(--cs-eye); opacity: 0; }
+        .cs-dark .cs-eyeglow { opacity: 0.28; }
 
         .cs-leg {
           transform-box: view-box;

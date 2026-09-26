@@ -140,7 +140,7 @@ export default function CornerWebs({
                 opacity="0.7"
               />
               <g className="cw-drop">
-                <g stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                <g className="cw-sp-leg" strokeWidth="1.4" strokeLinecap="round">
                   <g className="cw-legs cw-legs-l">
                     <path d="M18 74 C10 70 7 76 4 84" />
                     <path d="M18 78 C9 78 5 84 3 92" />
@@ -154,8 +154,12 @@ export default function CornerWebs({
                     <path d="M22 86 C29 92 29 97 30 103" />
                   </g>
                 </g>
-                <ellipse cx="20" cy="72" rx="4.5" ry="4" fill="currentColor" />
-                <ellipse cx="20" cy="84" rx="7" ry="9" fill="currentColor" />
+                <ellipse cx="20" cy="72" rx="4.5" ry="4" className="cw-sp-body" />
+                <ellipse cx="20" cy="84" rx="7" ry="9" className="cw-sp-body" />
+                <ellipse cx="17.6" cy="80.5" rx="2" ry="3.4" className="cw-sp-sheen" />
+                <path d="M20 79.5 L22.4 84 L20 88.5 L17.6 84 Z" className="cw-sp-mark" />
+                <circle cx="18.4" cy="71.4" r="0.9" className="cw-sp-eye" />
+                <circle cx="21.6" cy="71.4" r="0.9" className="cw-sp-eye" />
               </g>
             </g>
           </svg>
@@ -170,12 +174,33 @@ export default function CornerWebs({
           overflow: hidden;
           --w-top: 0;
           --cw-ink: rgba(15, 23, 42, 0.42);
+          --cw-sp-leg: rgba(15, 23, 42, 0.7);
+          --cw-sp-body: rgba(15, 23, 42, 0.8);
+          --cw-sp-rim: transparent;
+          --cw-sp-sheen: rgba(255, 255, 255, 0.16);
+          --cw-sp-mark: #EA6A15;
+          --cw-sp-eye: #ffb02e;
+          --cw-sp-halo: none;
         }
         .cw-layer.cw-dark,
         .dark .cw-layer,
         [data-theme="dark"] .cw-layer {
           --cw-ink: rgba(226, 232, 240, 0.5);
+          /* same dark-mode spider as the crawlers: rim-lit body, slate legs, glowing eyes */
+          --cw-sp-leg: #A9B6CC;
+          --cw-sp-body: #1A2135;
+          --cw-sp-rim: #C3CEE0;
+          --cw-sp-sheen: rgba(195, 206, 224, 0.22);
+          --cw-sp-mark: #FF8A2A;
+          --cw-sp-eye: #7EF0C2;
+          --cw-sp-halo: drop-shadow(0 0 3px rgba(148, 170, 205, 0.35)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
         }
+        .cw-sp-leg   { stroke: var(--cw-sp-leg); }
+        .cw-sp-body  { fill: var(--cw-sp-body); stroke: var(--cw-sp-rim); stroke-width: 0.7; }
+        .cw-sp-sheen { fill: var(--cw-sp-sheen); }
+        .cw-sp-mark  { fill: var(--cw-sp-mark); opacity: 0.9; }
+        .cw-sp-eye   { fill: var(--cw-sp-eye); }
+        .cw-spider   { filter: var(--cw-sp-halo); }
         .cw {
           position: absolute;
           width: clamp(120px, 24vw, var(--cw-size));
