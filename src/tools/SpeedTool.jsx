@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import {
   availableServers, runFullTest, fetchMeta,
   compareRuns, qualityLabels,
@@ -8,7 +8,7 @@ import {
    SPEEDOMETER — SVG needle driven by rAF spring physics (critically damped)
    ──────────────────────────────────────────────────────────────────────────── */
 
-function Speedometer({ mbps, phase, label }) {
+const Speedometer = ({ mbps, phase, label }) => {
   const [angle, setAngle] = useState(0);
   const target = useRef(0), current = useRef(0), vel = useRef(0), raf = useRef(0);
 
@@ -77,7 +77,7 @@ function Speedometer({ mbps, phase, label }) {
       </div>
     </div>
   );
-}
+};
 
 /* ────────────────────────────────────────────────────────────────────────────
    LIVE THROUGHPUT GRAPH — Real-time SVG polyline from timestamped samples
@@ -279,24 +279,35 @@ export default function SpeedTool({ notify }) {
             {STAGE_TEXT[stage]}{pickedName && running ? ` · ${pickedName}` : ""}
           </div>
 
-          {(running || stage === "done") && (stage === "down" || stage === "up" || stage === "calc") && (
-            <div className="st-livebox" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                {stage === "down" && <Speedometer mbps={live || res?.down} phase="down" label="Download" />}
-                {stage === "up" && <Speedometer mbps={live || res?.up} phase="up" label="Upload" />}
-                {stage === "calc" && (res?.down || res?.up) && (
-                  <div style={{ display: "flex", gap: 16 }}>
-                    <Speedometer mbps={res.down} phase="down" label="Download" />
-                    <Speedometer mbps={res.up} phase="up" label="Upload" />
-                  </div>
-                )}
-                {running && (
-                  <div style={{ flex: 1 }}>
+          {(running || stage === "calc") && (
+            <div className="st-livebox" style={{ marginTop: 16, minHeight: 140 }}>
+              {stage === "down" && (
+                <>
+                  <Speedometer mbps={live} phase="down" label="Download" />
+                  <div style={{ marginTop: 12 }}>
                     <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
                     <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
                   </div>
-                )}
-              </div>
+                </>
+              )}
+              {stage === "up" && (
+                <>
+                  <Speedometer mbps={live} phase="up" label="Upload" />
+                  <div style={{ marginTop: 12 }}>
+                    <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
+                    <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
+                  </div>
+                </>
+              )}
+              {stage === "calc" && (
+                <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+                  <Speedometer mbps={res?.down} phase="down" label="Download" />
+                  <Speedometer mbps={res?.up} phase="up" label="Upload" />
+                </div>
+              )}
+              {(stage === "idle" || stage === "finding" || stage === "preparing") && (
+                <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
+              )}
             </div>
           )}
 
