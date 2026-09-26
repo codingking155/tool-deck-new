@@ -4,6 +4,148 @@ import {
   compareRuns, qualityLabels,
 } from "../lib/speed.js";
 
+/* ────────────────────────────────────────────────────────────────────────────
+   SPEEDOMETER — SVG needle driven by rAF spring physics (critically damped)
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function Speedometer({ mbps, phase, label }) {
+  const [angle, setAngle] = useState(0);
+  const target = useRef(0), current = useRef(0), vel = useRef(0), raf = useRef(0);
+
+  const gaugeAngle = (mbps) => {
+    if (!mbps || mbps <= 0) return 0;
+    const log = Math.log10(Math.max(0.1, Math.min(1000, mbps)));
+    return (log + 1) * 80;
+  };
+
+  target.current = gaugeAngle(mbps ?? 0);
+
+  useEffect(() => {
+    const prefersReducedMotion = () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion()) {
+      setAngle(target.current);
+      return;
+    }
+
+    const tick = () => {
+      const k = 0.012, damp = 0.86;
+      vel.current = (vel.current + (target.current - current.current) * k) * damp;
+      current.current += vel.current;
+      setAngle(current.current);
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+
+  const shown = angle;
+  const col = phase === "up" ? "var(--warn, #f59e0b)" : "var(--teal, #2dd4bf)";
+  const cx = 130, cy = 130, r = 104;
+
+  const arc = (deg) => {
+    const a0 = (150 * Math.PI) / 180;
+    const a1 = ((150 + Math.max(0.01, deg)) * Math.PI) / 180;
+    const large = deg > 180 ? 1 : 0;
+    return `M ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A ${r} ${r} 0 ${large} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)}`;
+  };
+
+  const ticks = [0.1, 1, 5, 10, 25, 50, 100, 250, 500, 1000];
+
+  return (
+    <div className="spd-wrap" role="img" aria-label={`${label}: ${mbps == null ? "waiting for samples" : `${mbps.toFixed(1)} megabits per second`}`}>
+      <svg viewBox="0 0 260 200" className="spd-svg" style={{ maxWidth: "100%", height: "auto" }}>
+        <path d={arc(240)} fill="none" stroke="var(--line2)" strokeWidth="12" strokeLinecap="round" />
+        <path d={arc(Math.max(0.5, shown))} fill="none" stroke={col} strokeWidth="12" strokeLinecap="round" />
+        {ticks.map((v) => {
+          const a = ((150 + gaugeAngle(v)) * Math.PI) / 180;
+          return <text key={v} x={cx + (r - 24) * Math.cos(a)} y={cy + (r - 24) * Math.sin(a)}
+            textAnchor="middle" dominantBaseline="middle" className="spd-tick" style={{ fontSize: 11, fill: "var(--text2)" }}>
+            {v >= 1 ? v : ""}
+          </text>;
+        })}
+        <g transform={`rotate(${150 + shown} ${cx} ${cy})`}>
+          <line x1={cx} y1={cy} x2={cx + r - 14} y2={cy} stroke={col} strokeWidth="3" strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r="7" fill={col} />
+        </g>
+      </svg>
+      <div className="spd-read" aria-hidden="true" style={{ textAlign: "center", marginTop: 8, fontSize: 14 }}>
+        <b style={{ color: col, fontSize: 20 }}>{mbps != null && mbps > 0 ? mbps.toFixed(1) : "—"}</b>
+        <span style={{ display: "block", fontSize: 12, color: "var(--text2)" }}>Mbps · {label}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   LIVE THROUGHPUT GRAPH — Real-time SVG polyline from timestamped samples
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function LiveGraph({ series, color, label }) {
+  if (!series || series.length < 2) return null;
+
+  const w = 280, h = 56;
+  const maxT = series[series.length - 1].t || 1;
+  const maxM = Math.max(...series.map((s) => s.mbps), 1);
+
+  const pts = series
+    .map((s) => `${(s.t / maxT * w).toFixed(1)},${(h - 4 - (s.mbps / maxM) * (h - 10)).toFixed(1)}`)
+    .join(" ");
+
+  return (
+    <div className="spd-graph" style={{ marginTop: 12 }}>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" style={{ width: "100%", height: 60 }}
+        aria-label={`${label} throughput over time, peaking at ${maxM.toFixed(1)} megabits per second`}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      </svg>
+      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>{label} · peak {maxM.toFixed(1)} Mbps · {series.length} samples</span>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   IP CLASSIFICATION — Dynamic vs Static Detection
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function classifyIp(currentIp, observations = []) {
+  if (!currentIp) return {
+    state: "Unknown",
+    detail: "No public IP was detected in this session."
+  };
+  const seen = observations.filter((o) => o && o.ip);
+  if (seen.length < 2) return {
+    state: "Cannot be determined automatically",
+    detail: "Static versus dynamic addressing usually cannot be determined reliably from a single browser session.",
+  };
+  const distinct = new Set(seen.map((o) => o.ip));
+  if (distinct.size > 1) return {
+    state: "Dynamic (observed)",
+    detail: `This device has observed ${distinct.size} different public addresses across ${seen.length} recorded tests — the address changes over time.`,
+  };
+  const first = new Date(seen[seen.length - 1].iso), last = new Date(seen[0].iso);
+  const days = Math.max(0, (last - first) / 86400000);
+  if (days >= 7) return {
+    state: "Possibly static",
+    detail: `The same address has been observed for ${Math.round(days)} days on this device. Long-lease dynamic addresses can look identical — only your ISP can confirm a static assignment.`,
+  };
+  return {
+    state: "Likely dynamic",
+    detail: "The address has been stable so far, but the observation window is under a week — most consumer connections use dynamic addressing.",
+  };
+}
+
+function maskIp(ip) {
+  if (!ip) return null;
+  if (ip.includes(":")) {
+    const p = ip.split(":");
+    return p.slice(0, 3).join(":") + "::…";
+  }
+  const p = ip.split(".");
+  return p.length === 4 ? `${p[0]}.${p[1]}.${p[2]}.x` : ip;
+}
+
 const STAGE_TEXT = {
   ready: "Ready", finding: "Finding best server…", idle: "Measuring idle latency…",
   down: "Testing download…", up: "Testing upload…", calc: "Calculating results…",
@@ -42,13 +184,28 @@ export default function SpeedTool({ notify }) {
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
   const [history, setHistory] = useState(loadHistory);
+  const [samples, setSamples] = useState([]);
+  const [ipObservations, setIpObservations] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("td-speed-ip-obs")) || []; } catch { return []; }
+  });
   const abortRef = useRef(null);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
   /* connection panel loads independently of the test (TRAI pattern) */
   useEffect(() => {
     let alive = true;
-    fetchMeta(servers[0]).then((m) => { if (alive) setMeta(m); });
+    fetchMeta(servers[0]).then((m) => {
+      if (alive) {
+        setMeta(m);
+        if (m?.ip) {
+          setIpObservations((obs) => {
+            const newObs = [{ ip: m.ip, iso: new Date().toISOString() }, ...obs.slice(0, 99)];
+            try { localStorage.setItem("td-speed-ip-obs", JSON.stringify(newObs)); } catch {}
+            return newObs;
+          });
+        }
+      }
+    });
     return () => { alive = false; };
   }, [servers]);
 
@@ -63,13 +220,17 @@ export default function SpeedTool({ notify }) {
 
   const start = useCallback(async () => {
     if (running) return;
-    setErr(""); setRes(null); setLive(0); setPickedName(null);
+    setErr(""); setRes(null); setLive(0); setPickedName(null); setSamples([]);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    let sampleIndex = 0;
     try {
       const r = await runFullTest(null, servers, (st, payload) => {
         if (st === "server") setPickedName(payload.name);
-        else if (st === "live") setLive(payload);
+        else if (st === "live") {
+          setLive(payload);
+          setSamples((prev) => [...prev, { t: sampleIndex++, mbps: payload }]);
+        }
         else if (st !== "idle_sample") { setStage(st); setLive(0); }
       }, ctrl.signal);
       setRes(r); setStage("done");
@@ -108,9 +269,15 @@ export default function SpeedTool({ notify }) {
           </div>
 
           {running && (
-            <div className="st-livebox" aria-hidden="true">
-              <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
-              <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
+            <div className="st-livebox" style={{ marginTop: 16 }}>
+              <div style={{ display: "flex", gap: 16 }}>
+                {stage === "down" && <Speedometer mbps={live} phase="down" label="Download" />}
+                {stage === "up" && <Speedometer mbps={live} phase="up" label="Upload" />}
+                <div style={{ flex: 1 }}>
+                  <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
+                  <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -133,10 +300,16 @@ export default function SpeedTool({ notify }) {
           {stage === "done" && res && (
             <>
               {res.partial && <div className="note w"><b>Partial result · </b>one stage didn't transfer enough data to report honestly — its value shows as Unavailable.</div>}
-              <div className="st-heroes">
-                <div className="st-hero"><span className="k">↓ Download</span><b>{res.down ?? "—"}</b><small>Mbps</small></div>
-                <div className="st-hero"><span className="k">↑ Upload</span><b>{res.up ?? "—"}</b><small>Mbps</small></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16, marginTop: 12 }}>
+                <Speedometer mbps={res.down} phase="down" label="Download" />
+                <Speedometer mbps={res.up} phase="up" label="Upload" />
               </div>
+              {samples.length > 2 && (
+                <>
+                  <LiveGraph series={samples.slice(0, samples.length / 2)} color="var(--teal, #2dd4bf)" label="Download samples" />
+                  <LiveGraph series={samples.slice(samples.length / 2)} color="var(--warn, #f59e0b)" label="Upload samples" />
+                </>
+              )}
               {delta && <div className="hint" style={{ textAlign: "center", marginTop: 2 }}>
                 vs last test: ↓ {delta.down > 0 ? "+" : ""}{delta.down ?? "—"} · ↑ {delta.up > 0 ? "+" : ""}{delta.up ?? "—"} · ping {delta.ping > 0 ? "+" : ""}{delta.ping ?? "—"} ms
               </div>}
@@ -183,9 +356,21 @@ export default function SpeedTool({ notify }) {
               {kv("Browser", detectBrowser())}
               {kv("Operating system", detectOS())}
               {kv("Server location", meta?.serverLoc)}
-              {kv("Your IP address", meta?.ip)}
+              {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
               {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
               {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}
+              {meta?.ip && (() => {
+                const ipClass = classifyIp(meta.ip, ipObservations);
+                return (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>
+                    <div className="k" style={{ fontSize: 12 }}>IP Address Type</div>
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{ipClass.state}</span>
+                      <div className="hint" style={{ marginTop: 4, fontSize: 12 }}>{ipClass.detail}</div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="hint" style={{ marginTop: 10 }}>
                 Your IP address is used only to answer this lookup (approximate location and network name). It isn't stored
                 by this page, and results stay on your device unless you copy or export them.

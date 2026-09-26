@@ -493,6 +493,17 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .pillrow .btn.pri{flex:1 1 160px}
 
+/* ─── Speedometer gauge ─────────────────────────────────────────────────── */
+.spd-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.spd-svg{width:100%;max-width:240px;height:auto}
+.spd-tick{font-size:11px;font-weight:600;fill:var(--text2)}
+.spd-read{font-size:14px;color:var(--text2)}
+.spd-read b{font-size:20px;font-weight:700;display:block}
+
+/* ─── Live throughput graph ─────────────────────────────────────────────── */
+.spd-graph{margin-top:12px}
+.spd-graph svg{width:100%;height:60px;border-radius:6px;background:var(--panel);border:1px solid var(--line2)}
+
 /* touch targets on phones — every interactive element ≥44px tall */
 @media (max-width:560px){
   .pill{min-height:38px}
