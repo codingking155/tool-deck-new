@@ -14,7 +14,7 @@ const COLO_CITY = { BLR: "Bengaluru", MAA: "Chennai", BOM: "Mumbai", DEL: "New D
 
 export function availableServers() {
   const list = [{
-    id: "cf", name: "Cloudflare edge (nearest city)",
+    id: "cf", name: "Global edge (nearest city)",
     ping: "https://speed.cloudflare.com/__down?bytes=0",
     down: (b) => `https://speed.cloudflare.com/__down?bytes=${b}`,
     up: "https://speed.cloudflare.com/__up",
@@ -42,6 +42,7 @@ async function probeOnce(url, signal, timeoutMs = 4000) {
     const t0 = performance.now();
     const r = await fetch(`${url}${url.includes("?") ? "&" : "?"}n=${Math.random()}`, { cache: "no-store", signal: ctrl.signal });
     await r.arrayBuffer();
+    if (!r.ok) return null;             // a 429/5xx is a failed probe, not a latency sample
     return performance.now() - t0;
   } catch {
     return null;
@@ -126,6 +127,12 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
       if (budget && !budget.take(size)) { done = true; break; }
       try {
         const r = await fetch(server.down(size), { cache: "no-store", signal });
+        if (!r.ok) {                    // error bodies are not throughput; back off instead of hammering
+          try { await r.body?.cancel(); } catch { /* closed */ }
+          await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300));
+          if (shouldStop()) done = true;
+          continue;
+        }
         /* cfL4 counters are cumulative per TCP connection and snapshotted at
            response-header time, so each request reports the retransmissions
            of everything that ran on that connection before it */
@@ -194,7 +201,9 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
       const p = payloads[Math.min(sizeIdx, payloads.length - 1)];
       if (budget && !budget.take(p.length)) { done = true; break; }
       try {
-        const r = await fetch(server.up(), { cache: "no-store", method: "POST", body: p, signal });
+        /* server.up is a plain URL (unlike .down, it isn't parameterized by size) */
+        const r = await fetch(server.up, { cache: "no-store", method: "POST", body: p, signal });
+        if (!r.ok) { await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300)); if (shouldStop()) done = true; continue; }
         samples.push({ t: performance.now(), bytes: p.length });
         onLive && onLive(windowMbps(samples, 3000));
         sizeIdx++;

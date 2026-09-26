@@ -37,6 +37,12 @@ export function partsFormatter(tz) {
   return f;
 }
 
+/** True when Intl accepts the zone id (guards ids arriving from URLs / old browsers). */
+export function isValidZone(tz) {
+  if (!tz || typeof tz !== "string") return false;
+  try { partsFormatter(tz); return true; } catch { return false; }
+}
+
 export function zoneParts(date, tz) {
   const m = {};
   for (const p of partsFormatter(tz).formatToParts(date)) if (p.type !== "literal") m[p.type] = p.value;

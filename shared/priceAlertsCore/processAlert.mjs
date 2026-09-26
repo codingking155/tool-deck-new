@@ -69,11 +69,12 @@ export async function processAlert(alert, deps) {
       last_error: firstError(results),
     };
   } else {
-    // Nothing delivered → stay active, record the failure, back off and retry.
+    // Nothing delivered → record the failure and back off. After MAX_ATTEMPTS
+    // the alert is expired so a permanently failing contact stops burning retries.
     retriesExhausted = !shouldRetry(attempt);
     patch = {
       last_checked_at: checkedAt,
-      status: "active",
+      status: retriesExhausted ? "expired" : "active",
       notification_status,
       attempts: attempt,
       last_error: firstError(results),

@@ -95,6 +95,7 @@ test("retries give up after MAX attempts", async () => {
   const r = await processAlert(makeAlert({ attempts: 4 }), deps(900, { email, whatsapp: wa }));
   assert.equal(r.patch.attempts, 5);
   assert.equal(r.retriesExhausted, true);
+  assert.equal(r.patch.status, "expired"); // never retried again
 });
 
 test("savings appear in the email payload", async () => {

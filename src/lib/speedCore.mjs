@@ -48,18 +48,22 @@ export function windowMbps(samples, windowMs = 2000) {
   return t0 >= end ? 0 : mbps(bytes, end - t0);
 }
 
-/** Final figure: exclude the warm-up fraction of wall time from the start. */
+/** Final figure: exclude the warm-up fraction of wall time from the start.
+    A sample's bytes arrived over the interval ending at its timestamp, so the
+    last excluded sample (not the first included one) is the correct time
+    origin — crediting an included sample's own bytes to a window starting at
+    its own timestamp overstates the rate, worst when samples are few and large
+    (as with upload's multi-MB chunks). Mirrors windowMbps' approach below. */
 export function finalMbps(samples, warmupFrac = 0.1) {
   if (samples.length < 2) return 0;
   const start = samples[0].t, end = samples[samples.length - 1].t;
   const cut = start + (end - start) * warmupFrac;
-  let bytes = 0, t0 = null;
+  let t0 = start, bytes = 0;
   for (const s of samples) {
-    if (s.t < cut) continue;
-    if (t0 == null) t0 = s.t;
+    if (s.t < cut) { t0 = s.t; continue; }
     bytes += s.bytes;
   }
-  if (t0 == null || t0 >= end) return 0;
+  if (t0 >= end) return 0;
   return mbps(bytes, end - t0);
 }
 

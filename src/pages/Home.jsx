@@ -21,7 +21,7 @@ export default function Home({ nav, reduced }) {
   const [q, setQ] = useState("");
   const [ri, setRi] = useState(0);
   useEffect(() => { const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, []);
-  const c1 = useCountUp(6), c2 = useCountUp(240), c3 = useCountUp(100);
+  const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(100);
   const list = TOOLS.filter((t) => (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
   const th = tiltHandlers(reduced);
   return (
@@ -50,7 +50,7 @@ export default function Home({ nav, reduced }) {
             <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}>{t.icon}</div>
             <h3>{t.name}</h3>
             <p>{t.desc}</p>
-            <span className="open" style={{ color: t.c }}>Open tool <i>→</i></span>
+            <span className="open" aria-hidden="true">Open tool <i>→</i></span>
           </button>
         ))}
         {list.length === 0 && <div className="empty" style={{ gridColumn: "1/-1" }}>No tool matches “{q}”.</div>}

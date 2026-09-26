@@ -1,5 +1,7 @@
 import { preflight, json, fail, log } from "../_shared/http.ts";
-import { analyzeShopify, applyHeaderSignals, applyProbeSignals } from "../../../shared/shopifyCore/detect.mjs";
+import { rateLimit, clientIp } from "../_shared/ratelimit.ts";
+import { analyzeShopify, applyHeaderSignals, applyProbeSignals, looksBlockedPage } from "../../../shared/shopifyCore/detect.mjs";
+import { safeFetch, assertFetchable, BlockedUrlError } from "../../../shared/net/safeFetch.mjs";
 
 // GET /shopify-check?url=example.com
 // Response shape is a superset of shopifyornot.in's /check API, so existing
@@ -18,18 +20,6 @@ const HEADER_SAMPLE_KEYS = [
 const cache = new Map<string, { at: number; body: unknown }>();
 const TTL = 10 * 60 * 1000;
 
-function isPrivateHost(host: string): boolean {
-  if (/^(localhost|.*\.local|.*\.internal)$/i.test(host)) return true;
-  // numeric IPv4 in private/reserved ranges
-  const m = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])];
-    if (a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return true;
-  }
-  if (host.includes(":")) return true; // raw IPv6 literals: reject outright
-  return false;
-}
-
 /* Live endpoint probes: /cart.js, /products.json and robots.txt exist on
    every Shopify storefront and answer with characteristic content. A page
    can fake MENTIONS of Shopify; it cannot fake the platform answering.
@@ -42,28 +32,18 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
   const probeHeaders: Record<string, string> = {};
   const get = async (path: string, cap: number): Promise<string | null> => {
     try {
-      const r = await fetch(origin + path, {
-        redirect: "follow", signal,
+      /* safeFetch re-validates the (post-redirect) origin and every hop, caps the body and
+         aborts on the shared deadline — never fetch(redirect:"follow") on user-derived URLs */
+      const r = await safeFetch(origin + path, {
+        maxBytes: cap, maxRedirects: 2, timeoutMs: 6_000,
         headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check", "Accept": "application/json, text/plain, */*" },
+        fetchImpl: (u: string, init: RequestInit) =>
+          fetch(u, { ...init, signal: init.signal ? AbortSignal.any([init.signal, signal]) : signal }),
       });
       if (r.ok) for (const k of HEADER_SAMPLE_KEYS) { const v = r.headers.get(k); if (v != null && probeHeaders[k] == null) probeHeaders[k] = v; }
       if (!r.ok) return null;
-      const reader = r.body?.getReader();
-      if (!reader) return null;
-      let got = 0; const parts: Uint8Array[] = [];
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        parts.push(value); got += value.length;
-        if (got > cap) { try { await reader.cancel(); } catch { /* closed */ } break; }
-      }
-      return new TextDecoder().decode(concat(parts, Math.min(got, cap)));
+      return r.text;
     } catch { return null; }
-  };
-  const concat = (parts: Uint8Array[], n: number) => {
-    const out = new Uint8Array(n); let o = 0;
-    for (const p of parts) { const take = Math.min(p.length, n - o); out.set(p.subarray(0, take), o); o += take; if (o >= n) break; }
-    return out;
   };
 
   const [cartRaw, prodRaw, robotsRaw] = await Promise.all([
@@ -100,6 +80,8 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
 Deno.serve(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   if (req.method !== "GET") return fail(405, "method_not_allowed", "Use GET with ?url=");
+  const rl = rateLimit(`shopify:${clientIp(req)}`, Number(Deno.env.get("SHOPIFY_RATE_LIMIT_MAX") ?? 30));
+  if (!rl.ok) return json({ error: { code: "rate_limited", message: "Too many checks — try again in a minute." } }, 429, { "Retry-After": String(rl.retryAfter ?? 60) });
 
   const raw = new URL(req.url).searchParams.get("url")?.trim() ?? "";
   if (!raw) return fail(400, "missing_url", "Pass ?url=example.com");
@@ -108,7 +90,14 @@ Deno.serve(async (req) => {
   try { target = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); }
   catch { return fail(400, "invalid_url", "That does not look like a valid URL."); }
   if (!/^https?:$/.test(target.protocol)) return fail(400, "invalid_url", "Only http(s) URLs are supported.");
-  if (isPrivateHost(target.hostname)) return fail(400, "blocked_host", "Private and internal hosts cannot be checked.");
+  // Literal + DNS-resolved range check (loopback, RFC1918, link-local/metadata, CGNAT, ULA…)
+  try { await assertFetchable(target); }
+  catch (e) {
+    const reason = e instanceof BlockedUrlError ? e.reason : "";
+    if (reason === "dns-no-answer") return fail(400, "unresolvable_host", "That hostname does not resolve.");
+    if (reason.startsWith("port-not-allowed")) return fail(400, "invalid_url", "Only ports 80 and 443 can be checked.");
+    return fail(400, "blocked_host", "Private and internal hosts cannot be checked.");
+  }
 
   const key = target.href;
   const hit = cache.get(key);
@@ -117,27 +106,30 @@ Deno.serve(async (req) => {
   }
 
   const t0 = performance.now();
-  let html = "", finalUrl = target.href;
+  let html = "", finalUrl = target.href, fetchStatus: number | null = null;
   const headers: Record<string, string> = {};
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12_000);
-    const r = await fetch(target.href, {
-      redirect: "follow",
-      signal: ctrl.signal,
+    // Walks redirects itself and re-validates every hop, so a 302 into private
+    // space is refused; body is capped so giant pages can't hurt us.
+    const r = await safeFetch(target.href, {
+      maxRedirects: 4, timeoutMs: 12_000, maxBytes: 1_500_000,
       headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check" },
     });
-    clearTimeout(timer);
-    finalUrl = r.url || finalUrl;
+    finalUrl = r.finalUrl || finalUrl;
+    fetchStatus = r.status;
     for (const k of HEADER_SAMPLE_KEYS) { const v = r.headers.get(k); if (v != null) headers[k] = v; }
-    // headers can decide on their own; body is capped so giant pages can't hurt us
-    html = (await r.text()).slice(0, 1_500_000);
-  } catch {
+    html = r.text;
+  } catch (e) {
+    if (e instanceof BlockedUrlError && /^(literal|resolved):/.test(e.reason)) {
+      return fail(400, "blocked_host", "That site redirects to a private or internal address and cannot be checked.");
+    }
     // Site unreachable — headers/body empty; URL-based evidence may still apply.
   }
   const elapsed = Math.round(performance.now() - t0);
 
-  const base = analyzeShopify(html, finalUrl);
+  // A challenge / rate-limit interstitial is "could not see the page", not "not Shopify".
+  const blocked = fetchStatus != null && (fetchStatus === 403 || fetchStatus === 429 || looksBlockedPage(html));
+  const base = analyzeShopify(blocked ? "" : html, finalUrl);
   const withHeaders = applyHeaderSignals(base, headers);
 
   /* live endpoint probes against the FINAL origin (post-redirect). These run
@@ -156,6 +148,10 @@ Deno.serve(async (req) => {
   } catch { /* probes are additive-only; failure changes nothing */ }
   const res = applyProbeSignals(withHeaders, probes);
 
+  // With nothing but a bot wall and no header/probe evidence the honest answer is "unknown".
+  if (blocked && res.evidence === "text" && res.confidence < 25) {
+    (res as any).verdict = "uncertain";
+  }
   const body = {
     input_url: raw,
     final_url: finalUrl,
@@ -171,6 +167,7 @@ Deno.serve(async (req) => {
     platform: res.platform ?? null,
     product_count: res.productCount ?? null,
     evidence: res.evidence,
+    page_blocked: blocked,
     probes,
     detected_signals: res.hits.map((h: { label: string }) => h.label),
     signals_detail: res.hits,

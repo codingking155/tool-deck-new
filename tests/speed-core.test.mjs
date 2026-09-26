@@ -42,6 +42,23 @@ test("finalMbps excludes the warm-up fraction", () => {
   assert.ok(v > 9.5, `warm-up should be excluded; got ${v}`);
 });
 
+test("finalMbps stays accurate with few, large samples (upload's multi-MB chunks)", () => {
+  // A constant-rate transfer split into few large chunks (as upload sends whole
+  // payloads per fetch, unlike download's many small stream reads) used to
+  // overstate the rate: crediting a sample's bytes to a window starting at its
+  // own timestamp shrinks the apparent duration for that chunk.
+  const trueMbps = 8;
+  const bytesPerMs = (trueMbps * 1e6) / 8 / 1000;
+  let t = 0;
+  const samples = [{ t: 0, bytes: 0 }];
+  for (const bytes of [2e6, 8e6, 8e6, 16e6, 16e6, 16e6, 16e6, 16e6]) {
+    t += bytes / bytesPerMs;
+    samples.push({ t, bytes });
+  }
+  const v = finalMbps(samples);
+  assert.ok(Math.abs(v - trueMbps) < 0.05, `expected ~${trueMbps}, got ${v}`);
+});
+
 test("summary text never fabricates: nulls become dashes, loss labelled honestly", () => {
   const txt = summaryText({ when: "2026-07-24 10:00", down: 92.4, up: null, ping: 12, jitter: 2, loadedDown: 40, loadedUp: null, loss: null, server: "Cloudflare · BLR" });
   assert.match(txt, /↑ —/);

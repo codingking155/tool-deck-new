@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   pad, DAYS, DAYS_FULL, USER_TZ,
-  zonedToUtc, localDateOf, dowOf,
+  zonedToUtc, localDateOf, dowOf, isValidZone,
   fmtUtc, fmtUtcDate, fmtLocal, fmtDur,
   buildWaitSchedule, getNextValidSendUtc, getDateTimeWarning,
 } from "../lib/time.js";
@@ -21,8 +21,8 @@ export default function UtcTool({ notify }) {
   const [amount, setAmount] = useState(() => P.get("a") || 24);
   const [unit, setUnit] = useState(() => (["minutes", "hours", "days"].includes(P.get("u")) ? P.get("u") : "hours"));
   const [reps, setReps] = useState(() => P.get("r") || 10);
-  const [tz1, setTz1] = useState(() => P.get("tz") || USER_TZ);
-  const [tz2, setTz2] = useState(() => P.get("tz2") || "");
+  const [tz1, setTz1] = useState(() => (isValidZone(P.get("tz")) ? P.get("tz") : USER_TZ));
+  const [tz2, setTz2] = useState(() => (isValidZone(P.get("tz2")) ? P.get("tz2") : ""));
   useEffect(() => {
     writeParams({ m: mode === "order" ? "order" : null, sd: startDate, st: startTime, a: amount, u: unit, r: reps, tz: tz1, tz2: tz2 || null });
   }, [mode, startDate, startTime, amount, unit, reps, tz1, tz2]);
@@ -45,7 +45,8 @@ export default function UtcTool({ notify }) {
     if (mode !== "order" || !oDate || !oTime || !sTime) return null;
     try {
       const orderUtc = zonedToUtc(oDate, oTime, oTz);
-      const { sendUtc, skippedDays } = getNextValidSendUtc(orderUtc, sTime, oTz, { skipWeekends: skipWk });
+      /* the send time is the customer's wall clock, so weekends must be judged in that zone too */
+      const { sendUtc, skippedDays } = getNextValidSendUtc(orderUtc, sTime, oTz, { skipWeekends: skipWk, weekendBasis: "local" });
       const warning = getDateTimeWarning(oDate, oTime, oTz, "The order time");
       return { orderUtc, sendUtc, skipped: skippedDays, waitMs: sendUtc - orderUtc, warning };
     } catch { return { error: true }; }

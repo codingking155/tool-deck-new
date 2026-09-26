@@ -10,7 +10,7 @@
   color-scheme: dark;
   --bg:#07090F;--bg2:#0B0F18;--panel:#101625;--panel2:#151D30;--line:#20293E;--line2:#182034;
   --grid-line: rgba(255, 255, 255, 0.04);
-  --tx:#EAEEF7;--tx2:#95A1B8;--tx3:#5D6B86;
+  --tx:#EAEEF7;--tx2:#95A1B8;--tx3:#7A88A3;
   --pri:#FF8A2A;--pri2:#FFB454;--pri-soft:rgba(255,138,42,.12);--pri-line:rgba(255,138,42,.4);
   --teal:#4DD6C8;--teal-soft:rgba(77,214,200,.1);--good:#5BD68A;--bad:#F26D6D;--warn:#F5C15C;
   --disp:'Space Grotesk',sans-serif;--mono:'IBM Plex Mono',monospace;--body:'Inter',sans-serif;
@@ -20,7 +20,7 @@
   color-scheme: light;
   --bg:#FBF7F1;--bg2:#FFFDFA;--panel:#FFFFFF;--panel2:#FBF4EC;--line:#E7DACB;--line2:#F0E7DB;
   --grid-line: rgba(0, 0, 0, 0.06);
-  --tx:#241A2E;--tx2:#584C69;--tx3:#877A96;--glass:rgba(255,255,255,.9);
+  --tx:#241A2E;--tx2:#584C69;--tx3:#6F6182;--glass:rgba(255,255,255,.9);
   --pri:#EA6A15;--pri2:#C24A03;--pri-soft:rgba(234,106,21,.1);--pri-line:rgba(234,106,21,.42);
   --teal:#0C8577;--teal-soft:rgba(12,133,119,.09);--good:#15803D;--bad:#D2312B;--warn:#B45309;
 }
@@ -36,7 +36,9 @@
 .light .glow{background:radial-gradient(circle,rgba(234,106,21,.09),transparent 65%)}
 .light .hero h2 em{background:linear-gradient(100deg,#F97316,#E11D74 42%,#7C3AED 72%,#0D9488);-webkit-background-clip:text;background-clip:text}
 .light .logomark{background:linear-gradient(135deg,#FFB454,#EA6A15);border-color:rgba(234,106,21,.5);box-shadow:0 8px 22px rgba(234,106,21,.38)}
-.light .btn.pri{color:#fff;box-shadow:0 10px 26px rgba(234,106,21,.36)}
+/* base .btn.pri's gradient runs var(--pri2)->var(--pri); --pri alone is only 3.2:1
+   against white, so light mode gets its own two dark-enough stops instead */
+.light .btn.pri{color:#fff;background:linear-gradient(120deg,#C24A03,#B84703);box-shadow:0 10px 26px rgba(234,106,21,.36)}
 .light .hbtn,.light .uclock,.light .searchbar input,.light .panel{box-shadow:0 1px 2px rgba(36,26,46,.04),0 8px 24px rgba(36,26,46,.05)}
 /* per-card colour driven by --cc (each tool's hue) */
 .light .bcard{background:color-mix(in srgb, var(--cc,#EA6A15) 7%, #fff)}
@@ -78,6 +80,7 @@ canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none;will-chang
 @keyframes pop{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes floaty{0%,100%{transform:translateZ(46px) translateY(0)}50%{transform:translateZ(46px) translateY(-6px)}}
 @keyframes spin3d{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes coinflip{0%,72%,100%{transform:rotateY(0deg)}82%{transform:rotateY(180deg)}92%{transform:rotateY(360deg)}}
 @keyframes coinspin{0%{transform:rotateY(0) scale(1)}45%{transform:rotateY(180deg) scale(1.14)}100%{transform:rotateY(360deg) scale(1)}}
 @keyframes scanline{0%{top:6%}100%{top:88%}}
@@ -181,7 +184,10 @@ canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none;will-chang
   display:grid;place-items:center;font-size:21px;margin-bottom:14px;transform-style:preserve-3d;animation:floaty 4.8s ease-in-out infinite}
 .bcard h3{font-family:var(--disp);font-size:17px;font-weight:700;transform:translateZ(24px)}
 .bcard p{color:var(--tx2);font-size:13px;margin-top:5px;line-height:1.5;transform:translateZ(14px)}
-.bcard .open{margin-top:14px;color:var(--pri2);font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transform:translateZ(30px)}
+.bcard .open{margin-top:14px;color:var(--cc,var(--pri2));font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transform:translateZ(30px)}
+/* each tool's own hue is legible on the near-black dark panel, but several fall
+   below 4.5:1 on the light panel — darken toward black there, per-hue */
+.light .bcard .open{color:color-mix(in srgb, var(--cc,var(--pri2)) 20%, #000)}
 .bcard .open i{transition:transform .2s;font-style:normal}
 .bcard:hover .open i{transform:translateX(4px)}
 .preview{position:absolute;right:16px;top:16px;width:120px;height:74px;border-radius:12px;border:1px solid var(--line2);
@@ -275,7 +281,8 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .chip.act{background:rgba(91,214,138,.12);color:var(--good);border:1px solid rgba(91,214,138,.35)}
 .chip.up{background:var(--pri-soft);color:var(--pri2);border:1px solid var(--pri-line)}
 .chip.wk{background:rgba(245,193,92,.12);color:var(--warn);border:1px solid rgba(245,193,92,.35)}
-.rowcopy{background:none;border:0;color:var(--tx3);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px}
+.rowcopy{background:none;border:0;color:var(--tx3);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;
+  min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center}
 .rowcopy:hover{color:var(--pri2);background:var(--pri-soft)}
 .secbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 12px}
 .secbar h3{font-family:var(--disp);font-size:15.5px;font-weight:700}
@@ -346,7 +353,8 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .flymsg{font-size:12px;color:var(--pri2);margin-top:6px;animation:fadein .4s both}
 .foot-links{text-align:center;padding:0 0 26px;color:var(--tx3);font-size:12px}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--pri-line);color:var(--tx);
-  font-size:13px;padding:10px 18px;border-radius:11px;box-shadow:0 14px 44px rgba(0,0,0,.5);animation:rise .25s both;z-index:99}
+  font-size:13px;padding:10px 18px;border-radius:11px;box-shadow:0 14px 44px rgba(0,0,0,.5);z-index:99;opacity:0;visibility:hidden;transition:opacity .15s}
+.toast.show{opacity:1;visibility:visible;animation:rise .25s both}
 .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .pill{display:inline-flex;align-items:center;gap:4px;text-decoration:none;font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:6px 11px;color:var(--tx2);cursor:pointer}
 .pill:hover{border-color:var(--pri-line);color:var(--pri2)}
@@ -485,11 +493,34 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .pillrow .btn.pri{flex:1 1 160px}
 
+/* ─── Speedometer gauge ─────────────────────────────────────────────────── */
+/* gauge tokens — speedtest-style gradients per phase, tuned per theme */
+:root{--spd-track:#1E2740;--spd-needle:#FFFFFF;--spd-dl-a:#3A8DF0;--spd-dl-b:#7CF0E6;--spd-ul-a:#FF7A1A;--spd-ul-b:#FFD27A}
+.light{--spd-track:#EFE6DA;--spd-needle:#241A2E;--spd-dl-a:#1F6FD6;--spd-dl-b:#0FA99A;--spd-ul-a:#C2410C;--spd-ul-b:#E39A12}
+.spd-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.spd-wrap.down{--spd-a:var(--spd-dl-a);--spd-b:var(--spd-dl-b);--spd-ico:var(--teal)}
+.spd-wrap.up{--spd-a:var(--spd-ul-a);--spd-b:var(--spd-ul-b);--spd-ico:var(--warn)}
+.spd-svg{display:block;width:100%;max-width:300px;height:auto;overflow:visible}
+.spd-track{stroke:var(--spd-track)}
+.spd-fill{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--spd-b) 35%,transparent))}
+.spd-ga{stop-color:var(--spd-a);transition:stop-color .45s ease}
+.spd-gb{stop-color:var(--spd-b);transition:stop-color .45s ease}
+.spd-nd{stop-color:var(--spd-needle)}
+.spd-tick{font-family:var(--body);font-size:15px;font-weight:700;fill:var(--tx3);transition:fill .25s}
+.spd-tick.on{fill:var(--tx)}
+.spd-num{font-family:var(--disp);font-size:42px;font-weight:400;letter-spacing:-.02em;fill:var(--tx);font-variant-numeric:tabular-nums}
+.spd-read{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--tx2)}
+.spd-ico{width:15px;height:15px;flex-shrink:0;stroke:var(--spd-ico)}
+@media (prefers-reduced-motion: reduce){.spd-ga,.spd-gb,.spd-tick{transition:none}}
+
+/* ─── Live throughput graph ─────────────────────────────────────────────── */
+.spd-graph{margin-top:12px}
+.spd-graph svg{width:100%;height:60px;border-radius:6px;background:var(--panel);border:1px solid var(--line2)}
+
 /* touch targets on phones — every interactive element ≥44px tall */
 @media (max-width:560px){
   .pill{min-height:38px}
   .btn{min-height:46px}
-  .spd-wrap{max-width:220px}
   .st-mgrid{grid-template-columns:1fr 1fr}
   .spd-tipbox{left:auto;right:0;transform:none}
 }

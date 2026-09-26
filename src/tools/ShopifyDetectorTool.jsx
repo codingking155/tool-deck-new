@@ -100,23 +100,24 @@ export default function ShopifyDetectorTool() {
 
   const getStatusIcon = () => {
     if (!result) return null;
-    if (result.isShopify) return <CheckCircle className="w-6 h-6" style={{ color: '#00A56A' }} />;
-    if (result.confidence > 0.3) return <AlertCircle className="w-6 h-6" style={{ color: '#FFC453' }} />;
-    return <XCircle className="w-6 h-6" style={{ color: '#D72C0D' }} />;
+    if (result.isShopify) return <CheckCircle size={24} style={{ color: '#00A56A' }} />;
+    if (result.confidence > 0.3) return <AlertCircle size={24} style={{ color: '#FFC453' }} />;
+    return <XCircle size={24} style={{ color: '#D72C0D' }} />;
   };
 
+  /* plain values: this project has no Tailwind, so utility class names never applied */
   const getStatusColor = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'text-[#00A56A]';
-    if (result.confidence > 0.3) return 'text-[#FFC453]';
-    return 'text-[#D72C0D]';
+    if (!result) return undefined;
+    if (result.isShopify) return '#00A56A';
+    if (result.confidence > 0.3) return '#FFC453';
+    return '#D72C0D';
   };
 
   const getStatusBg = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'bg-[#E6F7F1]';
-    if (result.confidence > 0.3) return 'bg-[#FFF8E6]';
-    return 'bg-[#FFF0ED]';
+    if (!result) return undefined;
+    if (result.isShopify) return '#E6F7F1';
+    if (result.confidence > 0.3) return '#FFF8E6';
+    return '#FFF0ED';
   };
 
   return (

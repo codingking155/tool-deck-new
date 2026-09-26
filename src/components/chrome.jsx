@@ -1,6 +1,14 @@
 import { useState } from "react";
 
-export function Toast({ msg }) { return msg ? <div className="toast">{msg}</div> : null; }
+/* Stays mounted so screen readers pick up the live region — toggling the whole
+   element in and out of the DOM means the announcement is never heard. */
+export function Toast({ msg }) {
+  return (
+    <div className={`toast ${msg ? "show" : ""}`} role="status" aria-live="polite" aria-atomic="true">
+      {msg}
+    </div>
+  );
+}
 
 export function Switch({ on, onChange, label }) {
   return (

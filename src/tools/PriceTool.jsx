@@ -102,6 +102,7 @@ export default function PriceTool({ notify, nav }) {
               currentPrice: stats.cur, currency: "INR", originalPrice: stats.hi,
             }}
             signedIn={false}
+            initialTarget={target}
             manageBaseUrl={typeof window !== "undefined" ? `${window.location.origin}/tool/price/alerts` : undefined}
             onClose={() => setAlertOpen(false)}
             onCreated={() => notify("Price alert set. Check your email/WhatsApp when it triggers.")}

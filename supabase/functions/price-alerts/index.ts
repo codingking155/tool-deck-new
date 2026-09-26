@@ -51,7 +51,7 @@ async function create(req: Request, db: any, user: { id: string; email?: string 
   }
 
   const v = validateAlertInput({ ...body, email, phone }, { signedIn: !!user });
-  if (!v.ok) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
+  if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
   const row = {
     product_id: v.value.productId, product_name: v.value.productName,
@@ -117,7 +117,7 @@ async function update(req: Request, db: any, user: any, id: string | null, token
     consent: true, currency: alert.currency,
   };
   const v = validateAlertInput(merged, { signedIn: !!user });
-  if (!v.ok) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
+  if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
   // If price target or channels changed, re-arm the alert so it can fire again.
   const rearm = Number(v.value.targetPrice) !== Number(alert.target_price)

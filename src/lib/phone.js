@@ -5,7 +5,7 @@
  */
 
 export const COUNTRIES = [
-["7","RU","Russia","Europe/Moscow"],["7 6","KZ","Kazakhstan","Asia/Almaty"],["7 7","KZ","Kazakhstan","Asia/Almaty"],
+["7","RU","Russia","Europe/Moscow"],["7 6","KZ","Kazakhstan","Asia/Almaty","7"],["7 7","KZ","Kazakhstan","Asia/Almaty","7"],
 ["20","EG","Egypt","Africa/Cairo"],["27","ZA","South Africa","Africa/Johannesburg"],["30","GR","Greece","Europe/Athens"],
 ["31","NL","Netherlands","Europe/Amsterdam"],["32","BE","Belgium","Europe/Brussels"],["33","FR","France","Europe/Paris"],
 ["34","ES","Spain","Europe/Madrid"],["36","HU","Hungary","Europe/Budapest"],["39","IT","Italy","Europe/Rome"],
@@ -49,6 +49,12 @@ export const COUNTRIES = [
 ["966","SA","Saudi Arabia","Asia/Riyadh"],["968","OM","Oman","Asia/Muscat"],["971","AE","United Arab Emirates","Asia/Dubai"],
 ["972","IL","Israel","Asia/Jerusalem"],["973","BH","Bahrain","Asia/Bahrain"],["974","QA","Qatar","Asia/Qatar"],
 ["975","BT","Bhutan","Asia/Thimphu"],["976","MN","Mongolia","Asia/Ulaanbaatar"],["977","NP","Nepal","Asia/Kathmandu"],
+["850","KP","North Korea","Asia/Pyongyang"],["963","SY","Syria","Asia/Damascus"],["967","YE","Yemen","Asia/Aden"],["970","PS","Palestine","Asia/Hebron"],
+["599","CW","Curaçao","America/Curacao"],["500","FK","Falkland Islands","Atlantic/Stanley"],["376","AD","Andorra","Europe/Andorra"],["377","MC","Monaco","Europe/Monaco"],
+["378","SM","San Marino","Europe/San_Marino"],["382","ME","Montenegro","Europe/Podgorica"],["383","XK","Kosovo","Europe/Belgrade"],["423","LI","Liechtenstein","Europe/Vaduz"],
+["252","SO","Somalia","Africa/Mogadishu"],["253","DJ","Djibouti","Africa/Djibouti"],["258","MZ","Mozambique","Africa/Maputo"],["261","MG","Madagascar","Indian/Antananarivo"],
+["265","MW","Malawi","Africa/Blantyre"],["223","ML","Mali","Africa/Bamako"],["227","NE","Niger","Africa/Niamey"],["228","TG","Togo","Africa/Lome"],["229","BJ","Benin","Africa/Porto-Novo"],
+["231","LR","Liberia","Africa/Monrovia"],["232","SL","Sierra Leone","Africa/Freetown"],["235","TD","Chad","Africa/Ndjamena"],["241","GA","Gabon","Africa/Libreville"],["242","CG","Congo","Africa/Brazzaville"],
 ["992","TJ","Tajikistan","Asia/Dushanbe"],["993","TM","Turkmenistan","Asia/Ashgabat"],["994","AZ","Azerbaijan","Asia/Baku"],
 ["995","GE","Georgia","Asia/Tbilisi"],["996","KG","Kyrgyzstan","Asia/Bishkek"],["998","UZ","Uzbekistan","Asia/Tashkent"],
 ["1","US","United States","America/New_York"],
@@ -73,10 +79,12 @@ export const flagOf = (iso) => String.fromCodePoint(...[...iso.toUpperCase()].ma
 
 const DIAL_TRIE = (() => {
   const root = {};
-  for (const [dial, iso, name, zone] of COUNTRIES) {
+  for (const [dial, iso, name, zone, countryCode] of COUNTRIES) {
     let n = root;
     for (const ch of dial.replace(/\s/g, "")) n = n[ch] || (n[ch] = {});
-    n.$ = { iso, name, zone, dial: dial.replace(/\s/g, "") };
+    /* 5th column: the real country code when the routing prefix is longer than it
+       (Kazakhstan shares +7 with Russia and is told apart by the next digit) */
+    n.$ = { iso, name, zone, dial: countryCode || dial.replace(/\s/g, "") };
   }
   for (const [iso, codes] of Object.entries(NANP_AREA)) {
     const [name, zone] = NANP_INFO[iso];
@@ -88,6 +96,17 @@ const DIAL_TRIE = (() => {
   }
   return root;
 })();
+
+/* Readable grouping without leaving a lone trailing digit: 3-3-4 for 10-digit
+   numbers, otherwise a leading group that absorbs the remainder + groups of 3. */
+function groupNational(n) {
+  if (n.length <= 4) return n;
+  if (n.length === 10) return `${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}`;
+  const head = n.length % 3 || 3;
+  const parts = [n.slice(0, head)];
+  for (let i = head; i < n.length; i += 3) parts.push(n.slice(i, i + 3));
+  return parts.join(" ");
+}
 
 export function detectPhone(raw) {
   if (!raw || !raw.trim()) return null;
@@ -108,7 +127,7 @@ export function detectPhone(raw) {
   return {
     ...best, flag: flagOf(best.iso), national, assumed: !hasPrefix,
     e164: `+${best.dial}${national}`,
-    intl: `+${best.dial} ${national.replace(/(\d{3,5})(?=\d)/g, "$1 ").trim()}`,
+    intl: `+${best.dial} ${groupNational(national)}`,
     valid: validLen ? "Plausible length" : "Unusual length for this region",
     type: national.length >= 9 ? "Likely mobile / geographic" : "Unknown",
   };

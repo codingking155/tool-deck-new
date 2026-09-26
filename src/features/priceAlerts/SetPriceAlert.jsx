@@ -15,6 +15,7 @@ export default function SetPriceAlert({
   functionsBase,
   getToken,
   manageBaseUrl,           // for building the guest manage link shown on success
+  initialTarget,           // target price already typed in the tool (optional)
   onClose,
   onCreated,
 }) {
@@ -23,7 +24,8 @@ export default function SetPriceAlert({
   const cur = product.currency || "INR";
 
   const [form, setForm] = useState({
-    targetPrice: product.currentPrice ? Math.max(1, Math.floor(product.currentPrice * 0.9)) : "",
+    targetPrice: Number(initialTarget) > 0 ? Number(initialTarget)
+      : product.currentPrice ? Math.max(1, Math.floor(product.currentPrice * 0.9)) : "",
     email: defaultEmail, phone: defaultPhone,
     emailEnabled: true, whatsappEnabled: false, consent: false,
   });
