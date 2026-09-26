@@ -100,7 +100,7 @@ function LiveGraph({ series, color, label }) {
         aria-label={`${label} throughput over time, peaking at ${maxM.toFixed(1)} megabits per second`}>
         <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
       </svg>
-      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>{label} · peak {maxM.toFixed(1)} Mbps · {series.length} samples</span>
+      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>peak {maxM.toFixed(1)} Mbps</span>
     </div>
   );
 }
@@ -383,7 +383,7 @@ export default function SpeedTool({ notify }) {
               {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
               {meta?.ip && (() => {
                 const ipClass = classifyIp(meta.ip, ipObservations);
-                return kv("IP type", ipClass.state + (ipClass.detail ? ` — ${ipClass.detail}` : ""));
+                return kv("IP type", ipClass.state);
               })()}
               {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
               {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}
