@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
 
 /**
- * CornerWebs — ambient cobwebs that peek in from the four corners.
+ * CornerWebs — ambient cobwebs that peek in from the two top corners.
  *
  * Behaviour:
  *   • Invisible at rest (scrollY = 0) so the hero stays clean.
  *   • Fades in after ~30px of scroll, peaks around 150–380px, fades out by ~750px.
- *   • Bottom pair mirrors the same curve, measured from the end of the document.
  *   • The spider lowers itself on its silk, sways, and climbs back on its own
  *     (paused while the webs are faded out).
  *   • Takes the app theme via `theme` ("dark" | "light"); a `.dark` or
@@ -74,25 +73,16 @@ export default function CornerWebs({
     if (!el) return;
 
     let frame = 0;
-    let lastY = -1, lastFromEnd = -1;
+    let lastY = -1;
     const read = () => {
       frame = 0;
-      const y = window.scrollY;
-      const fromEnd =
-        document.documentElement.scrollHeight - (y + window.innerHeight);
-      
-      // Only update CSS if values actually changed (avoid forced reflow)
-      const topVal = envelope(y);
-      const botVal = envelope(fromEnd);
+      // Only update CSS if the value actually changed (avoid forced reflow)
+      const topVal = envelope(window.scrollY);
       if (Math.abs(topVal - lastY) > 0.01) {
         el.style.setProperty("--w-top", topVal.toFixed(3));
         /* the spider only animates while its web is actually on screen */
         el.classList.toggle("cw-on", topVal > 0);
         lastY = topVal;
-      }
-      if (Math.abs(botVal - lastFromEnd) > 0.01) {
-        el.style.setProperty("--w-bot", botVal.toFixed(3));
-        lastFromEnd = botVal;
       }
     };
     const onScroll = () => {
@@ -171,12 +161,6 @@ export default function CornerWebs({
           </svg>
         )}
       </div>
-      <div className="cw cw-bl">
-        <Web />
-      </div>
-      <div className="cw cw-br">
-        <Web />
-      </div>
 
       <style>{`
         .cw-layer {
@@ -185,7 +169,6 @@ export default function CornerWebs({
           pointer-events: none;
           overflow: hidden;
           --w-top: 0;
-          --w-bot: 0;
           --cw-ink: rgba(15, 23, 42, 0.42);
         }
         .cw-layer.cw-dark,
@@ -204,20 +187,15 @@ export default function CornerWebs({
         .cw .cw-web { width: 100%; height: 100%; display: block; }
 
         .cw-tl, .cw-tr { top: 0; opacity: var(--w-top); }
-        .cw-bl, .cw-br { bottom: 0; opacity: var(--w-bot); }
-        .cw-tl, .cw-bl { left: 0; }
-        .cw-tr, .cw-br { right: 0; }
+        .cw-tl { left: 0; }
+        .cw-tr { right: 0; }
 
         /* each box grows from its own corner; only the drawing inside is mirrored,
-           so the boxes stay on screen (mirroring the box itself about its corner
+           so the box stays on screen (mirroring the box itself about its corner
            flipped it outside the viewport) */
-        .cw-tl { transform-origin: 0 0;       transform: scale(calc(0.9 + 0.1 * var(--w-top))); }
-        .cw-tr { transform-origin: 100% 0;    transform: scale(calc(0.9 + 0.1 * var(--w-top))); }
-        .cw-bl { transform-origin: 0 100%;    transform: scale(calc(0.9 + 0.1 * var(--w-bot))); }
-        .cw-br { transform-origin: 100% 100%; transform: scale(calc(0.9 + 0.1 * var(--w-bot))); }
+        .cw-tl { transform-origin: 0 0;    transform: scale(calc(0.9 + 0.1 * var(--w-top))); }
+        .cw-tr { transform-origin: 100% 0; transform: scale(calc(0.9 + 0.1 * var(--w-top))); }
         .cw-tr .cw-web { transform: scaleX(-1); }
-        .cw-bl .cw-web { transform: scaleY(-1); }
-        .cw-br .cw-web { transform: scale(-1); }
 
         .cw-spider {
           position: absolute;
@@ -285,13 +263,10 @@ export default function CornerWebs({
           62%, 70%, 78%      { transform: rotate(calc(var(--leg) * -6deg)); }
         }
 
-        @media (max-width: 640px) {
-          .cw-bl, .cw-br { display: none; }
-        }
         @media (prefers-reduced-motion: reduce) {
           .cw, .cw-spider { transition: none; }
           .cw-sway, .cw-silk, .cw-drop, .cw-legs { animation: none; }
-          .cw-tl, .cw-tr, .cw-bl, .cw-br { transform: none; }
+          .cw-tl, .cw-tr { transform: none; }
         }
       `}</style>
     </div>
