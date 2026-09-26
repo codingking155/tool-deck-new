@@ -184,11 +184,14 @@ export default function SpeedTool({ notify }) {
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
   const [history, setHistory] = useState(loadHistory);
-  const [samples, setSamples] = useState([]);
+  const [downSamples, setDownSamples] = useState([]);
+  const [upSamples, setUpSamples] = useState([]);
   const [ipObservations, setIpObservations] = useState(() => {
     try { return JSON.parse(localStorage.getItem("td-speed-ip-obs")) || []; } catch { return []; }
   });
   const abortRef = useRef(null);
+  const sampleIndexRef = useRef({ down: 0, up: 0 });
+  const currentPhaseRef = useRef(null);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
   /* connection panel loads independently of the test (TRAI pattern) */
@@ -220,18 +223,26 @@ export default function SpeedTool({ notify }) {
 
   const start = useCallback(async () => {
     if (running) return;
-    setErr(""); setRes(null); setLive(0); setPickedName(null); setSamples([]);
+    setErr(""); setRes(null); setLive(0); setPickedName(null); setDownSamples([]); setUpSamples([]);
+    sampleIndexRef.current = { down: 0, up: 0 };
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    let sampleIndex = 0;
     try {
       const r = await runFullTest(null, servers, (st, payload) => {
         if (st === "server") setPickedName(payload.name);
         else if (st === "live") {
           setLive(payload);
-          setSamples((prev) => [...prev, { t: sampleIndex++, mbps: payload }]);
+          if (currentPhaseRef.current === "down") {
+            setDownSamples((prev) => [...prev, { t: sampleIndexRef.current.down++, mbps: payload }]);
+          } else if (currentPhaseRef.current === "up") {
+            setUpSamples((prev) => [...prev, { t: sampleIndexRef.current.up++, mbps: payload }]);
+          }
         }
-        else if (st !== "idle_sample") { setStage(st); setLive(0); }
+        else if (st !== "idle_sample") {
+          if (st === "down" || st === "up") currentPhaseRef.current = st;
+          setStage(st);
+          setLive(0);
+        }
       }, ctrl.signal);
       setRes(r); setStage("done");
       setHistory((h) => { const nh = [r, ...h]; saveHistory(nh); return nh; });
@@ -268,15 +279,23 @@ export default function SpeedTool({ notify }) {
             {STAGE_TEXT[stage]}{pickedName && running ? ` · ${pickedName}` : ""}
           </div>
 
-          {running && (
+          {(running || stage === "done") && (stage === "down" || stage === "up" || stage === "calc") && (
             <div className="st-livebox" style={{ marginTop: 16 }}>
-              <div style={{ display: "flex", gap: 16 }}>
-                {stage === "down" && <Speedometer mbps={live} phase="down" label="Download" />}
-                {stage === "up" && <Speedometer mbps={live} phase="up" label="Upload" />}
-                <div style={{ flex: 1 }}>
-                  <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
-                  <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
-                </div>
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                {stage === "down" && <Speedometer mbps={live || res?.down} phase="down" label="Download" />}
+                {stage === "up" && <Speedometer mbps={live || res?.up} phase="up" label="Upload" />}
+                {stage === "calc" && (res?.down || res?.up) && (
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <Speedometer mbps={res.down} phase="down" label="Download" />
+                    <Speedometer mbps={res.up} phase="up" label="Upload" />
+                  </div>
+                )}
+                {running && (
+                  <div style={{ flex: 1 }}>
+                    <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
+                    <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -304,11 +323,11 @@ export default function SpeedTool({ notify }) {
                 <Speedometer mbps={res.down} phase="down" label="Download" />
                 <Speedometer mbps={res.up} phase="up" label="Upload" />
               </div>
-              {samples.length > 2 && (
-                <>
-                  <LiveGraph series={samples.slice(0, samples.length / 2)} color="var(--teal, #2dd4bf)" label="Download samples" />
-                  <LiveGraph series={samples.slice(samples.length / 2)} color="var(--warn, #f59e0b)" label="Upload samples" />
-                </>
+              {downSamples.length > 2 && (
+                <LiveGraph series={downSamples} color="var(--teal, #2dd4bf)" label="Download" />
+              )}
+              {upSamples.length > 2 && (
+                <LiveGraph series={upSamples} color="var(--warn, #f59e0b)" label="Upload" />
               )}
               {delta && <div className="hint" style={{ textAlign: "center", marginTop: 2 }}>
                 vs last test: ↓ {delta.down > 0 ? "+" : ""}{delta.down ?? "—"} · ↑ {delta.up > 0 ? "+" : ""}{delta.up ?? "—"} · ping {delta.ping > 0 ? "+" : ""}{delta.ping ?? "—"} ms
