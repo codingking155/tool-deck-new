@@ -284,19 +284,13 @@ export default function SpeedTool({ notify }) {
               {stage === "down" && (
                 <>
                   <Speedometer mbps={live} phase="down" label="Download" />
-                  <div style={{ marginTop: 12 }}>
-                    <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
-                    <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
-                  </div>
+                  <div className="st-bar" style={{ marginTop: 12 }}><i style={{ width: `${progressWidth}%` }} /></div>
                 </>
               )}
               {stage === "up" && (
                 <>
                   <Speedometer mbps={live} phase="up" label="Upload" />
-                  <div style={{ marginTop: 12 }}>
-                    <div className="st-num">{live > 0 ? live.toFixed(1) : "…"}<small> Mbps</small></div>
-                    <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
-                  </div>
+                  <div className="st-bar" style={{ marginTop: 12 }}><i style={{ width: `${progressWidth}%` }} /></div>
                 </>
               )}
               {stage === "calc" && (
