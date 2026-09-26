@@ -376,20 +376,12 @@ export default function SpeedTool({ notify }) {
               {kv("Operating system", detectOS())}
               {kv("Server location", meta?.serverLoc)}
               {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
-              {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
-              {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}
               {meta?.ip && (() => {
                 const ipClass = classifyIp(meta.ip, ipObservations);
-                return (
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>
-                    <div className="k" style={{ fontSize: 12 }}>IP Address Type</div>
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{ipClass.state}</span>
-                      <div className="hint" style={{ marginTop: 4, fontSize: 12 }}>{ipClass.detail}</div>
-                    </div>
-                  </div>
-                );
+                return kv("IP type", ipClass.state + (ipClass.detail ? ` — ${ipClass.detail}` : ""));
               })()}
+              {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
+              {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}
               <div className="hint" style={{ marginTop: 10 }}>
                 Your IP address is used only to answer this lookup (approximate location and network name). It isn't stored
                 by this page, and results stay on your device unless you copy or export them.
