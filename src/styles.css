@@ -391,7 +391,8 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 
 /* ─── price-alert dialog & alert cards (was features/priceAlerts/styles.js,
        previously injected at runtime — now part of the single stylesheet) ─── */
-.pa-overlay{position:fixed;inset:0;z-index:120;background:rgba(6,8,14,.62);backdrop-filter:blur(6px);display:grid;place-items:center;padding:18px;animation:pafade .18s ease}
+.pa-overlay{position:fixed;inset:0;z-index:120;background:rgba(6,8,14,.62);backdrop-filter:blur(6px);display:flex;padding:18px;overflow-y:auto;animation:pafade .18s ease}
+.pa-overlay>.pa-dialog{margin:auto}
 .light .pa-overlay{background:rgba(30,25,20,.34)}
 @keyframes pafade{from{opacity:0}to{opacity:1}}
 .pa-dialog{width:100%;max-width:440px;max-height:92vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.5);animation:papop .22s cubic-bezier(.2,.8,.2,1)}
@@ -534,6 +535,9 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 /* chart line validated against the panel surface: dark #E06A18 on #101625, light #C24A03 on #FFF */
 :root{--pt-line:#E06A18}
 .light{--pt-line:#C24A03}
+.pt-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
+.pt-row>.btn{width:auto;height:44px;padding:0 20px;white-space:nowrap}
+.light .rangebar button.on{color:#A33F02}   /* 5.1:1 on the soft tint; --pri2 was 4.37:1 */
 .pt-head{display:flex;gap:16px;align-items:flex-start}
 .pt-img{width:96px;height:96px;flex-shrink:0;object-fit:contain;border-radius:12px;background:#fff;border:1px solid var(--line2);padding:6px}
 .pt-img-none{display:grid;place-items:center;font-size:34px;background:var(--panel2)}
@@ -575,7 +579,12 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .pt-link{background:none;border:0;padding:0;color:var(--pri2);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .pt-table-wrap{overflow-x:auto;margin-top:10px;border:1px solid var(--line2);border-radius:10px;max-height:360px;overflow-y:auto}
 table.rt.pt-table{min-width:520px}
+/* native number spinners don't follow the theme; the field takes typed prices */
+#tprice{-moz-appearance:textfield;appearance:textfield}
+#tprice::-webkit-inner-spin-button,#tprice::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 @media (max-width:560px){
+  .pt-row{grid-template-columns:1fr}
+  .pt-row>.btn{width:100%}
   .pt-head{gap:12px}
   .pt-img{width:72px;height:72px}
 }

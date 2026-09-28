@@ -42,10 +42,12 @@ const fmtDay = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "nume
 const isToday = (iso) => new Date(iso).toDateString() === new Date().toDateString();
 
 export default function PriceTool({ notify, nav }) {
-  const [url, setUrl] = useState(() => readParams().get("p") || "");
+  /* read the shared-link params once, before the URL-sync effect below can rewrite them */
+  const [initial] = useState(() => ({ p: readParams().get("p") || "", t: readParams().get("t") || "" }));
+  const [url, setUrl] = useState(initial.p);
   const [state, setState] = useState({ kind: "idle" });   // idle | loading | error | ready
   const [range, setRange] = useState(null);
-  const [target, setTarget] = useState(() => readParams().get("t") || "");
+  const [target, setTarget] = useState(initial.t);
   const [alertOpen, setAlertOpen] = useState(false);
   const [showTable, setShowTable] = useState(false);
   const ctrl = useRef(null);
@@ -55,8 +57,10 @@ export default function PriceTool({ notify, nav }) {
   const money = useMoney(product?.currency);
 
   useEffect(() => {
+    // keep the shared link's params until its lookup has settled
+    if (!product && (state.kind === "loading" || (state.kind === "idle" && initial.p))) return;
     writeParams({ p: product ? product.canonicalUrl : null, t: product && target ? target : null });
-  }, [product, target]);
+  }, [product, target, state.kind, initial]);
 
   const lookup = useCallback(async (raw) => {
     const input = String(raw || "").trim();
@@ -80,7 +84,7 @@ export default function PriceTool({ notify, nav }) {
   }, [notify]);
 
   /* shared links (?p=…) look the product up straight away */
-  useEffect(() => { const p = readParams().get("p"); if (p) lookup(p); return () => ctrl.current?.abort(); }, [lookup]);
+  useEffect(() => { if (initial.p) lookup(initial.p); return () => ctrl.current?.abort(); }, [lookup, initial]);
 
   const coverageDays = product && product.observations.length
     ? (Date.now() - new Date(product.observations[0].observedAt).getTime()) / DAY : 0;
@@ -98,14 +102,14 @@ export default function PriceTool({ notify, nav }) {
     <div>
       <div className="panel rise d1" style={{ marginBottom: 18 }}>
         <div className="pb" style={{ paddingTop: 18 }}>
-          <form noValidate className="two" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}
+          <form noValidate className="pt-row"
             onSubmit={(e) => { e.preventDefault(); lookup(url); }}>
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="purl">Amazon product link</label>
               <input id="purl" type="text" inputMode="url" autoComplete="off" autoCapitalize="off" spellCheck={false}
                 placeholder="https://www.amazon.in/dp/…  or  https://amzn.in/d/…" value={url} onChange={(e) => setUrl(e.target.value)} />
             </div>
-            <button className="btn pri" type="submit" style={{ width: "auto", height: 44 }} disabled={loading}>
+            <button className="btn pri" type="submit" disabled={loading}>
               {loading ? "Checking…" : "Track price"}
             </button>
           </form>
@@ -225,13 +229,13 @@ export default function PriceTool({ notify, nav }) {
             {showTable && <ReadingsTable observations={product.observations} money={money} />}
 
             {/* ── target price / alerts ── */}
-            <div className="two" style={{ marginTop: 18, gridTemplateColumns: "1fr auto", alignItems: "end" }}>
+            <div className="pt-row" style={{ marginTop: 18 }}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label htmlFor="tprice">Target price</label>
                 <input id="tprice" type="number" min="1" inputMode="decimal"
                   placeholder={product.currentPrice ? `e.g. ${Math.floor(product.currentPrice * 0.9)}` : ""} value={target} onChange={(e) => setTarget(e.target.value)} />
               </div>
-              <button className="btn pri" style={{ width: "auto", height: 44 }} onClick={() => setAlertOpen(true)} disabled={product.currentPrice == null}>
+              <button className="btn pri" onClick={() => setAlertOpen(true)} disabled={product.currentPrice == null}>
                 Alert me on a price drop
               </button>
             </div>

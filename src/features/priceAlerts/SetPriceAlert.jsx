@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { createAlertsApi } from "./api.js";
 import { validateAlertInput } from "../../../shared/priceAlertsCore/validation.mjs";
 
@@ -62,7 +63,11 @@ export default function SetPriceAlert({
     ? `${manageBaseUrl}?t=${encodeURIComponent(result.manageToken)}`
     : null;
 
-  return (
+  /* Portal to the app root: rendered in place, an ancestor's transform/backdrop-filter
+     re-anchors position:fixed (cutting the dialog off) and traps it under page layers.
+     Mounting inside .app (not <body>) keeps the light/dark theme variables. */
+  const host = (typeof document !== "undefined" && (document.querySelector(".app") || document.body)) || null;
+  const dialog = (
     <div className="pa-overlay" onClick={(e) => e.target === e.currentTarget && onClose && onClose()}>
       <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert">
         <div className="pa-head">
@@ -160,4 +165,5 @@ export default function SetPriceAlert({
       </div>
     </div>
   );
+  return host ? createPortal(dialog, host) : dialog;
 }
