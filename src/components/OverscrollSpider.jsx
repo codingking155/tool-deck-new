@@ -114,8 +114,8 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
           <span className="osp-glow" />
         </div>
       </div>
+      {/* bottom: the hanging spider only — no cobweb */}
       <div className="osp-strip osp-bot" style={{ bottom: -height, height, zIndex }}>
-        <CornerWeb />
         <Spider flip />
       </div>
 
@@ -142,6 +142,7 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
           --osp-eye: #7ef0c2;
           background: #0d1220;
         }
+
         .osp-bot { transform: scaleY(-1); }
 
         .osp-line  { stroke: var(--osp-ink); }
