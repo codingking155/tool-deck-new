@@ -15,15 +15,17 @@ import Home from "./pages/Home.jsx";
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
 const UtcTool = lazy(() => import("./tools/UtcTool.jsx"));
 const PhoneTool = lazy(() => import("./tools/PhoneTool.jsx"));
-const ShopifyTool = lazy(() => import("./tools/ShopifyTool.jsx"));
 const ShopifyDetectorTool = lazy(() => import("./tools/ShopifyDetectorTool.jsx"));
 const SpeedTool = lazy(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazy(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
+/* Shopify Detector merged into Shopify Store Detector — old links and prefix-trick URLs redirect. */
+const TOOL_ALIASES = { shopify: "shopifydetector" };
+
 const TOOL_VIEWS = {
-  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
+  utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool,
 };
 
@@ -93,13 +95,21 @@ export default function App() {
   const isAlertsPage = route === "/tool/price/alerts";
   const seg = route.startsWith("/tool/") ? route.slice(6) : null;
   const slash = seg ? seg.indexOf("/") : -1;
-  const toolId = seg == null ? null : slash === -1 ? seg : seg.slice(0, slash);
-  /* prefix trick: /tool/shopify/<any-domain> auto-checks it, like a URL prefix */
+  const rawToolId = seg == null ? null : slash === -1 ? seg : seg.slice(0, slash);
+  /* retired tool ids keep working: resolved immediately, then the address bar is rewritten below */
+  const aliasOf = rawToolId && Object.hasOwn(TOOL_ALIASES, rawToolId) ? TOOL_ALIASES[rawToolId] : null;
+  const toolId = aliasOf ?? rawToolId;
+  /* prefix trick: /tool/shopifydetector/<any-domain> auto-checks it, like a URL prefix */
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
   const ToolView = tool ? TOOL_VIEWS[tool.id] : null;
 
   useDocumentMeta(tool);
+  useEffect(() => {
+    if (!aliasOf) return;
+    const rest = seg.slice(rawToolId.length);
+    window.history.replaceState(null, "", `/tool/${aliasOf}${rest}${window.location.search}${window.location.hash}`);
+  }, [aliasOf, rawToolId, seg]);
 
   return (
     <div className={`app ${theme === "light" ? "light" : ""}`}>

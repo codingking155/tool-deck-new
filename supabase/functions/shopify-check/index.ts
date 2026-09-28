@@ -36,7 +36,7 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
          aborts on the shared deadline — never fetch(redirect:"follow") on user-derived URLs */
       const r = await safeFetch(origin + path, {
         maxBytes: cap, maxRedirects: 2, timeoutMs: 6_000,
-        headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check", "Accept": "application/json, text/plain, */*" },
+        headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopifydetector) shopify-check", "Accept": "application/json, text/plain, */*" },
         fetchImpl: (u: string, init: RequestInit) =>
           fetch(u, { ...init, signal: init.signal ? AbortSignal.any([init.signal, signal]) : signal }),
       });
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     // space is refused; body is capped so giant pages can't hurt us.
     const r = await safeFetch(target.href, {
       maxRedirects: 4, timeoutMs: 12_000, maxBytes: 1_500_000,
-      headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopify) shopify-check" },
+      headers: { "User-Agent": "ToolDeckBot/2.0 (+https://tooldeck.in/tool/shopifydetector) shopify-check" },
     });
     finalUrl = r.finalUrl || finalUrl;
     fetchStatus = r.status;
