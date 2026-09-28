@@ -1,7 +1,7 @@
 # ToolDeck BLR v2 — super codebase
 
 Six fast, private browser utilities: UTC Wait-Time Generator · Phone → Country ·
-Shopify Store Detector · Speed Test · IP & IPv6 · Price Tracker (with real
+Shopify Detector · Speed Test · IP & IPv6 · Price Tracker (with real
 email/WhatsApp price alerts via Supabase).
 
 ## Quick start

@@ -16,7 +16,7 @@
   "shortcuts": [
     { "name": "UTC Wait-Time Generator", "url": "/tool/utc" },
     { "name": "Phone → Country", "url": "/tool/phone" },
-    { "name": "Shopify Store Detector", "url": "/tool/shopifydetector" },
+    { "name": "Shopify Detector", "url": "/tool/shopify" },
     { "name": "Internet Speed Test", "url": "/tool/speed" }
   ]
 }
