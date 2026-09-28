@@ -6,7 +6,7 @@ import { deliverAlert } from "./deliver.mjs";
 // alert (triggered_at set) is never delivered again, so duplicate job runs are safe.
 //
 // deps: {
-//   getCurrentPrice(alert) -> number,
+//   getCurrentPrice(alert) -> number | null   (null = no fresh real price; never evaluated),
 //   providers: { email, whatsapp },
 //   productLink(alert) -> string,
 //   unsubscribeLink(alert) -> string,
@@ -18,6 +18,17 @@ export async function processAlert(alert, deps) {
   const interval = deps.checkIntervalMs ?? 5 * 60 * 1000;
 
   const price = await deps.getCurrentPrice(alert);
+
+  // No fresh, real price → don't evaluate. (Number(null) is 0, which is "below"
+  // every target — without this guard a missing price would fire the alert.)
+  if (price == null || !Number.isFinite(Number(price)) || Number(price) <= 0) {
+    return {
+      currentPrice: null,
+      decision: { action: "check-only", reason: "no-price" },
+      deliveries: [],
+      patch: { last_checked_at: checkedAt, next_check_at: new Date(now + interval).toISOString() },
+    };
+  }
   const decision = evaluateAlert(alert, price);
 
   if (decision.action !== "trigger") {

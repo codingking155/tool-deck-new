@@ -4,13 +4,10 @@ Lets a customer set a target price on a product and get an **email** and/or
 **WhatsApp** notification when `current_price <= target_price`. Signed-in customers
 manage alerts from their account; guests manage via a secure, unguessable link.
 
-> **Honest scope.** ToolDeck is a front-end SPA with no real product catalog — its
-> Price Tracker uses a seeded *demo* price source. This feature is built as a
-> self-contained Supabase module (Postgres + Auth + Edge Functions + pg_cron) and
-> wired into the Price Tracker as the "product page." The current price is read
-> through one injectable seam, `getCurrentPrice`, which today calls the demo
-> generator. **Swap that one function** (or pass your own into the monitor) to go
-> live against a real catalog — nothing else changes.
+> **Prices are real.** Alerts watch products in `tracked_products` and are
+> evaluated only against real readings from the Price Tracker's providers (Amazon
+> PA-API, optionally Keepa) — see [PRICE_TRACKER.md](./PRICE_TRACKER.md). An alert
+> with no fresh real price (confirmed within 12 h) is skipped, never evaluated.
 
 ## 1. Files
 
@@ -103,8 +100,8 @@ backoff up to 5 attempts.
   sends are recorded in memory and logged (PII redacted). This is what the unit
   tests exercise — see `tests/monitor.test.mjs` for delivery, idempotency,
   WhatsApp-outage fallback, and retry cases.
-- Force a trigger in dev by creating an alert with a target **above** the demo
-  current price, then run the job manually (step 4).
+- Force a trigger in dev by creating an alert with a target **above** the product's
+  current live price, then run the job manually (step 4).
 - Real providers: set `EMAIL_PROVIDER=resend` (+`RESEND_API_KEY`) and/or
   `WHATSAPP_PROVIDER=meta` (+ token, phone-number id, optional approved template).
 
@@ -116,8 +113,8 @@ npm test
 
 ## 6. Beta limitations
 
-- **Demo price source.** Current price comes from ToolDeck's seeded generator, not a
-  live catalog. Replace `getCurrentPrice` / `shared/priceAlertsCore/pricing.mjs`.
+- **Price freshness.** Alerts can only fire as often as the product is re-checked
+  (hourly while watched, via `PRICE_ALERT_CHECK_INTERVAL_MINUTES`).
 - **Rate limiting is per-instance** (in-memory). For strict global limits, back it
   with Postgres or Redis.
 - **WhatsApp** requires an approved Meta template for out-of-session sends; without

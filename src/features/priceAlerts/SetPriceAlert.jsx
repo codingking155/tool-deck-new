@@ -8,7 +8,7 @@ function money(n, currency = "INR") {
 }
 
 export default function SetPriceAlert({
-  product,                 // { id, name, image, url, currentPrice, currency, originalPrice }
+  product,                 // { id, trackedProductId, name, image, url, currentPrice, currency, originalPrice }
   signedIn = false,
   defaultEmail = "",
   defaultPhone = "",
@@ -39,7 +39,7 @@ export default function SetPriceAlert({
   async function submit() {
     setServerError("");
     const payload = {
-      productId: product.id, productName: product.name, productImage: product.image,
+      productId: product.id, trackedProductId: product.trackedProductId, productName: product.name, productImage: product.image,
       productUrl: product.url, currency: cur, originalPrice: product.originalPrice ?? null,
       ...form,
     };
@@ -151,8 +151,8 @@ export default function SetPriceAlert({
               <button className="btn pri" style={{ marginTop: 14 }} disabled={state === "submitting"} onClick={submit}>
                 {state === "submitting" ? "Setting alert…" : "Set price alert"}
               </button>
-              <p className="note w" style={{ marginTop: 12, marginBottom: 0 }}>
-                Beta: the current price shown here comes from ToolDeck's demo price source, so alerts are for trying the flow, not live buying decisions.
+              <p className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                We compare your target with the live Amazon price on every check. Prices can change between our check and your purchase.
               </p>
             </>
           )}

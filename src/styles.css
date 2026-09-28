@@ -529,3 +529,53 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 @media (max-width:380px){
   .st-heroes{grid-template-columns:1fr}
 }
+
+/* ─── Price Tracker ─────────────────────────────────────────────────────── */
+/* chart line validated against the panel surface: dark #E06A18 on #101625, light #C24A03 on #FFF */
+:root{--pt-line:#E06A18}
+.light{--pt-line:#C24A03}
+.pt-head{display:flex;gap:16px;align-items:flex-start}
+.pt-img{width:96px;height:96px;flex-shrink:0;object-fit:contain;border-radius:12px;background:#fff;border:1px solid var(--line2);padding:6px}
+.pt-img-none{display:grid;place-items:center;font-size:34px;background:var(--panel2)}
+.pt-meta{flex:1;min-width:0}
+.pt-title{font-size:15px;line-height:1.4;font-weight:600;color:var(--tx);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pt-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pt-price-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;margin-top:10px}
+.pt-price{font-family:var(--disp);font-size:clamp(24px,5vw,30px);font-weight:700;color:var(--tx);font-variant-numeric:tabular-nums}
+.pt-was{font-size:13px;color:var(--good);font-weight:600}
+.pt-was s{color:var(--tx3);font-weight:400;margin-right:4px}
+.pt-asof{font-size:12px;color:var(--tx2);margin-top:4px}
+.pt-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.pt-actions a.pill{text-decoration:none;display:inline-flex;align-items:center}
+.pt-disclaimer{font-size:11px;color:var(--tx3);margin-top:12px;line-height:1.5}
+.pt-dim{opacity:.6;transition:opacity .2s}
+.pt-err-title{font-size:15px;font-weight:600;color:var(--tx)}
+.pt-hist-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.pt-hist-head h3{margin:0;font-size:15px}
+.pt-hist-head .rangebar{margin-bottom:0}
+.pt-insight{font-size:13px;padding:9px 12px;border-radius:10px;margin:6px 0 10px;border:1px solid var(--line2);background:var(--panel);color:var(--tx)}
+.pt-insight-lowest,.pt-insight-low{border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+.pt-insight-high{border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.pt-chart{position:relative;width:100%;margin-top:4px}
+.pt-chart svg{display:block;overflow:visible;touch-action:pan-y;outline:none;border-radius:8px}
+.pt-chart svg:focus-visible{box-shadow:0 0 0 2px var(--pri-line)}
+.pt-grid{stroke:var(--line2);stroke-width:1}
+.pt-axis{font-size:11px;fill:var(--tx3);font-family:var(--body)}
+.pt-line{stroke:var(--pt-line)}
+.pt-now{fill:var(--pt-line);stroke:var(--panel);stroke-width:2}
+.pt-lo{fill:var(--good);stroke:var(--panel);stroke-width:2}
+.pt-hi{fill:var(--bad);stroke:var(--panel);stroke-width:2}
+.pt-cross{stroke:var(--tx3);stroke-width:1;stroke-dasharray:3 3}
+.pt-dot{fill:var(--panel);stroke:var(--pt-line);stroke-width:2.5}
+.pt-tip{position:absolute;top:0;width:180px;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--tx2)}
+.pt-tip b{font-family:var(--mono);font-size:14px;color:var(--tx)}
+.pt-tip-src{color:var(--tx3);font-size:10.5px}
+.pcell .pt-sub{font-size:10.5px;color:var(--tx3);margin-top:3px}
+.pt-source{font-size:11.5px;color:var(--tx3);margin-top:12px;line-height:1.55}
+.pt-link{background:none;border:0;padding:0;color:var(--pri2);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.pt-table-wrap{overflow-x:auto;margin-top:10px;border:1px solid var(--line2);border-radius:10px;max-height:360px;overflow-y:auto}
+table.rt.pt-table{min-width:520px}
+@media (max-width:560px){
+  .pt-head{gap:12px}
+  .pt-img{width:72px;height:72px}
+}

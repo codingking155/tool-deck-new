@@ -50,15 +50,25 @@ async function create(req: Request, db: any, user: { id: string; email?: string 
     }
   }
 
-  const v = validateAlertInput({ ...body, email, phone }, { signedIn: !!user });
+  // Alerts watch a real tracked product. Its identity, name, image, currency and
+  // reference price come from our own records — never from the client.
+  const trackedId = typeof body.trackedProductId === "string" ? body.trackedProductId : "";
+  if (!/^[0-9a-f-]{36}$/i.test(trackedId)) return fail(400, "bad_request", "Look up the product in the Price Tracker before setting an alert.");
+  const { data: product } = await db.from("tracked_products").select("*").eq("id", trackedId).maybeSingle();
+  if (!product) return fail(404, "not_found", "That product isn't being tracked. Look it up again and retry.");
+
+  const v = validateAlertInput({ ...body, productId: product.product_key, currency: product.currency || "INR", email, phone }, { signedIn: !!user });
   if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
   const row = {
-    product_id: v.value.productId, product_name: v.value.productName,
-    product_image: v.value.productImage, product_url: v.value.productUrl,
+    product_id: product.product_key, product_name: product.title,
+    product_image: product.image_url, product_url: product.detail_page_url || product.canonical_url,
+    tracked_product_id: product.id,
     user_id: user?.id ?? null,
     email: v.value.email, phone: v.value.phone,
-    target_price: v.value.targetPrice, currency: v.value.currency, original_price: v.value.originalPrice,
+    // "was" price in the notification = the real price when the alert was set
+    target_price: v.value.targetPrice, currency: product.currency || v.value.currency,
+    original_price: product.current_price != null ? Number(product.current_price) : null,
     email_enabled: v.value.emailEnabled, whatsapp_enabled: v.value.whatsappEnabled,
     consent_at: new Date().toISOString(), status: "active",
   };

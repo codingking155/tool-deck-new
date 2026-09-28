@@ -103,3 +103,14 @@ test("savings appear in the email payload", async () => {
   await processAlert(makeAlert({ original_price: 1500 }), deps(900, { email, whatsapp: wa }));
   assert.match(email.sent[0].html, /you save/i);
 });
+
+test("no real price → the alert is not evaluated (never fires on a missing price)", async () => {
+  const email = createMockEmailProvider(), whatsapp = createMockWhatsappProvider();
+  for (const price of [null, undefined, NaN, 0]) {
+    const r = await processAlert(makeAlert(), deps(price, { email, whatsapp }));
+    assert.equal(r.decision.reason, "no-price");
+    assert.equal(r.deliveries.length, 0);
+    assert.equal(r.patch.status, undefined);
+  }
+  assert.equal(email.sent.length + whatsapp.sent.length, 0);
+});

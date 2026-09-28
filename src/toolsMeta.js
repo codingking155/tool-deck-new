@@ -46,12 +46,12 @@ export const TOOLS = [
       ["Does IPv6 make the internet faster?", "Not by itself. IPv6 gives a far larger address space and can improve direct connectivity, but speed depends on your ISP, router and device."],
       ["Is my IP address stored?", "No. Addresses are read from the network and shown only to you; this page never logs them."],
     ] },
-  { id: "price", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Amazon & Flipkart price history, 30-day to 5-year analytics, alerts.", pv: "chart",
-    blurb: "Track Amazon.in and Flipkart price history from 30 days to 5 years, with lowest, highest and average analytics, a buy verdict, and target-price alerts. Preview uses simulated data.",
+  { id: "price", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
+    blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
     faqs: [
-      ["How do I track an Amazon or Flipkart price?", "Paste the product URL to see its price history, min/max/average analytics and a buy verdict. The live preview uses simulated data."],
-      ["Is real price history accurate?", "Real tracking needs a backend with licensed price feeds and genuinely recorded history — analytics are only honest once that range has actually been recorded."],
-      ["Can I get an alert when the price drops?", "Set a target price; alerts deliver by email or WhatsApp through the Supabase backend."],
+      ["How do I track an Amazon price?", "Paste the product link — any format, including app share links. You get the live price, availability and the history recorded so far, and the product keeps being checked automatically."],
+      ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
+      ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
 ];
 
@@ -59,5 +59,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon & Flipkart prices", "Detect Shopify storefronts",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
 ];
