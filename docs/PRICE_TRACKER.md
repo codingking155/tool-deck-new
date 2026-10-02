@@ -92,8 +92,15 @@ Averages are time-weighted over the step series; a verdict ("lower than usual",
 supabase db push
 supabase secrets set AMAZON_PAAPI_ACCESS_KEY=… AMAZON_PAAPI_SECRET_KEY=… AMAZON_PAAPI_PARTNER_TAG=…-21
 # optional history: supabase secrets set KEEPA_API_KEY=…
-supabase functions deploy price-tracker check-price-alerts price-alerts
+supabase functions deploy price-tracker price-alerts
+supabase functions deploy check-price-alerts --no-verify-jwt   # pg_cron sends no JWT; guarded by CRON_SECRET
 ```
+
+Or let GitHub do it: `.github/workflows/supabase-deploy.yml` runs `db push`, syncs the
+provider secrets and deploys every function on each push to `main` that touches
+`supabase/` or `shared/` (or on demand from the Actions tab). Add repository secrets
+`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`, plus the
+`AMAZON_PAAPI_*` / `KEEPA_API_KEY` values you want synced.
 
 Front-end needs `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at build time.
 

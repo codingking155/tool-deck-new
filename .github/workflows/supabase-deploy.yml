@@ -1,0 +1,84 @@
+name: Deploy Supabase
+
+# Applies migrations, syncs the price-provider secrets and redeploys the Edge
+# Functions. Runs on pushes to main that touch the backend, or manually
+# (Actions → Deploy Supabase → Run workflow), on any branch.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   required: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
+#   optional: AMAZON_PAAPI_ACCESS_KEY, AMAZON_PAAPI_SECRET_KEY,
+#             AMAZON_PAAPI_PARTNER_TAG, KEEPA_API_KEY
+#             (synced to Supabase function secrets only when set)
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/**", "shared/**", ".github/workflows/supabase-deploy.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        run: |
+          missing=""
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD PROJECT_REF; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing (PROJECT_REF = SUPABASE_PROJECT_REF)"
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Apply migrations
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Sync price-provider secrets
+        env:
+          AMAZON_PAAPI_ACCESS_KEY: ${{ secrets.AMAZON_PAAPI_ACCESS_KEY }}
+          AMAZON_PAAPI_SECRET_KEY: ${{ secrets.AMAZON_PAAPI_SECRET_KEY }}
+          AMAZON_PAAPI_PARTNER_TAG: ${{ secrets.AMAZON_PAAPI_PARTNER_TAG }}
+          KEEPA_API_KEY: ${{ secrets.KEEPA_API_KEY }}
+        run: |
+          args=()
+          for v in AMAZON_PAAPI_ACCESS_KEY AMAZON_PAAPI_SECRET_KEY AMAZON_PAAPI_PARTNER_TAG KEEPA_API_KEY; do
+            [ -n "${!v}" ] && args+=("$v=${!v}")
+          done
+          if [ ${#args[@]} -gt 0 ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" "${args[@]}"
+            echo "Synced ${#args[@]} provider secret(s)."
+          else
+            echo "No provider secrets set in GitHub; Price Tracker will report prices as unavailable until they are."
+          fi
+
+      - name: Deploy functions
+        run: |
+          # Called with a Supabase JWT (anon key or user session) by the frontend.
+          for fn in price-alerts price-tracker shopify-check; do
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+          done
+          # Called without a JWT, so gateway JWT checks must be off:
+          #   check-price-alerts       ← pg_cron; guarded by its own CRON_SECRET
+          #   price-alerts-unsubscribe ← email links; guarded by a signed token
+          #   speedtest                ← plain browser fetches; rate-limited per IP
+          for fn in check-price-alerts price-alerts-unsubscribe speedtest; do
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
+          done

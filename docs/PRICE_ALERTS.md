@@ -60,7 +60,9 @@ Front-end needs `VITE_SUPABASE_URL` at build time.
 Deploy the functions:
 
 ```bash
-supabase functions deploy price-alerts price-alerts-unsubscribe check-price-alerts
+supabase functions deploy price-alerts
+# called without a Supabase JWT (pg_cron, email links) — they do their own auth:
+supabase functions deploy price-alerts-unsubscribe check-price-alerts --no-verify-jwt
 ```
 
 > The functions import the shared core via `../../../shared/priceAlertsCore/*.mjs`
