@@ -75,9 +75,11 @@ Deno.serve(async (req) => {
       return productCache.get(id);
     };
 
-    let processed = 0, triggered = 0, failedDeliveries = 0, skippedNoPrice = 0, linked = 0, paused = 0;
+    let processed = 0, triggered = 0, failedDeliveries = 0, skippedNoPrice = 0, linked = 0, paused = 0, errored = 0;
 
-    for (const alert of claimed ?? []) {
+    // One alert's failure (e.g. a short-link host timing out) must not abort the
+    // run: the rest of the claimed batch would sit leased and unchecked.
+    for (const alert of claimed ?? []) try {
       // Alerts created before real prices existed have no product link yet:
       // resolve their stored URL to the real product, or pause with a reason.
       if (!alert.tracked_product_id) {
@@ -99,6 +101,15 @@ Deno.serve(async (req) => {
       }
 
       const product = await loadProduct(alert.tracked_product_id);
+      // A target set in one currency can't be compared with a price in another.
+      if (product?.currency && alert.currency && product.currency !== alert.currency) {
+        await db.from("price_alerts").update({
+          status: "paused",
+          last_error: `Paused: this product is priced in ${product.currency}, but the alert's target is in ${alert.currency}. Create the alert again from the Price Tracker.`,
+        }).eq("id", alert.id);
+        paused++;
+        continue;
+      }
       const price = alertPrice(product);
       if (price == null) skippedNoPrice++;
 
@@ -123,9 +134,12 @@ Deno.serve(async (req) => {
       }
       if (patch.status === "triggered") triggered++;
       processed++;
+    } catch (e) {
+      errored++;
+      log("alert_error", { id: alert.id, message: String((e as Error).message ?? e) });
     }
 
-    const summary = { refreshed, refreshFailed, processed, triggered, failedDeliveries, skippedNoPrice, linked, paused };
+    const summary = { refreshed, refreshFailed, processed, triggered, failedDeliveries, skippedNoPrice, linked, paused, errored };
     log("check_run", summary);
     return json(summary);
   } catch (e) {

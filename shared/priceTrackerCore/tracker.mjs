@@ -54,7 +54,7 @@ async function importKeepa(repo, product, k) {
  * @returns Map<productId, {ok, code?, message?}>
  */
 /** @param {any[]} products @param {any} deps @returns {Promise<Map<string, any>>} */
-export async function refreshProducts(products, { repo, cfg, fetchImpl, now = () => new Date(), intervalMsFor }) {
+export async function refreshProducts(products, { repo, cfg, fetchImpl, now = () => new Date(), intervalMsFor, keepEarlierSchedule = false }) {
   const results = new Map();
   const byMarket = new Map();
   for (const p of products) {
@@ -69,18 +69,41 @@ export async function refreshProducts(products, { repo, cfg, fetchImpl, now = ()
         const t = now();
         const r = live.get(product.external_id);
         const interval = intervalMsFor ? intervalMsFor(product) : 6 * 60 * MIN;
+        // An on-demand lookup must not push back a check the scheduler already
+        // planned sooner (e.g. the hourly cadence of an alert-watched product).
+        const nextAt = (ms) => {
+          const at = t.getTime() + ms;
+          const planned = product.next_check_at ? new Date(product.next_check_at).getTime() : NaN;
+          return new Date(keepEarlierSchedule && planned > t.getTime() && planned < at ? planned : at).toISOString();
+        };
         if (!r?.ok) {
           await repo.updateProduct(product.id, {
             last_checked_at: t.toISOString(),
             last_check_status: r?.code === "not_found" ? "not_found" : "error",
             last_error: r?.message ?? UNAVAILABLE_MESSAGE,
-            next_check_at: new Date(t.getTime() + (r?.retryable ? Math.min(interval, 30 * MIN) : interval)).toISOString(),
+            next_check_at: nextAt(r?.retryable ? Math.min(interval, 30 * MIN) : interval),
           });
           results.set(product.id, { ok: false, code: r?.code ?? "error", message: r?.message ?? UNAVAILABLE_MESSAGE });
           continue;
         }
         const currency = r.product.currency ?? product.currency ?? null;
         const latest = asReading(await repo.latestObservation(product.id));
+        // A fallback source (Keepa) can return a reading older than the one we
+        // already hold. Never let it replace a newer real price.
+        const newestKnown = Math.max(
+          latest?.observedAt ? new Date(latest.observedAt).getTime() : 0,
+          product.last_observed_at ? new Date(product.last_observed_at).getTime() : 0,
+        );
+        if (new Date(r.reading.observedAt).getTime() < newestKnown) {
+          await repo.updateProduct(product.id, {
+            last_checked_at: t.toISOString(),
+            last_check_status: "error",
+            last_error: "The live price source was unavailable; only an older reading came back.",
+            next_check_at: nextAt(Math.min(interval, 30 * MIN)),
+          });
+          results.set(product.id, { ok: false, code: "stale", message: UNAVAILABLE_MESSAGE });
+          continue;
+        }
         if (shouldRecord(latest, r.reading)) await repo.insertObservations([toObservationRow(product.id, r.reading, currency)]);
         const patch = {
           title: r.product.title ?? product.title ?? null,
@@ -95,7 +118,7 @@ export async function refreshProducts(products, { repo, cfg, fetchImpl, now = ()
           last_checked_at: t.toISOString(),
           last_check_status: r.reading.price == null ? "unavailable" : "ok",
           last_error: null,
-          next_check_at: new Date(t.getTime() + interval).toISOString(),
+          next_check_at: nextAt(interval),
         };
         // Keepa already came back as the fallback source — its history is free to keep.
         if (r.keepa && !product.history_imported_at) {
@@ -170,7 +193,7 @@ export async function lookupProduct(input, { repo, cfg, fetchImpl, now = () => n
   let refreshError = !recent || product.last_check_status === "ok" || product.last_check_status === "unavailable"
     ? null : { code: product.last_check_status, message: product.last_error };
   if (!recent) {
-    const res = (await refreshProducts([product], { repo, cfg, fetchImpl, now, intervalMsFor: intervalMsFor || (() => intervals.checkMs) })).get(product.id);
+    const res = (await refreshProducts([product], { repo, cfg, fetchImpl, now, intervalMsFor: intervalMsFor || (() => intervals.checkMs), keepEarlierSchedule: true })).get(product.id);
     if (!res.ok) refreshError = res;
     product = await repo.findProduct(id.marketplace, id.asin);
   }

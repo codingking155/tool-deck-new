@@ -361,6 +361,37 @@ test("Keepa history is imported once, with provider timestamps and sources", asy
   assert.equal(keepaCalls, 1);
 });
 
+test("an older fallback reading never replaces a newer real price", async () => {
+  const repo = memoryRepo();
+  await lookupProduct("https://www.amazon.in/dp/B0CHX1W1XY", { repo, cfg: paapiCfg(), fetchImpl: withPrice(61999), now: () => new Date("2026-09-28T10:00:00Z"), intervals });
+  const [p0] = repo.products.values();
+  await repo.updateProduct(p0.id, { history_imported_at: "2026-09-28T10:00:00Z" });
+  const cfg = providerConfig(envOf({ AMAZON_PAAPI_ACCESS_KEY: "a", AMAZON_PAAPI_SECRET_KEY: "s", AMAZON_PAAPI_PARTNER_TAG: "td-21", KEEPA_API_KEY: "k" }));
+  const fetchImpl = async (url) => {
+    if (String(url).startsWith("https://webservices.amazon.in")) return jsonRes({}, 503);
+    // Keepa's latest reading is years older than the PA-API one already stored
+    return jsonRes({ products: [{ asin: "B0CHX1W1XY", csv: [[7000000, 4500000]], lastUpdate: 7000100 }] });
+  };
+  const at = new Date("2026-09-28T11:00:00Z");
+  const res = (await refreshProducts([repo.products.get(p0.id)], { repo, cfg, fetchImpl, now: () => at })).get(p0.id);
+  assert.equal(res.ok, false);
+  const p = repo.products.get(p0.id);
+  assert.equal(Number(p.current_price), 61999);
+  assert.equal(p.last_observed_at, "2026-09-28T10:00:00.000Z");
+  assert.equal(alertPrice(p, { now: at.getTime() }), 61999);
+  assert.equal(repo.obs.length, 1);
+});
+
+test("an on-demand lookup never pushes back an earlier scheduled check", async () => {
+  const repo = memoryRepo();
+  await lookupProduct("https://www.amazon.in/dp/B0CHX1W1XY", { repo, cfg: paapiCfg(), fetchImpl: withPrice(61999), now: () => new Date("2026-09-28T10:00:00Z"), intervals });
+  const [p0] = repo.products.values();
+  // the scheduler has this product on an hourly (alert-watched) cadence
+  await repo.updateProduct(p0.id, { next_check_at: "2026-09-28T10:30:00.000Z" });
+  await lookupProduct("https://www.amazon.in/dp/B0CHX1W1XY", { repo, cfg: paapiCfg(), fetchImpl: withPrice(60999), now: () => new Date("2026-09-28T10:20:00Z"), intervals });
+  assert.equal(repo.products.get(p0.id).next_check_at, "2026-09-28T10:30:00.000Z");
+});
+
 test("scheduled refresh batches ≤10 ASINs per PA-API call", async () => {
   const repo = memoryRepo();
   const list = [];

@@ -24,15 +24,18 @@ Deno.serve(async (req) => {
     }
     if (req.method !== "POST") return fail(405, "method_not_allowed", "Use GET to confirm or POST to unsubscribe.");
 
-    const patch: Record<string, unknown> = {};
-    if (channel === "email") patch.email_enabled = false;
-    else if (channel === "whatsapp") patch.whatsapp_enabled = false;
-    else { patch.email_enabled = false; patch.whatsapp_enabled = false; }
+    // price_alerts_channel_chk requires at least one channel to stay enabled, so
+    // turning off the last channel cancels the alert instead of clearing flags.
+    const stillOn = channel === "email" ? alert.whatsapp_enabled : channel === "whatsapp" ? alert.email_enabled : false;
+    const patch: Record<string, unknown> = !stillOn
+      ? { status: "cancelled" }
+      : channel === "email" ? { email_enabled: false } : { whatsapp_enabled: false };
 
-    const stillOn = (channel === "email" ? alert.whatsapp_enabled : channel === "whatsapp" ? alert.email_enabled : false);
-    if (!stillOn) patch.status = "cancelled";
-
-    await db.from("price_alerts").update(patch).eq("id", alertId);
+    const { error } = await db.from("price_alerts").update(patch).eq("id", alertId);
+    if (error) {
+      log("unsub_update_error", { id: alertId, code: error.code, message: error.message });
+      return page(500, "We couldn't unsubscribe you just now. Please try the link again in a minute.");
+    }
     log("unsubscribed", { id: alertId, channel });
 
     const wantsHtml = /text\/html/i.test(req.headers.get("accept") ?? "") || /form-urlencoded/i.test(req.headers.get("content-type") ?? "");
