@@ -129,20 +129,21 @@ async function update(req: Request, db: any, user: any, id: string | null, token
   const v = validateAlertInput(merged, { signedIn: !!user });
   if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
-  // If price target or channels changed, re-arm the alert so it can fire again.
-  const rearm = Number(v.value.targetPrice) !== Number(alert.target_price)
+  // If the target or channels changed, re-arm a fired alert so it can fire again.
+  // An alert that expired after failed deliveries is also re-armed when the
+  // contact details change, since a wrong address is the usual cause.
+  const targetOrChannels = Number(v.value.targetPrice) !== Number(alert.target_price)
     || v.value.emailEnabled !== alert.email_enabled
     || v.value.whatsappEnabled !== alert.whatsapp_enabled;
+  const contact = (v.value.email ?? null) !== (alert.email ?? null) || (v.value.phone ?? null) !== (alert.phone ?? null);
+  const rearm = (alert.status === "triggered" && targetOrChannels)
+    || (alert.status === "expired" && (targetOrChannels || contact));
 
   const patch: Record<string, unknown> = {
     target_price: v.value.targetPrice, email: v.value.email, phone: v.value.phone,
     email_enabled: v.value.emailEnabled, whatsapp_enabled: v.value.whatsappEnabled,
   };
-  if (rearm && alert.status === "triggered") {
-    patch.status = "active"; patch.triggered_at = null; patch.attempts = 0;
-    patch.notification_status = { email: "pending", whatsapp: "pending" };
-    patch.next_check_at = new Date().toISOString();
-  }
+  if (rearm) Object.assign(patch, rearmPatch());
 
   const { data, error } = await db.from("price_alerts").update(patch).eq("id", alert.id).select().single();
   if (error) {
@@ -157,11 +158,25 @@ async function pauseResume(db: any, user: any, id: string | null, tokenAlertId: 
   if (found.error) return found.error;
   const status = action === "pause" ? "paused" : action === "reactivate" ? "active" : null;
   if (!status) return fail(400, "bad_request", "Unknown action.");
-  const patch: Record<string, unknown> = { status };
-  if (status === "active") { patch.attempts = 0; patch.next_check_at = new Date().toISOString(); }
+  if (status === "active" && !found.alert.email_enabled && !found.alert.whatsapp_enabled)
+    return fail(400, "no_channels", "Turn on email or WhatsApp for this alert before reactivating it.");
+  // Reactivating must clear the previous trigger: evaluateAlert skips any alert
+  // with triggered_at set, so leaving it would show "active" but never fire.
+  const patch: Record<string, unknown> = status === "active" ? rearmPatch() : { status };
   const { data, error } = await db.from("price_alerts").update(patch).eq("id", found.alert.id).select().single();
-  if (error) return fail(500, "server_error", "Could not change the alert.");
+  if (error) {
+    if (String(error.code) === "23505") return fail(409, "duplicate", "You already have an active alert for this product at that price.");
+    return fail(500, "server_error", "Could not change the alert.");
+  }
   return json({ alert: present(data) });
+}
+
+function rearmPatch(): Record<string, unknown> {
+  return {
+    status: "active", triggered_at: null, attempts: 0, last_error: null,
+    notification_status: { email: "pending", whatsapp: "pending" },
+    next_check_at: new Date().toISOString(),
+  };
 }
 
 async function remove(db: any, user: any, id: string | null, tokenAlertId: string | null) {

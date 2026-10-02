@@ -1,4 +1,5 @@
 import { preflight, json, fail, CORS, log } from "../_shared/http.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
 
 // Speed-test endpoints: ?op=ping | down&bytes=N | up | meta
 // Security posture:
@@ -21,10 +22,6 @@ function rateLimited(ip: string): boolean {
   return b.n > 240;
 }
 
-function clientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for") ?? "";
-  return fwd.split(",")[0].trim() || "unknown";
-}
 
 // 64 KB of random bytes, repeated — incompressible enough to defeat transparent
 // compression, cheap enough to stream without allocating the full payload.
