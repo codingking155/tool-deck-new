@@ -1,9 +1,10 @@
 import { preflight, json, fail, CORS, log } from "../_shared/http.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
 
 // Speed-test endpoints: ?op=ping | down&bytes=N | up | meta
 // Security posture:
 //  - down capped at 50 MB per request; up capped at 50 MB and DISCARDED unread-to-disk
-//  - per-IP token bucket (60 req/min) — enough for a full test, hostile loops throttled
+//  - per-IP token bucket (240 req/min) — a full run makes ~100 requests (loaded-latency probes + streams)
 //  - CORS restricted via ALLOWED_ORIGIN (see _shared/http.ts)
 //  - meta: IP processed transiently for the lookup response only; never logged in full
 
@@ -18,13 +19,9 @@ function rateLimited(ip: string): boolean {
   b.n++;
   buckets.set(ip, b);
   if (buckets.size > 5000) buckets.delete(buckets.keys().next().value!);
-  return b.n > 60;
+  return b.n > 240;
 }
 
-function clientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for") ?? "";
-  return fwd.split(",")[0].trim() || "unknown";
-}
 
 // 64 KB of random bytes, repeated — incompressible enough to defeat transparent
 // compression, cheap enough to stream without allocating the full payload.
@@ -38,7 +35,7 @@ Deno.serve(async (req) => {
   if (rateLimited(ip)) return fail(429, "rate_limited", "Too many requests — try again in a minute.");
 
   if (op === "ping") {
-    return new Response(null, { status: 204, headers: { ...CORS, "Cache-Control": "no-store" } });
+    return new Response("", { status: 200, headers: { ...CORS, "Cache-Control": "no-store", "Content-Length": "0" } });
   }
 
   if (op === "down") {

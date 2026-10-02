@@ -27,7 +27,9 @@ export function Particles({ reduced, theme }) {
         lastMove = now;
       }
     };
-    const onVis = () => { running = !document.hidden; if (running) raf = requestAnimationFrame(tick); };
+    // Cancel first: a frame queued before the tab hid can still fire on return,
+    // and starting another loop on top of it would run two (or more) at once.
+    const onVis = () => { running = !document.hidden; cancelAnimationFrame(raf); if (running) raf = requestAnimationFrame(tick); };
     const tick = () => {
       if (!running) return;
       ctx.clearRect(0, 0, W, H);

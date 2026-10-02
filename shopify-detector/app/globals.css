@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #0f7b5f;
+  --color-brand-hover: #0c6650;
+  --color-accent: #1a9e6f;
+  --color-danger: #dc2626;
+  --color-success-bg: #e8f7ef;
+  --color-error-bg: #fdecea;
+  --color-api: #7c3aed;
+  --color-prefix: #2563eb;
+  --color-line: #e5efe9;
+  --color-mint: #f0faf5;
+  --color-ink: #0f1f1a;
+  --color-muted: #4b5b56;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --animate-drift: drift 22s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(18px, -26px); }
+    66% { transform: translate(-14px, 16px); }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+}
+
+@utility card {
+  background-color: rgb(255 255 255 / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(15 31 26 / 0.04), 0 8px 28px rgb(15 31 26 / 0.06);
+}
+
+@utility stripes {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 12px,
+    rgb(15 123 95 / 0.035) 12px 24px
+  );
+}
+
+@utility skeleton {
+  background: linear-gradient(90deg, #e9f1ed 25%, #f6faf8 50%, #e9f1ed 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: 0.5rem;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: linear-gradient(180deg, var(--color-mint) 0%, #ffffff 70%) fixed;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.bg-rays {
+  background: repeating-conic-gradient(
+    from 150deg at 50% 0%,
+    rgb(26 158 111 / 0.07) 0deg 3deg,
+    transparent 3deg 12deg
+  );
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

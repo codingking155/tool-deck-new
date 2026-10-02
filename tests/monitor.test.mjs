@@ -95,10 +95,22 @@ test("retries give up after MAX attempts", async () => {
   const r = await processAlert(makeAlert({ attempts: 4 }), deps(900, { email, whatsapp: wa }));
   assert.equal(r.patch.attempts, 5);
   assert.equal(r.retriesExhausted, true);
+  assert.equal(r.patch.status, "expired"); // never retried again
 });
 
 test("savings appear in the email payload", async () => {
   const email = createMockEmailProvider(), wa = createMockWhatsappProvider();
   await processAlert(makeAlert({ original_price: 1500 }), deps(900, { email, whatsapp: wa }));
   assert.match(email.sent[0].html, /you save/i);
+});
+
+test("no real price → the alert is not evaluated (never fires on a missing price)", async () => {
+  const email = createMockEmailProvider(), whatsapp = createMockWhatsappProvider();
+  for (const price of [null, undefined, NaN, 0]) {
+    const r = await processAlert(makeAlert(), deps(price, { email, whatsapp }));
+    assert.equal(r.decision.reason, "no-price");
+    assert.equal(r.deliveries.length, 0);
+    assert.equal(r.patch.status, undefined);
+  }
+  assert.equal(email.sent.length + whatsapp.sent.length, 0);
 });

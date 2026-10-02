@@ -50,15 +50,25 @@ async function create(req: Request, db: any, user: { id: string; email?: string 
     }
   }
 
-  const v = validateAlertInput({ ...body, email, phone }, { signedIn: !!user });
-  if (!v.ok) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
+  // Alerts watch a real tracked product. Its identity, name, image, currency and
+  // reference price come from our own records — never from the client.
+  const trackedId = typeof body.trackedProductId === "string" ? body.trackedProductId : "";
+  if (!/^[0-9a-f-]{36}$/i.test(trackedId)) return fail(400, "bad_request", "Look up the product in the Price Tracker before setting an alert.");
+  const { data: product } = await db.from("tracked_products").select("*").eq("id", trackedId).maybeSingle();
+  if (!product) return fail(404, "not_found", "That product isn't being tracked. Look it up again and retry.");
+
+  const v = validateAlertInput({ ...body, productId: product.product_key, currency: product.currency || "INR", email, phone }, { signedIn: !!user });
+  if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
   const row = {
-    product_id: v.value.productId, product_name: v.value.productName,
-    product_image: v.value.productImage, product_url: v.value.productUrl,
+    product_id: product.product_key, product_name: product.title,
+    product_image: product.image_url, product_url: product.detail_page_url || product.canonical_url,
+    tracked_product_id: product.id,
     user_id: user?.id ?? null,
     email: v.value.email, phone: v.value.phone,
-    target_price: v.value.targetPrice, currency: v.value.currency, original_price: v.value.originalPrice,
+    // "was" price in the notification = the real price when the alert was set
+    target_price: v.value.targetPrice, currency: product.currency || v.value.currency,
+    original_price: product.current_price != null ? Number(product.current_price) : null,
     email_enabled: v.value.emailEnabled, whatsapp_enabled: v.value.whatsappEnabled,
     consent_at: new Date().toISOString(), status: "active",
   };
@@ -117,22 +127,23 @@ async function update(req: Request, db: any, user: any, id: string | null, token
     consent: true, currency: alert.currency,
   };
   const v = validateAlertInput(merged, { signedIn: !!user });
-  if (!v.ok) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
+  if (!v.ok || !v.value) return json({ error: { code: "validation", message: "Please fix the highlighted fields.", fields: v.errors } }, 422);
 
-  // If price target or channels changed, re-arm the alert so it can fire again.
-  const rearm = Number(v.value.targetPrice) !== Number(alert.target_price)
+  // If the target or channels changed, re-arm a fired alert so it can fire again.
+  // An alert that expired after failed deliveries is also re-armed when the
+  // contact details change, since a wrong address is the usual cause.
+  const targetOrChannels = Number(v.value.targetPrice) !== Number(alert.target_price)
     || v.value.emailEnabled !== alert.email_enabled
     || v.value.whatsappEnabled !== alert.whatsapp_enabled;
+  const contact = (v.value.email ?? null) !== (alert.email ?? null) || (v.value.phone ?? null) !== (alert.phone ?? null);
+  const rearm = (alert.status === "triggered" && targetOrChannels)
+    || (alert.status === "expired" && (targetOrChannels || contact));
 
   const patch: Record<string, unknown> = {
     target_price: v.value.targetPrice, email: v.value.email, phone: v.value.phone,
     email_enabled: v.value.emailEnabled, whatsapp_enabled: v.value.whatsappEnabled,
   };
-  if (rearm && alert.status === "triggered") {
-    patch.status = "active"; patch.triggered_at = null; patch.attempts = 0;
-    patch.notification_status = { email: "pending", whatsapp: "pending" };
-    patch.next_check_at = new Date().toISOString();
-  }
+  if (rearm) Object.assign(patch, rearmPatch());
 
   const { data, error } = await db.from("price_alerts").update(patch).eq("id", alert.id).select().single();
   if (error) {
@@ -147,11 +158,25 @@ async function pauseResume(db: any, user: any, id: string | null, tokenAlertId: 
   if (found.error) return found.error;
   const status = action === "pause" ? "paused" : action === "reactivate" ? "active" : null;
   if (!status) return fail(400, "bad_request", "Unknown action.");
-  const patch: Record<string, unknown> = { status };
-  if (status === "active") { patch.attempts = 0; patch.next_check_at = new Date().toISOString(); }
+  if (status === "active" && !found.alert.email_enabled && !found.alert.whatsapp_enabled)
+    return fail(400, "no_channels", "Turn on email or WhatsApp for this alert before reactivating it.");
+  // Reactivating must clear the previous trigger: evaluateAlert skips any alert
+  // with triggered_at set, so leaving it would show "active" but never fire.
+  const patch: Record<string, unknown> = status === "active" ? rearmPatch() : { status };
   const { data, error } = await db.from("price_alerts").update(patch).eq("id", found.alert.id).select().single();
-  if (error) return fail(500, "server_error", "Could not change the alert.");
+  if (error) {
+    if (String(error.code) === "23505") return fail(409, "duplicate", "You already have an active alert for this product at that price.");
+    return fail(500, "server_error", "Could not change the alert.");
+  }
   return json({ alert: present(data) });
+}
+
+function rearmPatch(): Record<string, unknown> {
+  return {
+    status: "active", triggered_at: null, attempts: 0, last_error: null,
+    notification_status: { email: "pending", whatsapp: "pending" },
+    next_check_at: new Date().toISOString(),
+  };
 }
 
 async function remove(db: any, user: any, id: string | null, tokenAlertId: string | null) {

@@ -1,0 +1,79 @@
+---
+title: "Playbook: filter non-Shopify demo bookings out of your calendar automatically"
+description: "Use a booking webhook, a no-code automation and a Shopify-check API to route demo requests from non-Shopify companies before they reach your sales calendar."
+date: 2026-08-27
+readTime: "8 min read"
+tags: ["automation", "playbook", "lead-qualification"]
+---
+
+If you sell a Shopify app, a meaningful share of demo requests come from companies that can't use it: agencies researching for a client, stores on other platforms, students, competitors. Each of those calls costs an account executive half an hour of prep and a meeting slot a real prospect could have had.
+
+This playbook shows how to check every new booking against a Shopify-detection API and route it automatically — without being rude to anyone.
+
+## The flow at a glance
+
+1. A prospect books a demo (Calendly, HubSpot Meetings or similar).
+2. The booking tool fires a **webhook** to your automation platform.
+3. The automation works out the prospect's website.
+4. It calls the **check API** with that website.
+5. Based on `is_shopify` and `confidence`, it routes the booking.
+
+## Step 1: Capture the website at booking time
+
+Add a required question to your booking form: **"Your store's website"**. It's the most reliable input you'll get. As a fallback, derive the domain from the invitee's email — `jane@brand.com` → `brand.com` — and skip free-mail domains like gmail.com.
+
+## Step 2: Receive the booking webhook
+
+- **Calendly:** create a webhook subscription for the `invitee.created` event and point it at your Zapier, n8n or Make webhook URL.
+- **HubSpot:** use a workflow triggered when a meeting is booked, with a webhook action (availability depends on your HubSpot plan).
+
+## Step 3: Call the API
+
+In n8n, add an **HTTP Request** node:
+
+```text
+GET https://your-domain.com/api/check?url={{ $json.website }}
+```
+
+Or in a code step:
+
+```js
+const res = await fetch(`https://your-domain.com/api/check?url=${encodeURIComponent(website)}`);
+const check = await res.json();
+
+if (!res.ok) return { route: "review", reason: check.error };
+if (check.is_shopify && check.confidence >= 0.7) return { route: "sales", shop: check.shop_domain };
+if (check.is_shopify) return { route: "review", reason: "low_confidence" };
+return { route: "nurture" };
+```
+
+## Step 4: Route, don't reject
+
+Auto-cancelling meetings feels efficient, but a wrong call costs you a real customer. Route instead:
+
+| Result | Route | Action |
+| --- | --- | --- |
+| Shopify, confidence ≥ 0.7 | **Sales** | Keep the meeting, enrich the CRM record with `shop_domain` |
+| Shopify, lower confidence | **Review** | Keep the meeting, flag it for a quick human look |
+| Not Shopify | **Nurture** | Send a friendly email with self-serve resources and offer to keep the call if they're migrating |
+| Error (blocked, timeout) | **Review** | Keep the meeting — no data is not a "no" |
+
+> Someone on another platform today might be migrating next month. The nurture email should say so, and make it easy to rebook.
+
+<CheckCta />
+
+## Step 5: Measure it
+
+After a few weeks, compare:
+
+- the share of booked demos routed to **Nurture**,
+- how many of those were later rebooked, and
+- the change in demo-to-trial conversion for the **Sales** route.
+
+If lots of nurture-routed prospects rebook, loosen the rule. If very few do, you've found hours of reclaimed calendar time.
+
+## Tips
+
+- **Cache is your friend.** Repeat checks of the same domain are served from cache, so re-running a workflow is cheap.
+- **Mind the rate limits.** For backfills, use the bulk endpoint and batch 50 domains at a time.
+- **Log the signals.** Store `detected_signals` on the CRM record; it makes the "why was this routed?" question easy to answer.

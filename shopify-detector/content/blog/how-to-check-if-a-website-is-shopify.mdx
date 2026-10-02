@@ -1,0 +1,71 @@
+---
+title: "How to check if a website is built on Shopify (6 free methods)"
+description: "From view-source to response headers to the /cart.js trick — six free ways to tell whether any website runs on Shopify, and when each one fails."
+date: 2026-09-10
+readTime: "6 min read"
+tags: ["guide", "how-to", "shopify"]
+---
+
+You don't need any special software to tell whether a site runs on Shopify. Every method below is free and takes less than a minute. Each one also has a blind spot, so the most reliable approach is to combine two or three.
+
+## 1. Search the page source
+
+Right-click the page, choose **View Page Source**, and search (Ctrl/Cmd + F) for:
+
+- `cdn.shopify.com` — Shopify's asset CDN
+- `Shopify.theme` — set by every Online Store theme
+- `window.Shopify` or `Shopify.shop`
+
+If you see `Shopify.shop = "something.myshopify.com"`, you've found both the answer and the store's internal domain.
+
+> Only trust matches inside `<script>` tags or link and image URLs. An article *about* Shopify can contain these words too.
+
+## 2. Look for `/cdn/shop/` asset paths
+
+Newer themes serve images and stylesheets from the store's own domain under a `/cdn/shop/` path, for example `/cdn/shop/files/hero.jpg`. It's a strong signal that's easy to spot in the source or the Network tab.
+
+## 3. Check the response headers
+
+Open DevTools (F12), go to the **Network** tab, reload, and click the first document request. Shopify storefronts typically return headers such as:
+
+```http
+x-shopid: 12345678
+x-shopify-stage: production
+x-sorting-hat-shopid: 12345678
+powered-by: Shopify
+```
+
+Headers are the most conclusive evidence because they come from the platform itself, not from the theme. They also survive password pages, where the HTML shows little else.
+
+## 4. Try the `/cart.js` endpoint
+
+Every Shopify storefront exposes the shopper's cart as JSON. Visit:
+
+```text
+https://example.com/cart.js
+```
+
+A Shopify store responds with something like `{"token":"…","items":[],"item_count":0,…}`. This works even for many headless builds, because the cart lives on the platform. `/products.json?limit=1` is a similar check on stores that haven't disabled it.
+
+## 5. Look at the checkout
+
+Add something to the cart and start checkout. Shopify checkouts run under `/checkouts/` paths, and many stores also offer Shop Pay. This takes longer than the other methods, but it's hard to fake.
+
+## 6. Use a checker
+
+<CheckCta />
+
+A dedicated checker runs the methods above automatically — headers, source signals and endpoint probes — and gives you a confidence score plus the evidence it found.
+
+## When the methods disagree
+
+| Situation | What you'll see | What it means |
+| --- | --- | --- |
+| Headers yes, source no | `x-shopid` but no theme assets | Password page or headless storefront |
+| Source yes, headers no | Theme assets behind another CDN | Shopify behind a proxy — still Shopify |
+| `cart.js` yes, everything else no | Custom frontend | Headless Shopify |
+| Nothing works, "Just a moment…" | Bot-protection page | Unknown — try again from a browser |
+
+## Summary
+
+For a quick answer, search the source for `cdn.shopify.com`. For a certain one, confirm with the response headers or `/cart.js`. And for more than a handful of sites, automate it.

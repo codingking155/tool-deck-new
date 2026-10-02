@@ -4,11 +4,9 @@
  * pre-lowercased haystack string (no per-keystroke lowercasing of the list).
  */
 import { COUNTRIES, NANP_INFO, flagOf } from "./phone.js";
+import { canonicalZone } from "./time.js";
 
-const DEPRECATED = {
-  "Asia/Calcutta": "Asia/Kolkata", "Asia/Saigon": "Asia/Ho_Chi_Minh",
-  "Europe/Kiev": "Europe/Kyiv", "Asia/Rangoon": "Asia/Yangon", "Asia/Katmandu": "Asia/Kathmandu",
-};
+export { canonicalZone };
 
 const COUNTRY_BY_ZONE = (() => {
   const m = new Map();
@@ -20,7 +18,7 @@ const COUNTRY_BY_ZONE = (() => {
 export const ZONES = (() => {
   let list = [];
   try { if (Intl.supportedValuesOf) list = Intl.supportedValuesOf("timeZone"); } catch { /* older engines */ }
-  const set = new Set(list.map((z) => DEPRECATED[z] || z));
+  const set = new Set(list.map(canonicalZone));
   for (const c of COUNTRIES) set.add(c[3]);
   for (const [, [, z]] of Object.entries(NANP_INFO)) set.add(z);
   set.add("UTC");
