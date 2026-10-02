@@ -17,6 +17,75 @@ import { useEffect, useRef } from "react";
  * Drop once in your root layout. Rename to .jsx / strip types if needed.
  */
 
+// Module scope, not inside the component: the app re-renders every second
+// (clock), and a component defined in render would remount each time and
+// restart the sway/blink animations.
+const Spider = ({ flip = false }) => (
+  <svg
+    viewBox="0 0 60 130"
+    className="osp-spider"
+    style={flip ? { transform: "scaleY(-1)" } : undefined}
+    aria-hidden="true"
+  >
+    <g className="osp-sway">
+      {/* silk thread */}
+      <path d="M30 0 V58" className="osp-line" strokeWidth="1" opacity="0.65" />
+      {/* legs */}
+      <g className="osp-line" strokeWidth="2" strokeLinecap="round" fill="none">
+        <g className="osp-legs osp-legs-l">
+          <path d="M26 76 C15 70 11 77 7 87" />
+          <path d="M26 82 C13 82 8 90 5 100" />
+          <path d="M26 88 C15 94 12 101 9 110" />
+          <path d="M27 93 C18 101 18 107 16 115" />
+        </g>
+        <g className="osp-legs osp-legs-r">
+          <path d="M34 76 C45 70 49 77 53 87" />
+          <path d="M34 82 C47 82 52 90 55 100" />
+          <path d="M34 88 C45 94 48 101 51 110" />
+          <path d="M33 93 C42 101 42 107 44 115" />
+        </g>
+      </g>
+      {/* body */}
+      <ellipse cx="30" cy="74" rx="6.5" ry="6" className="osp-body" />
+      <ellipse cx="30" cy="90" rx="10" ry="13" className="osp-body" />
+      <ellipse cx="26.6" cy="85" rx="2.8" ry="4.8" className="osp-sheen" />
+      <path d="M30 84 L33.4 90 L30 96 L26.6 90 Z" className="osp-mark" />
+      {/* eyes */}
+      <circle cx="26.5" cy="73" r="1.9" className="osp-eye" />
+      <circle cx="33.5" cy="73" r="1.9" className="osp-eye" />
+    </g>
+  </svg>
+);
+
+const CornerWeb = () => (
+  <svg viewBox="0 0 100 100" className="osp-web" aria-hidden="true">
+    <g className="osp-line" fill="none" strokeLinecap="round">
+      {[0, 15, 32, 51, 70, 90].map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return (
+          <path
+            key={deg}
+            d={`M0 0 L${(Math.cos(a) * 100).toFixed(1)} ${(Math.sin(a) * 100).toFixed(1)}`}
+            strokeWidth="0.9"
+            opacity="0.8"
+          />
+        );
+      })}
+      {[26, 46, 66, 86].map((rad) => {
+        const angles = [0, 15, 32, 51, 70, 90].map((d) => (d * Math.PI) / 180);
+        let d = "";
+        for (let i = 0; i < angles.length - 1; i++) {
+          const a1 = angles[i], a2 = angles[i + 1], am = (a1 + a2) / 2;
+          const sag = rad * 0.8;
+          if (i === 0) d += `M${(Math.cos(a1) * rad).toFixed(1)} ${(Math.sin(a1) * rad).toFixed(1)}`;
+          d += ` Q${(Math.cos(am) * sag).toFixed(1)} ${(Math.sin(am) * sag).toFixed(1)} ${(Math.cos(a2) * rad).toFixed(1)} ${(Math.sin(a2) * rad).toFixed(1)}`;
+        }
+        return <path key={rad} d={d} strokeWidth="0.7" opacity="0.55" />;
+      })}
+    </g>
+  </svg>
+);
+
 export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
   const rootRef = useRef(null);
 
@@ -37,72 +106,6 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
     mo.observe(html, { attributes: true, attributeFilter: ["class", "data-theme"] });
     return () => mo.disconnect();
   }, [theme]);
-
-  const Spider = ({ flip = false }) => (
-    <svg
-      viewBox="0 0 60 130"
-      className="osp-spider"
-      style={flip ? { transform: "scaleY(-1)" } : undefined}
-      aria-hidden="true"
-    >
-      <g className="osp-sway">
-        {/* silk thread */}
-        <path d="M30 0 V58" className="osp-line" strokeWidth="1" opacity="0.65" />
-        {/* legs */}
-        <g className="osp-line" strokeWidth="2" strokeLinecap="round" fill="none">
-          <g className="osp-legs osp-legs-l">
-            <path d="M26 76 C15 70 11 77 7 87" />
-            <path d="M26 82 C13 82 8 90 5 100" />
-            <path d="M26 88 C15 94 12 101 9 110" />
-            <path d="M27 93 C18 101 18 107 16 115" />
-          </g>
-          <g className="osp-legs osp-legs-r">
-            <path d="M34 76 C45 70 49 77 53 87" />
-            <path d="M34 82 C47 82 52 90 55 100" />
-            <path d="M34 88 C45 94 48 101 51 110" />
-            <path d="M33 93 C42 101 42 107 44 115" />
-          </g>
-        </g>
-        {/* body */}
-        <ellipse cx="30" cy="74" rx="6.5" ry="6" className="osp-body" />
-        <ellipse cx="30" cy="90" rx="10" ry="13" className="osp-body" />
-        <ellipse cx="26.6" cy="85" rx="2.8" ry="4.8" className="osp-sheen" />
-        <path d="M30 84 L33.4 90 L30 96 L26.6 90 Z" className="osp-mark" />
-        {/* eyes */}
-        <circle cx="26.5" cy="73" r="1.9" className="osp-eye" />
-        <circle cx="33.5" cy="73" r="1.9" className="osp-eye" />
-      </g>
-    </svg>
-  );
-
-  const CornerWeb = () => (
-    <svg viewBox="0 0 100 100" className="osp-web" aria-hidden="true">
-      <g className="osp-line" fill="none" strokeLinecap="round">
-        {[0, 15, 32, 51, 70, 90].map((deg) => {
-          const a = (deg * Math.PI) / 180;
-          return (
-            <path
-              key={deg}
-              d={`M0 0 L${(Math.cos(a) * 100).toFixed(1)} ${(Math.sin(a) * 100).toFixed(1)}`}
-              strokeWidth="0.9"
-              opacity="0.8"
-            />
-          );
-        })}
-        {[26, 46, 66, 86].map((rad) => {
-          const angles = [0, 15, 32, 51, 70, 90].map((d) => (d * Math.PI) / 180);
-          let d = "";
-          for (let i = 0; i < angles.length - 1; i++) {
-            const a1 = angles[i], a2 = angles[i + 1], am = (a1 + a2) / 2;
-            const sag = rad * 0.8;
-            if (i === 0) d += `M${(Math.cos(a1) * rad).toFixed(1)} ${(Math.sin(a1) * rad).toFixed(1)}`;
-            d += ` Q${(Math.cos(am) * sag).toFixed(1)} ${(Math.sin(am) * sag).toFixed(1)} ${(Math.cos(a2) * rad).toFixed(1)} ${(Math.sin(a2) * rad).toFixed(1)}`;
-          }
-          return <path key={rad} d={d} strokeWidth="0.7" opacity="0.55" />;
-        })}
-      </g>
-    </svg>
-  );
 
   return (
     <div ref={rootRef} aria-hidden="true">

@@ -110,7 +110,11 @@ function groupNational(n) {
 
 export function detectPhone(raw) {
   if (!raw || !raw.trim()) return null;
-  let s = raw.trim().replace(/[().\-\s]/g, "");
+  // "+44 (0) 20 …": the bracketed 0 is the national trunk prefix and must not
+  // survive into the international number.
+  let s = raw.trim();
+  if (/^(\+|00)/.test(s)) s = s.replace(/\(\s*0\s*\)/g, "");
+  s = s.replace(/[().\-\s]/g, "");
   let hasPrefix = false;
   if (s.startsWith("+")) { s = s.slice(1); hasPrefix = true; }
   else if (s.startsWith("00")) { s = s.slice(2); hasPrefix = true; }

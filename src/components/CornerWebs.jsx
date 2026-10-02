@@ -59,6 +59,24 @@ function envelope(d) {
   return 1 - (d - 380) / 370;
 }
 
+// Module scope so the re-render every second (app clock) doesn't remount it.
+const Web = ({ radials, rings }) => (
+  <svg viewBox={`0 0 ${R} ${R}`} className="cw-web" fill="none" aria-hidden="true">
+    <g
+      stroke="currentColor"
+      strokeLinecap="round"
+      vectorEffect="non-scaling-stroke"
+    >
+      {radials.map((d, i) => (
+        <path key={`r${i}`} d={d} strokeWidth={0.9} opacity={0.85} />
+      ))}
+      {rings.map((d, i) => (
+        <path key={`c${i}`} d={d} strokeWidth={0.7} opacity={0.6} />
+      ))}
+    </g>
+  </svg>
+);
+
 export default function CornerWebs({
   size = 300,
   spider = true,
@@ -99,23 +117,6 @@ export default function CornerWebs({
     };
   }, []);
 
-  const Web = () => (
-    <svg viewBox={`0 0 ${R} ${R}`} className="cw-web" fill="none" aria-hidden="true">
-      <g
-        stroke="currentColor"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      >
-        {radials.map((d, i) => (
-          <path key={`r${i}`} d={d} strokeWidth={0.9} opacity={0.85} />
-        ))}
-        {rings.map((d, i) => (
-          <path key={`c${i}`} d={d} strokeWidth={0.7} opacity={0.6} />
-        ))}
-      </g>
-    </svg>
-  );
-
   return (
     <div
       ref={layer}
@@ -124,10 +125,10 @@ export default function CornerWebs({
       style={{ "--cw-size": `${size}px`, zIndex }}
     >
       <div className="cw cw-tl">
-        <Web />
+        <Web radials={radials} rings={rings} />
       </div>
       <div className="cw cw-tr">
-        <Web />
+        <Web radials={radials} rings={rings} />
         {spider && (
           <svg className="cw-spider" viewBox="0 0 40 120" fill="none">
             {/* sway pivots on the silk's anchor; silk stretches exactly as far as the body drops */}

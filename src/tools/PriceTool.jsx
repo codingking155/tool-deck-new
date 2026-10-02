@@ -59,8 +59,10 @@ export default function PriceTool({ notify, nav }) {
   useEffect(() => {
     // keep the shared link's params until its lookup has settled
     if (!product && (state.kind === "loading" || (state.kind === "idle" && initial.p))) return;
-    writeParams({ p: product ? product.canonicalUrl : null, t: product && target ? target : null });
-  }, [product, target, state.kind, initial]);
+    // a lookup that failed on our side (not a bad link) keeps its link, so a reload retries it
+    const retryable = state.kind === "error" && state.input ? state.input : null;
+    writeParams({ p: product ? product.canonicalUrl : retryable, t: (product || retryable) && target ? target : null });
+  }, [product, target, state, initial]);
 
   const lookup = useCallback(async (raw) => {
     const input = String(raw || "").trim();
@@ -79,7 +81,7 @@ export default function PriceTool({ notify, nav }) {
       if (p.canonicalUrl) setUrl(p.canonicalUrl);
     } catch (e) {
       if (e?.name === "AbortError") return;
-      setState({ kind: "error", code: e.code, message: e.message || UNAVAILABLE, detail: e.detail });
+      setState({ kind: "error", code: e.code, message: e.message || UNAVAILABLE, detail: e.detail, input });
     }
   }, [notify]);
 

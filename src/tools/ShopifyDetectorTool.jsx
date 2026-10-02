@@ -85,9 +85,10 @@ export default function ShopifyDetectorTool() {
 
   const handleCopy = () => {
     if (result) {
-      navigator.clipboard.writeText(result.url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // Only confirm once the write actually succeeded (it can be refused).
+      (navigator.clipboard ? navigator.clipboard.writeText(result.url) : Promise.reject(new Error('no clipboard')))
+        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+        .catch(() => setCopied(false));
     }
   };
 
@@ -100,24 +101,24 @@ export default function ShopifyDetectorTool() {
 
   const getStatusIcon = () => {
     if (!result) return null;
-    if (result.isShopify) return <CheckCircle size={24} style={{ color: '#00A56A' }} />;
-    if (result.confidence > 0.3) return <AlertCircle size={24} style={{ color: '#FFC453' }} />;
-    return <XCircle size={24} style={{ color: '#D72C0D' }} />;
+    if (result.isShopify) return <CheckCircle size={24} style={{ color: 'var(--good)' }} />;
+    if (result.confidence > 0.3) return <AlertCircle size={24} style={{ color: 'var(--warn)' }} />;
+    return <XCircle size={24} style={{ color: 'var(--bad)' }} />;
   };
 
   /* plain values: this project has no Tailwind, so utility class names never applied */
+  // Theme tokens, not fixed pastels: a light tint stays readable under
+  // var(--tx) text in both the dark (default) and light themes.
+  const statusToken = () => (result.isShopify ? '--good' : result.confidence > 0.3 ? '--warn' : '--bad');
+
   const getStatusColor = () => {
     if (!result) return undefined;
-    if (result.isShopify) return '#00A56A';
-    if (result.confidence > 0.3) return '#FFC453';
-    return '#D72C0D';
+    return `var(${statusToken()})`;
   };
 
   const getStatusBg = () => {
     if (!result) return undefined;
-    if (result.isShopify) return '#E6F7F1';
-    if (result.confidence > 0.3) return '#FFF8E6';
-    return '#FFF0ED';
+    return `color-mix(in srgb, var(${statusToken()}) 14%, transparent)`;
   };
 
   return (
@@ -260,7 +261,7 @@ export default function ShopifyDetectorTool() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace' }}>
             <Globe size={14} style={{ color: 'var(--tx3)' }} />
             <span style={{ wordBreak: 'break-all' }}>{result.url}</span>
-            {result.shop_domain && <span style={{ color: '#008060', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
+            {result.shop_domain && <span style={{ color: 'var(--good)', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
           </div>
 
           {/* Message */}
@@ -274,7 +275,7 @@ export default function ShopifyDetectorTool() {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
                 <span style={{ fontWeight: 500 }}>Detection Confidence</span>
-                <span style={{ fontWeight: 600, color: '#008060' }}>{Math.round(result.confidence * 100)}%</span>
+                <span style={{ fontWeight: 600, color: 'var(--good)' }}>{Math.round(result.confidence * 100)}%</span>
               </div>
               <div style={{ height: '8px', backgroundColor: 'var(--panel2)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div

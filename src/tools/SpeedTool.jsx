@@ -267,6 +267,9 @@ export default function SpeedTool({ notify }) {
   const currentPhaseRef = useRef(null);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
+  /* leaving the tool mid-test must stop the transfers, not let them run on unseen */
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   /* connection panel loads independently of the test (TRAI pattern) */
   useEffect(() => {
     let alive = true;

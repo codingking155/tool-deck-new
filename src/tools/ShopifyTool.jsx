@@ -5,7 +5,18 @@ import { readParams, writeParams } from "../hooks/index.js";
 export default function ShopifyTool({ notify, arg }) {
   const [url, setUrl] = useState(() => arg || readParams().get("u") || "");
   const [html, setHtml] = useState("");
-  useEffect(() => { writeParams({ u: url.trim() || null }); }, [url]);
+  useEffect(() => {
+    // /tool/shopify/<domain> wins over ?u= on load, so once the field no longer
+    // matches the path domain, drop it from the path or shared links scan the old one.
+    const prefix = "/tool/shopify/";
+    const path = window.location.pathname;
+    if (path.startsWith(prefix)) {
+      let inPath = path.slice(prefix.length);
+      try { inPath = decodeURIComponent(inPath); } catch { /* keep raw */ }
+      if (inPath !== url.trim()) window.history.replaceState(null, "", "/tool/shopify" + window.location.search + window.location.hash);
+    }
+    writeParams({ u: url.trim() || null });
+  }, [url]);
   const [state, setState] = useState("idle"); // idle|scanning|done|blocked
   const [res, setRes] = useState(null);
   const [ms, setMs] = useState(null);

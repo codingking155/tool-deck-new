@@ -76,6 +76,8 @@ export default function PriceChart({ observations, start, end, fmtPrice, fmtWhen
   if (!model) return null;
   const { d, points, xTicks, yTicks } = model;
   const nearest = (clientX) => {
+    // only a reading carried in from before the range → nothing to point at
+    if (!points.length) return null;
     const r = wrap.current.getBoundingClientRect();
     const px = clientX - r.left;
     let best = 0;
@@ -94,8 +96,8 @@ export default function PriceChart({ observations, start, end, fmtPrice, fmtWhen
         onPointerDown={(e) => setHover(nearest(e.clientX))}
         onBlur={() => setHover(null)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowLeft") { e.preventDefault(); setHover((h) => Math.max(0, (h ?? points.length) - 1)); }
-          if (e.key === "ArrowRight") { e.preventDefault(); setHover((h) => Math.min(points.length - 1, (h ?? -1) + 1)); }
+          if (e.key === "ArrowLeft" && points.length) { e.preventDefault(); setHover((h) => Math.max(0, (h ?? points.length) - 1)); }
+          if (e.key === "ArrowRight" && points.length) { e.preventDefault(); setHover((h) => Math.min(points.length - 1, (h ?? -1) + 1)); }
           if (e.key === "Escape") setHover(null);
         }}>
         {yTicks.map((t, i) => (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createAlertsApi } from "./api.js";
 import { validateAlertInput } from "../../../shared/priceAlertsCore/validation.mjs";
@@ -66,10 +66,35 @@ export default function SetPriceAlert({
   /* Portal to the app root: rendered in place, an ancestor's transform/backdrop-filter
      re-anchors position:fixed (cutting the dialog off) and traps it under page layers.
      Mounting inside .app (not <body>) keeps the light/dark theme variables. */
+  /* keyboard: Escape closes, focus moves into the dialog, Tab stays inside it,
+     and focus returns to whatever opened it */
+  const boxRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+    const opener = document.activeElement;
+    const focusables = () => [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    (box.querySelector("input") || focusables()[0])?.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeRef.current?.(); return; }
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    box.addEventListener("keydown", onKey);
+    return () => { box.removeEventListener("keydown", onKey); opener?.focus?.(); };
+  }, []);   // once per open — onClose is often a fresh inline function
+
   const host = (typeof document !== "undefined" && (document.querySelector(".app") || document.body)) || null;
   const dialog = (
     <div className="pa-overlay" onClick={(e) => e.target === e.currentTarget && onClose && onClose()}>
-      <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert">
+      <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert" ref={boxRef}>
         <div className="pa-head">
           <h3>Set price alert <span className="pa-beta">Beta</span></h3>
           <button className="pa-x" aria-label="Close" onClick={onClose}>×</button>
