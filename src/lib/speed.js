@@ -7,6 +7,9 @@ import { median, cleanSamples, jitterOf, windowMbps, finalMbps, parseCfL4, aggre
 export { summaryText, historyCsv, compareRuns } from "./speedCore.mjs";
 
 const DATA_BUDGET = 200 * 1024 * 1024;
+/* download may use most of the budget, but never the part upload needs:
+   on a fast link it would otherwise spend all 200 MB and leave upload "Unavailable" */
+const DOWNLOAD_SHARE = 0.7;
 
 /* ── servers ──────────────────────────────────────────────────────────── */
 
@@ -123,11 +126,20 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
 
   async function stream() {
     while (!done && !signal?.aborted) {
-      const size = sizes[Math.min(sizeIdx, sizes.length - 1)];
-      if (budget && !budget.take(size)) { done = true; break; }
+      /* streams reserve budget concurrently; when the next size doesn't fit,
+         fall back to a smaller one, and end only this stream if none fits.
+         (Setting the shared `done` here used to stop all six streams the
+         first time any one of them hit the budget.) */
+      let size = 0;
+      for (let i = Math.min(sizeIdx, sizes.length - 1); i >= 0; i--) {
+        if (!budget || budget.take(sizes[i])) { size = sizes[i]; break; }
+      }
+      if (!size) break;
+      let read = 0;
       try {
         const r = await fetch(server.down(size), { cache: "no-store", signal });
         if (!r.ok) {                    // error bodies are not throughput; back off instead of hammering
+          budget?.refund(size);
           try { await r.body?.cancel(); } catch { /* closed */ }
           await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300));
           if (shouldStop()) done = true;
@@ -143,12 +155,14 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
         for (;;) {
           const { done: d, value } = await reader.read();
           if (d) break;
+          read += value.length;
           samples.push({ t: performance.now(), bytes: value.length });
           onLive && onLive(windowMbps(samples));
           if (shouldStop()) { done = true; try { await reader.cancel(); } catch { /* closed */ } break; }
         }
+        budget?.refund(size - read);
         sizeIdx++;
-      } catch { if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
+      } catch { budget?.refund(size - read); if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
       if (shouldStop()) done = true;
     }
   }
@@ -182,12 +196,27 @@ function randomPayload(n) {
   return buf;
 }
 
+/* Upload chunk ladder. A POST only reports progress when it completes, so a
+   fixed multi-MB chunk on a slow uplink (1–2 Mbps is common on mobile) took
+   tens of seconds with the gauge stuck at 0 and ran far past maxMs. Each
+   stream starts small and steps up only while requests finish quickly. */
+const UP_LADDER = [128e3, 256e3, 512e3, 1e6, 2e6, 4e6, 8e6, 16e6];
+const UP_GROW_MS = 1200;    // a request faster than this → next one is bigger
+const UP_SHRINK_MS = 3500;  // slower than this → step back down
+const UP_GRACE_MS = 2500;   // in-flight requests are aborted at maxMs + this
+
 export async function runUpload(server, { signal, onLive, budget, minMs = 4000, maxMs = 8000, streams = 4 } = {}) {
-  const payloads = [2e6, 8e6, 16e6].map(randomPayload);
+  const payload = randomPayload(UP_LADDER[UP_LADDER.length - 1]);
   const samples = [{ t: performance.now(), bytes: 0 }];
   const stability = [];
   const t0 = performance.now();
-  let sizeIdx = 0, done = false;
+  let done = false;
+
+  /* one controller for the whole phase: user cancel, or the hard deadline */
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  const deadline = setTimeout(() => { done = true; ctrl.abort(); }, maxMs + UP_GRACE_MS);
 
   const shouldStop = () => {
     const now = performance.now();
@@ -197,22 +226,32 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
   };
 
   async function stream() {
-    while (!done && !signal?.aborted) {
-      const p = payloads[Math.min(sizeIdx, payloads.length - 1)];
-      if (budget && !budget.take(p.length)) { done = true; break; }
+    let idx = 0;
+    while (!done && !ctrl.signal.aborted) {
+      const size = UP_LADDER[idx];
+      if (budget && !budget.take(size)) { done = true; break; }
+      const started = performance.now();
       try {
         /* server.up is a plain URL (unlike .down, it isn't parameterized by size) */
-        const r = await fetch(server.up, { cache: "no-store", method: "POST", body: p, signal });
-        if (!r.ok) { await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300)); if (shouldStop()) done = true; continue; }
-        samples.push({ t: performance.now(), bytes: p.length });
+        const r = await fetch(server.up, { cache: "no-store", method: "POST", body: payload.subarray(0, size), signal: ctrl.signal });
+        try { await r.arrayBuffer(); } catch { /* body irrelevant */ }
+        if (!r.ok) { budget?.refund(size); await new Promise((res) => setTimeout(res, r.status === 429 ? 1500 : 300)); if (shouldStop()) done = true; continue; }
+        const took = performance.now() - started;
+        samples.push({ t: performance.now(), bytes: size });
         onLive && onLive(windowMbps(samples, 3000));
-        sizeIdx++;
-      } catch { if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
+        if (took < UP_GROW_MS) idx = Math.min(idx + 1, UP_LADDER.length - 1);
+        else if (took > UP_SHRINK_MS) idx = Math.max(idx - 1, 0);
+      } catch { budget?.refund(size); if (ctrl.signal.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
       if (shouldStop()) done = true;
     }
   }
 
-  await Promise.all(Array.from({ length: streams }, stream));
+  try {
+    await Promise.all(Array.from({ length: streams }, stream));
+  } finally {
+    clearTimeout(deadline);
+    signal?.removeEventListener("abort", onAbort);
+  }
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
   if (bytes < 200000) return { mbps: null, bytes };
   return { mbps: +finalMbps(samples).toFixed(1), bytes };
@@ -251,14 +290,21 @@ export async function fetchMeta(server, { signal } = {}) {
 
 export function makeBudget(limit = DATA_BUDGET) {
   let used = 0;
-  return { take(n) { if (used + n > limit) return false; used += n; return true; }, get used() { return used; } };
+  return {
+    take(n) { if (used + n > limit) return false; used += n; return true; },
+    /* give back bytes reserved for a request that was cut short or failed,
+       so download doesn't starve the upload phase of budget it never used */
+    refund(n) { used = Math.max(0, used - Math.max(0, n)); },
+    get used() { return used; },
+  };
 }
 
 /** Full test run. Reports through cb: (stage, payload). Returns the result
     object, or throws { cancelled: true } / { offline: true }. */
 export async function runFullTest(server, servers, cb, signal) {
   if (typeof navigator !== "undefined" && navigator.onLine === false) throw { offline: true };
-  const budget = makeBudget();
+  const downBudget = makeBudget(Math.round(DATA_BUDGET * DOWNLOAD_SHARE));
+  let upBudget = null;
   let hiddenDuring = false;
   const onVis = () => { if (document.hidden) hiddenDuring = true; };
   document.addEventListener("visibilitychange", onVis);
@@ -280,13 +326,14 @@ export async function runFullTest(server, servers, cb, signal) {
 
     cb("down");
     const proberD = startLoadedProber(srv, signal);
-    const down = await runDownload(srv, { signal, budget, onLive: (m) => cb("live", m) });
+    const down = await runDownload(srv, { signal, budget: downBudget, onLive: (m) => cb("live", m) });
     const loadedDown = proberD.stop();
     if (signal.aborted) throw { cancelled: true };
 
     cb("up");
     const proberU = startLoadedProber(srv, signal);
-    const up = await runUpload(srv, { signal, budget, onLive: (m) => cb("live", m) });
+    upBudget = makeBudget(DATA_BUDGET - downBudget.used);
+    const up = await runUpload(srv, { signal, budget: upBudget, onLive: (m) => cb("live", m) });
     const loadedUp = proberU.stop();
     if (signal.aborted) throw { cancelled: true };
 
@@ -304,7 +351,7 @@ export async function runFullTest(server, servers, cb, signal) {
          chosen server doesn't expose them. */
       loss: down.loss?.pct ?? null,
       lossDetail: down.loss ?? null,
-      dataUsed: Math.round(budget.used / 1e6),
+      dataUsed: Math.round((downBudget.used + (upBudget?.used ?? 0)) / 1e6),
       tabHidden: hiddenDuring,
       partial: down.mbps == null || up.mbps == null,
     };

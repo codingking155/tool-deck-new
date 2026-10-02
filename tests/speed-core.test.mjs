@@ -111,3 +111,78 @@ test("isStable fires only on flat throughput after enough samples", () => {
   assert.equal(isStable([50, 60, 100, 101, 99, 100], 5, 0.05), false); // 60 in tail
   assert.equal(isStable([0, 0, 0, 0, 0], 5), false);            // no signal yet
 });
+
+/* ── upload engine against a simulated link ─────────────────────────────── */
+import { runUpload } from "../src/lib/speed.js";
+
+// A link of `mbps` shared by however many POSTs are in flight; each request
+// resolves when its body would have finished, and honours abort signals.
+function simulatedUplink(mbps) {
+  let active = 0;
+  return async (_url, { body, signal }) => {
+    active++;
+    const ms = (body.length * 8) / ((mbps * 1e6) / active) * 1000;
+    try {
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(resolve, ms);
+        signal?.addEventListener("abort", () => { clearTimeout(t); reject(Object.assign(new Error("aborted"), { name: "AbortError" })); }, { once: true });
+      });
+    } finally { active--; }
+    return new Response("{}", { status: 200 });
+  };
+}
+
+test("upload: a slow uplink finishes near maxMs and reports a real rate", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = simulatedUplink(2);          // 2 Mbps, shared by 4 streams
+  try {
+    const t0 = performance.now();
+    const r = await runUpload({ up: "https://example.test/up" }, { minMs: 800, maxMs: 1500 });
+    const took = performance.now() - t0;
+    assert.ok(took < 1500 + 3000, `upload phase ran ${Math.round(took)} ms`);
+    assert.ok(r.mbps != null && r.mbps > 1 && r.mbps < 3, `measured ${r.mbps} Mbps on a 2 Mbps link`);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("upload: a fast uplink grows the chunk size", async () => {
+  const realFetch = globalThis.fetch;
+  const sizes = [];
+  const link = simulatedUplink(200);
+  globalThis.fetch = (u, init) => { sizes.push(init.body.length); return link(u, init); };
+  try {
+    const r = await runUpload({ up: "https://example.test/up" }, { minMs: 800, maxMs: 1500 });
+    assert.ok(Math.max(...sizes) >= 2e6, `largest chunk ${Math.max(...sizes)}`);
+    assert.ok(r.mbps > 120 && r.mbps < 260, `measured ${r.mbps} Mbps on a 200 Mbps link`);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("data budget: unused reservations are refunded", async () => {
+  const { makeBudget } = await import("../src/lib/speed.js");
+  const b = makeBudget(100);
+  assert.equal(b.take(60), true);
+  assert.equal(b.take(60), false);       // would exceed the budget
+  b.refund(50);                          // 50 of the 60 were never transferred
+  assert.equal(b.used, 10);
+  assert.equal(b.take(60), true);
+  b.refund(-5);                          // never goes negative or grows
+  assert.equal(b.used, 70);
+});
+
+test("download: hitting the budget ends one stream, not all of them", async () => {
+  const { runDownload, makeBudget } = await import("../src/lib/speed.js");
+  const realFetch = globalThis.fetch;
+  let dataCalls = 0;
+  globalThis.fetch = async (url) => {
+    const n = +/bytes=(\d+)/.exec(url)[1];
+    if (n > 0) dataCalls++;
+    await new Promise((r) => setTimeout(r, 20));
+    return new Response(new Uint8Array(Math.min(n, 2e5)), { status: 200 });
+  };
+  try {
+    const budget = makeBudget(60e6);   // exactly the first round of six 10 MB reservations
+    const r = await runDownload({ down: (b) => `https://example.test/__down?bytes=${b}` }, { budget, minMs: 600, maxMs: 1200 });
+    assert.ok(dataCalls > 12, `only ${dataCalls} download requests — streams stopped early`);
+    assert.ok(r.mbps > 0);
+    assert.ok(budget.used <= 60e6);
+  } finally { globalThis.fetch = realFetch; }
+});
