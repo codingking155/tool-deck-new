@@ -1,0 +1,29 @@
+# ToolDeck
+
+Vite + React 18 SPA (`src/`), Supabase Edge Functions (`supabase/functions/`, Deno) sharing pure
+modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own Vercel project).
+
+## Commands
+- `npm test` — node:test, ~100 tests, ~2 s. Run before every commit.
+- `npm run build` — Vite build; `npx vite preview --port 4173` to browse it.
+- Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
+- Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
+
+## Conventions
+- Theme: dark is default, `.light` class on `.app`; use the `--tx/--panel/--line/--good/--warn/--bad` tokens,
+  never hard-coded colours (text on fixed pastel backgrounds broke dark mode before).
+- Price Tracker shows REAL data only. No sample/seeded/fallback prices; if no live price, show
+  "Unable to retrieve the latest price right now."
+- Never put secrets in frontend code. Provider keys live in Supabase secrets.
+- Define React components at module scope (the app re-renders every second; inner components remount).
+- Two Shopify tools (`shopify`, `shopifydetector`) are intentional — don't merge without asking.
+- Bottom of the page: spiders yes, cobwebs no.
+- Git: develop on the branch named in the session; commit messages end with the Co-Authored-By /
+  Claude-Session lines given by the harness; don't open PRs unless asked.
+
+## Working efficiently (token use)
+- Read only the files/lines needed; prefer Grep over reading whole files. Don't read `node_modules`, `dist`,
+  `shopify-detector/.next`, lockfiles or fonts.
+- Delegate wide searches or reviews to a subagent so only the conclusion returns.
+- Don't schedule recurring check-ins or PR subscriptions unless asked; stop them once the PR is green.
+- Keep final replies short; put detail in commit messages / PR descriptions.

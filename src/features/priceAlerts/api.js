@@ -3,24 +3,32 @@
 // getToken() should return the signed-in customer's Supabase access token (or null).
 
 export function createAlertsApi({ functionsBase, getToken } = {}) {
-  const base =
-    functionsBase ||
-    (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_URL
-      ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
-      : "/functions/v1");
+  const env = (typeof import.meta !== "undefined" && import.meta.env) || {};
+  const base = functionsBase || (env.VITE_SUPABASE_URL ? `${env.VITE_SUPABASE_URL}/functions/v1` : null);
+  const anonKey = env.VITE_SUPABASE_ANON_KEY || "";
 
   async function call(path, { method = "GET", body, manageToken } = {}) {
+    if (!base) {
+      const err = new Error("Price alerts aren't configured on this deployment (VITE_SUPABASE_URL is not set).");
+      err.code = "not_configured"; err.status = 0;
+      throw err;
+    }
     const headers = { "Content-Type": "application/json" };
     const token = getToken ? await getToken() : null;
+    /* Supabase's gateway verifies a JWT on every function call; guests use the anon key. */
+    if (anonKey) headers.apikey = anonKey;
     if (token) headers.Authorization = `Bearer ${token}`;
+    else if (anonKey) headers.Authorization = `Bearer ${anonKey}`;
     if (manageToken) headers["x-manage-token"] = manageToken;
 
     const res = await fetch(`${base}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const err = new Error((data.error && data.error.message) || "Request failed");
-      err.code = data.error && data.error.code;
-      err.fields = data.error && data.error.fields;
+    const ctype = res.headers.get("content-type") || "";
+    const data = /json/i.test(ctype) ? await res.json().catch(() => null) : null;
+    if (!res.ok || data == null) {
+      /* an HTML page (SPA rewrite) or non-JSON body is never a success */
+      const err = new Error((data && data.error && data.error.message) || (data == null ? "The alerts API did not answer (is the backend deployed?)" : "Request failed"));
+      err.code = data && data.error && data.error.code;
+      err.fields = data && data.error && data.error.fields;
       err.status = res.status;
       throw err;
     }

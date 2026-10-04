@@ -17,14 +17,15 @@ export const TOOLS = [
       ["Can this tool locate a person?", "No. It only shows the numbering country or region a number belongs to — never the owner, device, or live location."],
       ["Do I need the + prefix?", "Adding the international prefix gives the most accurate result. Without it, the tool marks the guess as assumed."],
     ] },
-  { id: "shopify", icon: "🛍️", c: "#22C55E", name: "Shopify Detector", desc: "Nine-signal scan with a confidence score for any storefront.", pv: "scan",
-    blurb: "Check whether any website runs Shopify. Nine independent signals are scored into one confidence value, with Shopify Plus and theme detection. Works from a URL or pasted page source.",
+  { id: "shopify", icon: "🛍️", c: "#22C55E", name: "Shopify Detector", desc: "18-signal scan with shop domain, theme, currency and a live API for automation.", pv: "scan",
+    blurb: "Check whether any website runs Shopify. Eighteen independent signals — page markers, response headers and live storefront endpoints — score into one confidence value, plus shop domain, theme, currency and Shopify Plus detection. Works from a URL, or pasted page source when a site blocks direct reads. Also exposes a JSON API for CRM, Zapier and n8n.",
     faqs: [
-      ["How can I tell if a website uses Shopify?", "Scan the store URL; the tool looks for nine markers such as the Shopify CDN, checkout endpoints, and the window.Shopify object, then scores a confidence value."],
-      ["Is the Shopify checker free?", "Yes, it's free and needs no sign-up. It tries the site directly, falls back to read-only proxies, and can also read pasted page source."],
-      ["Why does a check sometimes fail?", "Some stores block cross-origin reads. Paste the page source (Ctrl+U) or deploy your own server proxy for one-click checks."],
+      ["How can I tell if a website uses Shopify?", "Scan the store URL; the tool checks eighteen markers — CDN assets, checkout endpoints, response headers and live endpoint probes — then scores a confidence value, alongside shop domain, theme and currency when detectable."],
+      ["Is the Shopify checker free?", "Yes, it's free and needs no sign-up. With the server API deployed it reads response headers server-side (the strongest evidence); otherwise it tries the site directly, falls back to read-only proxies, and can also read pasted page source."],
+      ["Why does a check sometimes fail?", "Some stores block cross-origin reads or hide markers behind a headless front end. Paste the page source (Ctrl+U) or deploy the server API for one-click, header-based checks."],
+      ["Can I automate this — CRM, Zapier, n8n?", "Yes — deploy the Supabase API and call it as a JSON endpoint; branch your automation on is_shopify. See \"API for CRM / Zapier / n8n\" inside the tool for the exact request/response shape."],
     ] },
-  { id: "shopifydetector", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "search",
+  { id: "shopifydetector", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "scan",
     blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Powered by the ShopifyOrNot API.",
     faqs: [
       ["What does the Shopify detector do?", "Enter a website URL and the tool checks if it's a Shopify store, returning a confidence score, detected shop domain, and technical signals."],
@@ -32,11 +33,11 @@ export const TOOLS = [
       ["Can I check multiple stores at once?", "Currently the tool checks one URL at a time. Enter the domain and wait for the result, then check another if needed."],
     ] },
   { id: "speed", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
-    blurb: "Measure ping, jitter, download and upload speed from your browser against Cloudflare's public edge — no redirects, no app. A full run transfers roughly 20–35 MB.",
+    blurb: "Measure ping, jitter, download and upload speed from your browser against a global edge network — no redirects, no app. A full run transfers roughly 20–35 MB.",
     faqs: [
       ["How much data does a speed test use?", "A full run transfers roughly 20–35 MB. There's also a demo run that uses no data."],
       ["What is a good ping and download speed?", "Under 60 ms ping suits gaming; 25 Mbps download handles 4K streaming; 20 Mbps down and 5 up covers most work-from-home needs."],
-      ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against Cloudflare's endpoints."],
+      ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against the live measurement endpoints."],
     ] },
   { id: "ip", icon: "🌐", c: "#8B5CF6", name: "My IP & IPv6 Test", desc: "Public IPv4/IPv6, ISP, and honest IPv6 guidance with enable steps.", pv: "packets",
     blurb: "See your public IPv4 and IPv6 addresses, ISP, and browser details, with honest guidance and step-by-step instructions for enabling IPv6 on Android, iPhone, Windows, macOS and routers.",
@@ -45,12 +46,12 @@ export const TOOLS = [
       ["Does IPv6 make the internet faster?", "Not by itself. IPv6 gives a far larger address space and can improve direct connectivity, but speed depends on your ISP, router and device."],
       ["Is my IP address stored?", "No. Addresses are read from the network and shown only to you; this page never logs them."],
     ] },
-  { id: "price", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Amazon & Flipkart price history, 30-day to 5-year analytics, alerts.", pv: "chart",
-    blurb: "Track Amazon.in and Flipkart price history from 30 days to 5 years, with lowest, highest and average analytics, a buy verdict, and target-price alerts. Preview uses simulated data.",
+  { id: "price", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
+    blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
     faqs: [
-      ["How do I track an Amazon or Flipkart price?", "Paste the product URL to see its price history, min/max/average analytics and a buy verdict. The live preview uses simulated data."],
-      ["Is real price history accurate?", "Real tracking needs a backend with licensed price feeds and genuinely recorded history — analytics are only honest once that range has actually been recorded."],
-      ["Can I get an alert when the price drops?", "Set a target price; alerts deliver by email or WhatsApp through the Supabase backend."],
+      ["How do I track an Amazon price?", "Paste the product link — any format, including app share links. You get the live price, availability and the history recorded so far, and the product keeps being checked automatically."],
+      ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
+      ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
 ];
 
@@ -58,5 +59,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon & Flipkart prices", "Detect Shopify storefronts",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
 ];

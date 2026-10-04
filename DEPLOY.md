@@ -36,25 +36,32 @@ your host's prerendering). The homepage unfurls correctly without it.
 ## 5. Installable PWA — already on
 `public/manifest.webmanifest` + `public/sw.js` register automatically on HTTPS
 (and localhost). Client-side tools (UTC, phone, price demo) work offline.
-**Bump `CACHE` in `public/sw.js` whenever you deploy** (currently `tooldeck-v2`).
+**Bump `CACHE` in `public/sw.js` whenever you deploy** (currently `tooldeck-v4`).
 
 ## 6. Speed-test server (optional, recommended)
 `supabase functions deploy speedtest` gives you a first-party measurement
 server: ?op=ping|down|up|meta with rate limits, discard-only uploads and a
 server-side IP/ASN lookup (no keys in the frontend). Without it, the tool
-measures against Cloudflare's public edge. Methodology: docs/SPEEDTEST.md.
+measures against Cloudflare's public edge. The browser calls it without a JWT,
+so deploy it with `--no-verify-jwt`.
 
 ## 7. Price alerts backend (optional feature)
-`supabase/` contains the Edge Functions, migrations, and cron. Follow
-`docs/PRICE_ALERTS.md`; copy `.env.example`, set `VITE_SUPABASE_URL` in the
-front-end build env. Providers default to `mock`, so nothing sends by accident.
+`supabase/` contains the Edge Functions, migrations, and cron. Set
+`VITE_SUPABASE_URL` **and** `VITE_SUPABASE_ANON_KEY` in the front-end build env
+(the client sends the anon key as the gateway JWT). Function secrets:
+`ALERT_TOKEN_SECRET`, `CRON_SECRET` (the check job refuses to run without it),
+`SUPABASE_SERVICE_ROLE_KEY`, optional `EMAIL_PROVIDER=resend` /
+`WHATSAPP_PROVIDER=meta`. Providers default to `mock`, so nothing sends by accident.
+The Shopify checker (`shopify-check`) is public and unauthenticated by design —
+deploy it with `--no-verify-jwt`; it is rate-limited per IP (`SHOPIFY_RATE_LIMIT_MAX`).
 
 ## 8. Visitor counter (optional)
 Point `COUNTER_ENDPOINT` in `src/hooks/index.js` at a tiny API returning
 `{ count }` (a 10-line Cloudflare Worker with KV works). Until then the footer
-shows a friendly placeholder — never a fake number.
+shows a per-device visit count from `localStorage`, labelled as such.
 
 ## 9. Server proxy for the Shopify checker (recommended for production)
-The browser falls back to public read-only CORS proxies. For one-click checks
-on your own infra, add a small proxy with URL validation, SSRF protection and
-rate limiting, and use it first in `src/lib/shopify.js → fetchPageSource`.
+The browser falls back to public read-only CORS proxies. With
+`VITE_SUPABASE_URL` set, `supabase/functions/shopify-check` is used first: it
+walks redirects itself and range-checks every hop and DNS answer
+(`shared/net/safeFetch.mjs`), caps bodies, and rate-limits per IP.

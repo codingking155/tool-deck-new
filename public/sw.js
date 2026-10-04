@@ -1,6 +1,6 @@
 /* ToolDeck BLR service worker — app-shell + runtime caching.
    Bump CACHE when you deploy new assets. */
-const CACHE = "tooldeck-v3";
+const CACHE = "tooldeck-v4";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -28,8 +28,11 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     caches.match(req).then((hit) =>
       hit || fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        /* a cached 404/500 would stay broken until the next version bump */
+        if (res.ok && res.type === "basic") {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
         return res;
       }).catch(() => hit)
     )

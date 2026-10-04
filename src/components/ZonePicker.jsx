@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { ZONES, searchZones } from "../lib/timezones.js";
+import { ZONES, searchZones, canonicalZone } from "../lib/timezones.js";
 import { offsetLabel } from "../lib/time.js";
 
 export default function ZonePicker({ value, onChange, allowNone }) {
@@ -7,7 +7,7 @@ export default function ZonePicker({ value, onChange, allowNone }) {
   const [q, setQ] = useState("");
   const ref = useRef(null);
   const results = useMemo(() => searchZones(q).slice(0, 50), [q]);
-  const sel = ZONES.find((e) => e.zone === value);
+  const sel = ZONES.find((e) => e.zone === canonicalZone(value));
   useEffect(() => {
     if (!open) return;
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };

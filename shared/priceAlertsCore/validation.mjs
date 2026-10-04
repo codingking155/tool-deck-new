@@ -44,13 +44,13 @@ export function validateAlertInput(input = {}, opts = {}) {
   const email = (input.email || "").trim();
   const phone = normalizePhoneE164(input.phone || "");
 
-  // Email required when the email channel is on, or always for guests.
-  if (emailEnabled || !opts.signedIn) {
+  // A contact is required for every channel that is switched on. Guests are
+  // not asked for a channel they didn't enable (email-only alerts need no phone).
+  if (emailEnabled) {
     if (!email) errors.email = "Enter your email address.";
     else if (!isValidEmail(email)) errors.email = "That email address doesn't look right.";
   }
-  // WhatsApp phone required when the WhatsApp channel is on, or always for guests.
-  if (whatsappEnabled || !opts.signedIn) {
+  if (whatsappEnabled) {
     if (!input.phone || !String(input.phone).trim()) {
       errors.phone = "Enter your WhatsApp number with country code.";
     } else if (!phone) {

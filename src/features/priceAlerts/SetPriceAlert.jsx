@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { createAlertsApi } from "./api.js";
 import { validateAlertInput } from "../../../shared/priceAlertsCore/validation.mjs";
 
@@ -8,13 +9,14 @@ function money(n, currency = "INR") {
 }
 
 export default function SetPriceAlert({
-  product,                 // { id, name, image, url, currentPrice, currency, originalPrice }
+  product,                 // { id, trackedProductId, name, image, url, currentPrice, currency, originalPrice }
   signedIn = false,
   defaultEmail = "",
   defaultPhone = "",
   functionsBase,
   getToken,
   manageBaseUrl,           // for building the guest manage link shown on success
+  initialTarget,           // target price already typed in the tool (optional)
   onClose,
   onCreated,
 }) {
@@ -23,7 +25,8 @@ export default function SetPriceAlert({
   const cur = product.currency || "INR";
 
   const [form, setForm] = useState({
-    targetPrice: product.currentPrice ? Math.max(1, Math.floor(product.currentPrice * 0.9)) : "",
+    targetPrice: Number(initialTarget) > 0 ? Number(initialTarget)
+      : product.currentPrice ? Math.max(1, Math.floor(product.currentPrice * 0.9)) : "",
     email: defaultEmail, phone: defaultPhone,
     emailEnabled: true, whatsappEnabled: false, consent: false,
   });
@@ -37,7 +40,7 @@ export default function SetPriceAlert({
   async function submit() {
     setServerError("");
     const payload = {
-      productId: product.id, productName: product.name, productImage: product.image,
+      productId: product.id, trackedProductId: product.trackedProductId, productName: product.name, productImage: product.image,
       productUrl: product.url, currency: cur, originalPrice: product.originalPrice ?? null,
       ...form,
     };
@@ -60,9 +63,38 @@ export default function SetPriceAlert({
     ? `${manageBaseUrl}?t=${encodeURIComponent(result.manageToken)}`
     : null;
 
-  return (
+  /* Portal to the app root: rendered in place, an ancestor's transform/backdrop-filter
+     re-anchors position:fixed (cutting the dialog off) and traps it under page layers.
+     Mounting inside .app (not <body>) keeps the light/dark theme variables. */
+  /* keyboard: Escape closes, focus moves into the dialog, Tab stays inside it,
+     and focus returns to whatever opened it */
+  const boxRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+    const opener = document.activeElement;
+    const focusables = () => [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    (box.querySelector("input") || focusables()[0])?.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeRef.current?.(); return; }
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    box.addEventListener("keydown", onKey);
+    return () => { box.removeEventListener("keydown", onKey); opener?.focus?.(); };
+  }, []);   // once per open — onClose is often a fresh inline function
+
+  const host = (typeof document !== "undefined" && (document.querySelector(".app") || document.body)) || null;
+  const dialog = (
     <div className="pa-overlay" onClick={(e) => e.target === e.currentTarget && onClose && onClose()}>
-      <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert">
+      <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert" ref={boxRef}>
         <div className="pa-head">
           <h3>Set price alert <span className="pa-beta">Beta</span></h3>
           <button className="pa-x" aria-label="Close" onClick={onClose}>×</button>
@@ -149,8 +181,8 @@ export default function SetPriceAlert({
               <button className="btn pri" style={{ marginTop: 14 }} disabled={state === "submitting"} onClick={submit}>
                 {state === "submitting" ? "Setting alert…" : "Set price alert"}
               </button>
-              <p className="note w" style={{ marginTop: 12, marginBottom: 0 }}>
-                Beta: the current price shown here comes from ToolDeck's demo price source, so alerts are for trying the flow, not live buying decisions.
+              <p className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                We compare your target with the live Amazon price on every check. Prices can change between our check and your purchase.
               </p>
             </>
           )}
@@ -158,4 +190,5 @@ export default function SetPriceAlert({
       </div>
     </div>
   );
+  return host ? createPortal(dialog, host) : dialog;
 }

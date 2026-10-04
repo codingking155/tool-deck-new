@@ -109,7 +109,7 @@ export default function MyAlerts({ functionsBase, getToken, manageToken, signedI
               <button className="pill" onClick={() => { setEditing(a.id); setEditVal(String(a.targetPrice)); }}>Edit target</button>
               {a.status === "active"
                 ? <button className="pill" onClick={() => act(() => api.pause(a.id, manageToken))}>Pause</button>
-                : (a.status === "paused" || a.status === "triggered")
+                : (a.status === "paused" || a.status === "triggered" || a.status === "expired")
                   ? <button className="pill" onClick={() => act(() => api.reactivate(a.id, manageToken))}>Reactivate</button>
                   : null}
               <button className="pill" onClick={() => act(() => api.remove(a.id, manageToken))}>Delete</button>

@@ -16,8 +16,16 @@ export const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const DAYS_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Legacy IANA names some engines still report (Chromium: Asia/Calcutta) → the
+// current names the zone list uses, so lookups by zone id match.
+const DEPRECATED_ZONES = {
+  "Asia/Calcutta": "Asia/Kolkata", "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Europe/Kiev": "Europe/Kyiv", "Asia/Rangoon": "Asia/Yangon", "Asia/Katmandu": "Asia/Kathmandu",
+};
+export const canonicalZone = (z) => DEPRECATED_ZONES[z] || z;
+
 export const USER_TZ = (() => {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; }
+  try { return canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"); } catch { return "UTC"; }
 })();
 
 /* ─── cached per-zone formatter ─────────────────────────────────────────── */
@@ -35,6 +43,12 @@ export function partsFormatter(tz) {
     fmtCache.set(tz, f);
   }
   return f;
+}
+
+/** True when Intl accepts the zone id (guards ids arriving from URLs / old browsers). */
+export function isValidZone(tz) {
+  if (!tz || typeof tz !== "string") return false;
+  try { partsFormatter(tz); return true; } catch { return false; }
 }
 
 export function zoneParts(date, tz) {
@@ -139,10 +153,15 @@ export function buildWaitSchedule({ startDate, startTime, amount, unit, repetiti
   const [h, mi] = startTime.split(":").map(Number);
   const start = Date.UTC(y, mo - 1, d, h, mi, 0);
   const step = amount * (UNIT_MS[unit] || UNIT_MS.hours);
+  // Garbage dates/times (e.g. from a shared URL) or a huge interval would make
+  // an Invalid Date, which throws in toISOString / formatToParts.
+  if (!Number.isFinite(start) || !Number.isFinite(step) || step <= 0) return [];
   const rows = [];
-  const n = Math.min(Math.max(1, +repetitions), 120);
+  const n = Math.min(Math.max(1, +repetitions || 1), 120);
   for (let i = 0; i < n; i++) {
-    const t = new Date(start + i * step);
+    const ms = start + i * step;
+    if (!(Math.abs(ms) <= 8.64e15)) break;
+    const t = new Date(ms);
     rows.push({
       idx: i + 1, t,
       utcTime: fmtUtc(t), utcDate: fmtUtcDate(t),
