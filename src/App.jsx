@@ -25,11 +25,12 @@ const IpTool = lazy(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
 const JsonTool = lazy(() => import("./tools/JsonTool.jsx"));
 const SslTool = lazy(() => import("./tools/SslTool.jsx"));
+const PasswordTool = lazy(() => import("./tools/PasswordTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
