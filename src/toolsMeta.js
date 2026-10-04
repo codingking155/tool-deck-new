@@ -67,13 +67,20 @@ export const TOOLS = [
       ["What does 'Days Left' mean?", "The number of days until the certificate expires. Green = >90 days, orange = 30–90 days, red = <30 days or expired."],
       ["Can I check for weak keys or algorithms?", "Yes. The tool shows key size (aim for 2048+ bits for RSA) and signature algorithm. Older algorithms like SHA-1 are flagged as weak."],
     ] },
-  { id: "password", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "shield",
+  { id: "password", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "scan",
     blurb: "Check password strength with client-side entropy calculation (charset and length). Verify against HaveIBeenPwned's 700+ million breached passwords using k-anonymity (your password is never sent to any API).",
     faqs: [
       ["How do you calculate password strength?", "By entropy: bits = log₂(charset size ^ password length). We check for lowercase, uppercase, digits, and special characters. 80+ bits resists brute force for years."],
       ["Is my password safe to check?", "Yes. The password stays on your device. HIBP check uses k-anonymity: we hash it locally, send only the first 5 hash characters, and check the response locally."],
       ["What does 'Not breached' mean?", "The password isn't in HIBP's public breach data (700+ million passwords from confirmed leaks). But always use a unique password per account."],
       ["What if HIBP is unavailable?", "The entropy check still works offline. If HIBP is down, try again later — the API has 99.9% uptime."],
+    ] },
+  { id: "prompt", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "utc",
+    blurb: "Build clear, structured prompts for ChatGPT, Claude, Gemini and other AI assistants. Fill in the role, task, context, audience, tone, format and rules — or start from a template — and copy a ready-to-use prompt as plain text, Markdown or XML. Runs entirely in your browser.",
+    faqs: [
+      ["What makes a good AI prompt?", "A clear task plus the context the AI can't guess: who it's for, the tone, the output format and any rules. An example of a good answer helps most of all."],
+      ["Which structure should I pick?", "Plain text works everywhere. Markdown sections and XML tags help with long prompts — Claude in particular follows XML-tagged sections well."],
+      ["Is what I type sent anywhere?", "No. The prompt is assembled in your browser and nothing is stored or sent until you paste it into an assistant yourself."],
     ] },
 ];
 
@@ -82,5 +89,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Validate and format JSON",
-  "Check password strength and breaches",
+  "Check password strength and breaches", "Generate better AI prompts",
 ];

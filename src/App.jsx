@@ -26,11 +26,12 @@ const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
 const JsonTool = lazy(() => import("./tools/JsonTool.jsx"));
 const SslTool = lazy(() => import("./tools/SslTool.jsx"));
 const PasswordTool = lazy(() => import("./tools/PasswordTool.jsx"));
+const PromptTool = lazy(() => import("./tools/PromptTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
