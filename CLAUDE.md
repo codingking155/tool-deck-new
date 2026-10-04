@@ -4,8 +4,9 @@ Vite + React 18 SPA (`src/`), Supabase Edge Functions (`supabase/functions/`, De
 modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own Vercel project).
 
 ## Commands
-- `npm test` — node:test, ~100 tests, ~2 s. Run before every commit.
-- `npm run build` — Vite build; `npx vite preview --port 4173` to browse it.
+- `npm run check` — quiet tests + build (prints only failures). Run before every commit. Use this, not `npm test`,
+  unless you need per-test names (`npm test`).
+- `npx vite preview --port 4173` to browse a build.
 - Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
 
