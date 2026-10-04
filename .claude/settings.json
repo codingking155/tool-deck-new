@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./node_modules/**)",
+      "Read(./dist/**)",
+      "Read(./shopify-detector/node_modules/**)",
+      "Read(./shopify-detector/.next/**)",
+      "Read(./package-lock.json)",
+      "Read(./shopify-detector/package-lock.json)",
+      "Read(./**/*.ttf)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)"
+    ]
+  }
+}
