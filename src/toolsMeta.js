@@ -53,11 +53,25 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
+  { id: "json", icon: "{ }", c: "#06B6D4", name: "JSON Validator & Formatter", desc: "Validate, format, minify, convert to YAML/CSV, and search with JSONPath.", pv: "utc",
+    blurb: "Paste JSON to validate, pretty-print with custom indentation, minify, convert to YAML or CSV, and search paths with JSONPath. Runs entirely in your browser.",
+    faqs: [
+      ["Can I convert JSON to other formats?", "Yes — convert to YAML, CSV (for arrays), or minify to a single line. Download any format as a file."],
+      ["What's JSONPath?", "A query language for JSON. Use $.users[0].name to find a specific value deep in a JSON structure."],
+      ["Is my JSON stored?", "No. Everything runs in your browser; nothing is sent anywhere. Clear the page and your JSON is gone."],
+    ] },
+  { id: "ssl", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "View certificate chain, expiry dates, key strength, and vulnerability alerts.", pv: "scan",
+    blurb: "Enter a domain to see its SSL certificate chain, expiry date, key algorithm, size, and signature algorithm. Get alerts for certificates expiring soon.",
+    faqs: [
+      ["How do I check a website's SSL certificate?", "Enter the domain name (e.g., google.com). The tool fetches the certificate chain and displays subject, issuer, expiry date, key size, and more."],
+      ["What does 'Days Left' mean?", "The number of days until the certificate expires. Green = >90 days, orange = 30–90 days, red = <30 days or expired."],
+      ["Can I check for weak keys or algorithms?", "Yes. The tool shows key size (aim for 2048+ bits for RSA) and signature algorithm. Older algorithms like SHA-1 are flagged as weak."],
+    ] },
 ];
 
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
 
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Validate and format JSON",
 ];

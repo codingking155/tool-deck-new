@@ -13,6 +13,7 @@ import CornerWebs from "./components/CornerWebs.jsx";
 import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
+const Analytics = lazy(() => import("./pages/Analytics.jsx"));
 
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
 const UtcTool = lazy(() => import("./tools/UtcTool.jsx"));
@@ -22,11 +23,13 @@ const ShopifyDetectorTool = lazy(() => import("./tools/ShopifyDetectorTool.jsx")
 const SpeedTool = lazy(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazy(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazy(() => import("./tools/PriceTool.jsx"));
+const JsonTool = lazy(() => import("./tools/JsonTool.jsx"));
+const SslTool = lazy(() => import("./tools/SslTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
@@ -105,6 +108,7 @@ export default function App() {
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#FBF7F1" : "#07090F");
   }, [theme]);
 
+  const isAnalyticsPage = route === "/analytics";
   const isAlertsPage = route === "/tool/price/alerts";
   const seg = route.startsWith("/tool/") ? route.slice(6) : null;
   const slash = seg ? seg.indexOf("/") : -1;
@@ -162,7 +166,12 @@ export default function App() {
         </header>
 
         <main id="main">
-          {!tool && !isAlertsPage && <Home nav={nav} reduced={reduced} />}
+          {!tool && !isAlertsPage && !isAnalyticsPage && <Home nav={nav} reduced={reduced} />}
+          {isAnalyticsPage && (
+            <Suspense fallback={<ToolFallback />}>
+              <Analytics />
+            </Suspense>
+          )}
           {isAlertsPage && (
             <div className="tpage">
               <div className="crumb">
