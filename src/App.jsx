@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
 import { TOOLS, tint } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
-import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams } from "./hooks/index.js";
+import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
 import { Particles, CursorGlow } from "./components/Ambient.jsx";
 import LocalClock from "./components/LocalClock.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
+import BottomSheet from "./components/BottomSheet.jsx";
+import InstallPrompt from "./components/InstallPrompt.jsx";
 import BengaluruFooter from "./components/BengaluruFooter.jsx";
 import CornerWebs from "./components/CornerWebs.jsx";
 import OverscrollSpider from "./components/OverscrollSpider.jsx";
@@ -74,16 +76,29 @@ export default function App() {
   const [theme, setTheme] = useState(initialTheme);
   const [toast, setToast] = useState("");
   const [cp, setCp] = useState(false);
+  const [settingsSheet, setSettingsSheet] = useState(false);
   const timer = useRef(null);
   const reduced = useReducedMotion();
   const now = useNow(1000);
   const notify = useCallback((m) => { setToast(m); clearTimeout(timer.current); timer.current = setTimeout(() => setToast(""), 2600); }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  /* Keyboard shortcuts: Cmd/Ctrl+K for search, Cmd/Ctrl+/ for theme, 1-7 to jump to tool */
   useEffect(() => {
-    const f = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCp((v) => !v); } };
+    const f = (e) => {
+      const isCmd = e.ctrlKey || e.metaKey;
+      if (isCmd && e.key.toLowerCase() === "k") { e.preventDefault(); setCp((v) => !v); return; }
+      if (isCmd && e.key === "/") { e.preventDefault(); setTheme((t) => (t === "dark" ? "light" : "dark")); return; }
+      if (isCmd && e.key >= "1" && e.key <= "7") {
+        e.preventDefault();
+        const idx = parseInt(e.key) - 1;
+        if (idx < TOOLS.length) nav(`/tool/${TOOLS[idx].id}`);
+      }
+    };
     window.addEventListener("keydown", f);
     return () => window.removeEventListener("keydown", f);
-  }, []);
+  }, [nav]);
+
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
   useEffect(() => {
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode / storage full — theme still applies this session */ }
@@ -94,6 +109,20 @@ export default function App() {
   const seg = route.startsWith("/tool/") ? route.slice(6) : null;
   const slash = seg ? seg.indexOf("/") : -1;
   const toolId = seg == null ? null : slash === -1 ? seg : seg.slice(0, slash);
+
+  /* Swipe navigation: swipe left → next tool, swipe right → previous tool */
+  useSwipe((direction) => {
+    if (route.startsWith("/tool/") && toolId) {
+      const currentToolIndex = TOOLS.findIndex((t) => t.id === toolId);
+      if (currentToolIndex !== -1) {
+        const nextIdx = direction === "left"
+          ? (currentToolIndex + 1) % TOOLS.length
+          : (currentToolIndex - 1 + TOOLS.length) % TOOLS.length;
+        nav(`/tool/${TOOLS[nextIdx].id}`);
+        notify(`Switched to ${TOOLS[nextIdx].name}`);
+      }
+    }
+  });
   /* prefix trick: /tool/shopify/<any-domain> auto-checks it, like a URL prefix */
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
@@ -128,8 +157,8 @@ export default function App() {
           <div className="sp" />
           <LocalClock now={now} />
           <div className="uclock" title="Live UTC" style={{ opacity: 0.75 }}>{fmtUtc(now)} UTC</div>
-          <button className="hbtn" onClick={() => setCp(true)}>⌕ Search <kbd>Ctrl K</kbd></button>
-          <button className="hbtn" onClick={toggleTheme} aria-label="Toggle theme">{theme === "dark" ? "☀ Light" : "☾ Dark"}</button>
+          <button className="hbtn" onClick={() => setCp(true)} title="Cmd+K">⌕ <span style={{ display: "none" }}>Search</span> <kbd style={{ display: "none" }}>Ctrl K</kbd></button>
+          <button className="hbtn" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>{theme === "dark" ? "☀" : "☾"}</button>
         </header>
 
         <main id="main">
@@ -163,6 +192,7 @@ export default function App() {
       </div>
       <BengaluruFooter reduced={reduced} theme={theme} />
       <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />
+      <InstallPrompt />
       <Toast msg={toast} />
     </div>
   );
