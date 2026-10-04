@@ -53,12 +53,13 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
-  { id: "json", icon: "{ }", c: "#06B6D4", name: "JSON Validator & Formatter", desc: "Validate, format, minify, convert to YAML/CSV, and search with JSONPath.", pv: "utc",
-    blurb: "Paste JSON to validate, pretty-print with custom indentation, minify, convert to YAML or CSV, and search paths with JSONPath. Runs entirely in your browser.",
+  { id: "json", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate, minify and beautify JSON — exact error line, sort keys, YAML/CSV, path queries.", pv: "utc",
+    blurb: "Paste JSON to validate it as you type, with the exact line and column of any error. Beautify with 2/4-space or tab indent, minify, sort keys, convert to YAML or CSV, and query values with paths like $.users[*].name. Runs entirely in your browser.",
     faqs: [
-      ["Can I convert JSON to other formats?", "Yes — convert to YAML, CSV (for arrays), or minify to a single line. Download any format as a file."],
-      ["What's JSONPath?", "A query language for JSON. Use $.users[0].name to find a specific value deep in a JSON structure."],
-      ["Is my JSON stored?", "No. Everything runs in your browser; nothing is sent anywhere. Clear the page and your JSON is gone."],
+      ["How do I find the error in invalid JSON?", "The validator shows the line and column of the first problem in plain words — like a trailing comma, a missing comma or single quotes — and Jump to error selects it in the editor."],
+      ["What's the difference between beautify and minify?", "Beautify adds indentation and line breaks so JSON is easy to read. Minify removes all whitespace so the file is as small as possible for APIs and storage."],
+      ["How do path queries work?", "Start with $ and chain .key, [0], [-1] for the last item, [*] for every item, or ['key with spaces']. For example $.users[*].name lists every user's name."],
+      ["Is my JSON stored or uploaded?", "No. Everything runs in your browser; nothing is sent anywhere."],
     ] },
   { id: "ssl", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "View certificate chain, expiry dates, key strength, and vulnerability alerts.", pv: "scan",
     blurb: "Enter a domain to see its SSL certificate chain, expiry date, key algorithm, size, and signature algorithm. Get alerts for certificates expiring soon.",
@@ -82,6 +83,22 @@ export const TOOLS = [
       ["Which structure should I pick?", "Plain text works everywhere. Markdown sections and XML tags help with long prompts — Claude in particular follows XML-tagged sections well."],
       ["Is what I type sent anywhere?", "No. The prompt is assembled in your browser and nothing is stored or sent until you paste it into an assistant yourself."],
     ] },
+  { id: "image", icon: "📸", c: "#14B8A6", name: "Image Compressor & Converter", desc: "Compress images and convert between JPG, PNG and WebP — batch, resize, all on your device.", pv: "scan",
+    blurb: "Compress images and convert between JPG, PNG and WebP in your browser. Batch up to 30 images, set quality, resize by maximum width or height, see the size saved for each file and download them all as a ZIP. Nothing is uploaded, and hidden metadata such as GPS location is removed.",
+    faqs: [
+      ["How do I reduce an image's file size?", "Drop the image in, choose WebP or JPG and a quality around 70–80%. For big photos, also set a maximum width such as 1920 px — that usually saves the most."],
+      ["Which format should I choose?", "WebP is smallest for most photos and works in all modern browsers. JPG works everywhere. PNG is lossless — best for screenshots, logos and transparency, but larger for photos."],
+      ["Are my images uploaded?", "No. Compression runs on your device using the browser's own image encoder. Saving also strips EXIF metadata such as GPS location and camera details."],
+      ["Why did a file get bigger?", "An already-optimised image can grow when re-encoded. If that happens in the same format without resizing, the tool keeps your original instead."],
+    ] },
+  { id: "pdf", icon: "📄", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, convert and extract text from PDFs — privately, in your browser.", pv: "chart",
+    blurb: "Merge PDFs, split or extract pages, compress for email, convert PDF pages to JPG/PNG or images to PDF, and copy out the text — all in your browser. Files are never uploaded.",
+    faqs: [
+      ["Are my PDFs uploaded to a server?", "No. Every action runs in your browser, so the files never leave your device."],
+      ["How much can it compress a PDF?", "Light compression is lossless and keeps text selectable but often saves little. Strong compression turns each page into an image — scans and photo-heavy PDFs often shrink by 50–90%, but text is no longer selectable."],
+      ["How do I split a PDF?", "Choose Split, add the PDF and type ranges like 1-3, 5, 8-. Each range becomes its own PDF, or choose to put the selected pages in one file, or split every page."],
+      ["Can it read text from scanned PDFs?", "Not yet. Text extraction reads the real text inside a PDF. Scanned pages are images and would need OCR."],
+    ] },
 ];
 
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
@@ -90,4 +107,5 @@ export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Validate and format JSON",
   "Check password strength and breaches", "Generate better AI prompts",
+  "Compress and convert images", "Merge, split and compress PDFs",
 ];

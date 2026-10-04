@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useDocumentMeta } from "../hooks/index.js";
 
 async function sha1(text) {
   const encoder = new TextEncoder();
@@ -66,7 +65,6 @@ export default function PasswordTool({ notify }) {
   const [checking, setChecking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  useDocumentMeta(null);
 
   const handlePasswordChange = useCallback((e) => {
     const pwd = e.target.value;

@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useDocumentMeta } from "../hooks/index.js";
 
 function parseDate(dateStr) {
   const d = new Date(dateStr);
@@ -28,8 +27,6 @@ export default function SslTool({ notify }) {
   const [loading, setLoading] = useState(false);
   const [cert, setCert] = useState(null);
   const [error, setError] = useState("");
-  const tool = { name: "SSL Certificate Checker", blurb: "View certificate chain, expiry dates, key strength, and vulnerabilities" };
-  useDocumentMeta(tool);
 
   const checkCertificate = useCallback(async () => {
     const trimmed = domain.trim();

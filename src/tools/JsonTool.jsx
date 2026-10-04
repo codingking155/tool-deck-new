@@ -1,297 +1,162 @@
-import { useState, useCallback } from "react";
-import { useDocumentMeta } from "../hooks/index.js";
+import { useState, useMemo, useRef } from "react";
+import { parseJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, stats } from "../lib/jsonCore.js";
+import { formatBytes } from "../lib/pageRanges.js";
 
-function validateJSON(str) {
-  try {
-    const parsed = JSON.parse(str);
-    return { valid: true, error: null, parsed };
-  } catch (e) {
-    return { valid: false, error: e.message, parsed: null };
-  }
-}
+const SAMPLE = '{"users":[{"id":1,"name":"Asha","roles":["admin","editor"],"active":true},{"id":2,"name":"Ravi","roles":[],"active":false}],"total":2}';
 
-function formatJSON(str, indent = 2) {
-  const result = validateJSON(str);
-  if (!result.valid) return str;
-  try {
-    return JSON.stringify(result.parsed, null, indent);
-  } catch {
-    return str;
-  }
-}
+const MODES = [
+  ["format", "Beautify"],
+  ["minify", "Minify"],
+  ["yaml", "YAML"],
+  ["csv", "CSV"],
+  ["path", "Query"],
+];
 
-function minifyJSON(str) {
-  const result = validateJSON(str);
-  if (!result.valid) return str;
-  try {
-    return JSON.stringify(result.parsed);
-  } catch {
-    return str;
-  }
-}
-
-function jsonToYAML(obj, indent = 0) {
-  const spaces = " ".repeat(indent);
-  if (obj === null) return "null";
-  if (typeof obj === "boolean") return String(obj);
-  if (typeof obj === "number") return String(obj);
-  if (typeof obj === "string") return `"${obj.replace(/"/g, '\\"')}"`;
-  if (Array.isArray(obj)) {
-    return obj.map((item, i) =>
-      `${i === 0 ? "" : spaces}- ${jsonToYAML(item, indent + 2)}`
-    ).join("\n");
-  }
-  if (typeof obj === "object") {
-    return Object.entries(obj).map(([k, v]) =>
-      `${spaces}${k}: ${jsonToYAML(v, indent + 2)}`
-    ).join("\n");
-  }
-  return String(obj);
-}
-
-function jsonToCSV(obj) {
-  if (!Array.isArray(obj) || !obj.length) return "";
-  const headers = Object.keys(obj[0]);
-  const rows = obj.map(row =>
-    headers.map(h => {
-      const v = row[h];
-      const str = typeof v === "string" ? v : JSON.stringify(v);
-      return `"${str.replace(/"/g, '""')}"`;
-    }).join(",")
-  );
-  return [headers.join(","), ...rows].join("\n");
-}
-
-function getJSONPath(obj, path) {
-  if (!path) return obj;
-  const parts = path.match(/\$\.?([^\.\[]*)/g) || [];
-  let current = obj;
-  for (const part of parts) {
-    const key = part.replace(/^\$\.?/, "").replace(/[\[\]"]/g, "");
-    if (key && current && typeof current === "object") {
-      current = current[key];
-    }
-  }
-  return current;
+function download(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function JsonTool({ notify }) {
-  const [input, setInput] = useState('{\n  "hello": "world",\n  "number": 42\n}');
-  const [indent, setIndent] = useState(2);
-  const [mode, setMode] = useState("format"); // format, minify, validate, yaml, csv, path
-  const [searchPath, setSearchPath] = useState("$.hello");
-  const tool = { name: "JSON Validator & Formatter", blurb: "Validate, format, minify, and convert JSON" };
-  useDocumentMeta(tool);
+  const [input, setInput] = useState(SAMPLE);
+  const [mode, setMode] = useState("format");
+  const [indent, setIndent] = useState("2");
+  const [sortKeys, setSortKeys] = useState(false);
+  const [path, setPath] = useState("$.users[*].name");
+  const inputRef = useRef(null);
 
-  const validation = validateJSON(input);
-  let output = "";
-  let pathResult = null;
+  const parsed = useMemo(() => parseJSON(input), [input]);
 
-  switch (mode) {
-    case "format":
-      output = formatJSON(input, parseInt(indent));
-      break;
-    case "minify":
-      output = minifyJSON(input);
-      break;
-    case "yaml":
-      output = validation.valid ? jsonToYAML(validation.parsed) : input;
-      break;
-    case "csv":
-      output = validation.valid ? jsonToCSV(validation.parsed) : "Invalid JSON for CSV export";
-      break;
-    case "path":
-      pathResult = validation.valid ? getJSONPath(validation.parsed, searchPath) : null;
-      break;
-    default:
-      output = validation.valid ? "Valid JSON ✓" : `Invalid: ${validation.error}`;
-  }
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(output || "");
-    notify("Copied to clipboard");
-  }, [output, notify]);
-
-  const handleDownload = useCallback((format) => {
-    let content = output;
-    let filename = "data";
-    let type = "application/json";
-
-    if (format === "yaml") {
-      filename = "data.yaml";
-      type = "text/yaml";
-    } else if (format === "csv") {
-      filename = "data.csv";
-      type = "text/csv";
+  const out = useMemo(() => {
+    if (!parsed.ok) return { text: "", note: null };
+    const v = parsed.value;
+    if (mode === "format") return { text: formatJSON(v, indent, sortKeys), ext: "json", type: "application/json" };
+    if (mode === "minify") return { text: minifyJSON(v, sortKeys), ext: "json", type: "application/json" };
+    if (mode === "yaml") return { text: toYAML(v), ext: "yaml", type: "text/yaml" };
+    if (mode === "csv") {
+      const csv = toCSV(v);
+      return csv == null ? { text: "", note: "CSV needs an array of objects, e.g. [{\"a\":1},{\"a\":2}]." } : { text: csv, ext: "csv", type: "text/csv" };
     }
+    const q = queryPath(v, path);
+    if (!q.ok) return { text: "", note: q.error };
+    if (!q.matches.length) return { text: "", note: "No match for this path." };
+    return { text: formatJSON(q.matches.length === 1 ? q.matches[0] : q.matches, 2), ext: "json", type: "application/json", count: q.matches.length };
+  }, [parsed, mode, indent, sortKeys, path]);
 
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    notify(`Downloaded ${filename}`);
-  }, [output, notify]);
+  const info = parsed.ok ? stats(parsed.value, input) : null;
+
+  const jumpToError = () => {
+    const el = inputRef.current;
+    if (!el || parsed.error?.pos == null) return;
+    el.focus();
+    el.setSelectionRange(parsed.error.pos, Math.min(parsed.error.pos + 1, input.length));
+  };
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(out.text); notify("Copied"); }
+    catch { notify("Copy failed — select the text and copy manually"); }
+  };
+
+  const pasteFile = (file) => {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { notify("That file is over 20 MB — too large to edit in the browser"); return; }
+    file.text().then(setInput);
+  };
 
   return (
-    <div className="grid2">
-      <div className="panel">
-        <div className="ph">
-          <h3>Input JSON</h3>
-          <p>Paste or type JSON to validate and transform</p>
-        </div>
-        <div className="pb">
-          <textarea
-            className="field"
-            style={{ height: "380px", fontFamily: "var(--mono)", fontSize: "12px" }}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder='{"example": "json"}'
-          />
-          <div className="hint" style={{ marginTop: "8px" }}>
-            {validation.valid ? (
-              <span style={{ color: "var(--good)" }}>✓ Valid JSON</span>
-            ) : (
-              <span style={{ color: "var(--bad)" }}>✗ {validation.error}</span>
-            )}
-          </div>
-        </div>
+    <div>
+      <div className="modes" role="tablist" aria-label="Output">
+        {MODES.map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>{label}</button>
+        ))}
       </div>
 
-      <div className="panel">
-        <div className="ph">
-          <h3>Tools & Output</h3>
-          <p>Choose a transformation</p>
-        </div>
-        <div className="pb">
-          <div className="modes" style={{ marginBottom: "14px" }}>
-            <button
-              className="btn gh"
-              onClick={() => setMode("format")}
-              style={{
-                background: mode === "format" ? "var(--pri-soft)" : "transparent",
-                color: mode === "format" ? "var(--pri2)" : "var(--tx2)",
-                border: "none",
-                padding: "7px 13px",
-              }}
-            >
-              Format
-            </button>
-            <button
-              className="btn gh"
-              onClick={() => setMode("minify")}
-              style={{
-                background: mode === "minify" ? "var(--pri-soft)" : "transparent",
-                color: mode === "minify" ? "var(--pri2)" : "var(--tx2)",
-                border: "none",
-                padding: "7px 13px",
-              }}
-            >
-              Minify
-            </button>
-            <button
-              className="btn gh"
-              onClick={() => setMode("yaml")}
-              style={{
-                background: mode === "yaml" ? "var(--pri-soft)" : "transparent",
-                color: mode === "yaml" ? "var(--pri2)" : "var(--tx2)",
-                border: "none",
-                padding: "7px 13px",
-              }}
-            >
-              YAML
-            </button>
-            <button
-              className="btn gh"
-              onClick={() => setMode("csv")}
-              style={{
-                background: mode === "csv" ? "var(--pri-soft)" : "transparent",
-                color: mode === "csv" ? "var(--pri2)" : "var(--tx2)",
-                border: "none",
-                padding: "7px 13px",
-              }}
-            >
-              CSV
-            </button>
-            <button
-              className="btn gh"
-              onClick={() => setMode("path")}
-              style={{
-                background: mode === "path" ? "var(--pri-soft)" : "transparent",
-                color: mode === "path" ? "var(--pri2)" : "var(--tx2)",
-                border: "none",
-                padding: "7px 13px",
-              }}
-            >
-              Path
-            </button>
+      <div className="grid2">
+        <div className="panel rise d1">
+          <div className="ph"><h3>Input</h3><p>Paste JSON, or open a .json file. Checked as you type.</p></div>
+          <div className="pb">
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label htmlFor="json-in" className="sr-only">JSON input</label>
+              <textarea id="json-in" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
+                spellCheck={false} placeholder='{"example": true}' style={{ height: 380 }}
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); pasteFile(e.dataTransfer.files[0]); }} />
+            </div>
+            {parsed.ok ? (
+              <div className="hint" style={{ color: "var(--good)" }}>
+                ✓ Valid JSON · {info.keys.toLocaleString()} keys · depth {info.depth} · {formatBytes(info.bytes)}
+              </div>
+            ) : parsed.empty ? (
+              <div className="hint">{parsed.error.message}</div>
+            ) : (
+              <div className="note w" style={{ marginBottom: 0 }}>
+                <b>Invalid JSON{parsed.error.line ? ` · line ${parsed.error.line}, column ${parsed.error.col}` : ""} · </b>
+                {parsed.error.message}
+                {parsed.error.pos != null && (
+                  <div><button className="pill" style={{ marginTop: 8 }} onClick={jumpToError}>Jump to error</button></div>
+                )}
+              </div>
+            )}
+            <div className="pillrow" style={{ marginTop: 12 }}>
+              <label className="pill" style={{ cursor: "pointer" }}>
+                Open file
+                <input type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { pasteFile(e.target.files[0]); e.target.value = ""; }} />
+              </label>
+              <button className="pill" onClick={() => setInput(SAMPLE)}>Sample</button>
+              <button className="pill" onClick={() => setInput("")}>Clear</button>
+              {parsed.ok && <button className="pill" onClick={() => setInput(formatJSON(parsed.value, indent, sortKeys))}>Beautify input in place</button>}
+            </div>
           </div>
+        </div>
 
-          {mode === "format" && (
-            <div className="field" style={{ marginBottom: "12px" }}>
-              <label>Indent Size</label>
-              <input
-                type="number"
-                min="1"
-                max="8"
-                value={indent}
-                onChange={(e) => setIndent(e.target.value)}
-              />
-            </div>
-          )}
-
-          {mode === "path" && (
-            <div className="field" style={{ marginBottom: "12px" }}>
-              <label>JSONPath (e.g., $.users[0].name)</label>
-              <input
-                type="text"
-                value={searchPath}
-                onChange={(e) => setSearchPath(e.target.value)}
-                placeholder="$.key.subkey"
-              />
-            </div>
-          )}
-
-          <textarea
-            className="field"
-            style={{
-              height: "280px",
-              fontFamily: "var(--mono)",
-              fontSize: "12px",
-              color: mode === "validate" && !validation.valid ? "var(--bad)" : "var(--tx)",
-              readOnly: true,
-            }}
-            value={
-              mode === "path"
-                ? pathResult !== null
-                  ? typeof pathResult === "string"
-                    ? pathResult
-                    : JSON.stringify(pathResult, null, 2)
-                  : "(value not found)"
-                : output
-            }
-          />
-
-          <div className="pillrow" style={{ marginTop: "12px" }}>
-            <button className="pill" onClick={handleCopy}>
-              📋 Copy
-            </button>
+        <div className="panel rise d2">
+          <div className="ph"><h3>Output</h3><p>{mode === "path" ? "Query with $.key, [0], [-1], [*] or ['key name']." : "Updates live."}</p></div>
+          <div className="pb">
             {(mode === "format" || mode === "minify") && (
-              <button className="pill" onClick={() => handleDownload("json")}>
-                ⬇ JSON
-              </button>
+              <div className="two">
+                {mode === "format" ? (
+                  <div className="field">
+                    <label htmlFor="json-ind">Indent</label>
+                    <select id="json-ind" value={indent} onChange={(e) => setIndent(e.target.value)}>
+                      <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tab</option>
+                    </select>
+                  </div>
+                ) : <div />}
+                <div className="field">
+                  <label htmlFor="json-sort">Keys</label>
+                  <select id="json-sort" value={sortKeys ? "sort" : "keep"} onChange={(e) => setSortKeys(e.target.value === "sort")}>
+                    <option value="keep">Keep original order</option><option value="sort">Sort A → Z</option>
+                  </select>
+                </div>
+              </div>
             )}
-            {mode === "yaml" && (
-              <button className="pill" onClick={() => handleDownload("yaml")}>
-                ⬇ YAML
-              </button>
+            {mode === "path" && (
+              <div className="field">
+                <label htmlFor="json-path">Path</label>
+                <input id="json-path" value={path} onChange={(e) => setPath(e.target.value)} spellCheck={false} placeholder="$.users[0].name" />
+              </div>
             )}
-            {mode === "csv" && (
-              <button className="pill" onClick={() => handleDownload("csv")}>
-                ⬇ CSV
-              </button>
+
+            {!parsed.ok ? (
+              <div className="empty">Fix the input to see the output.</div>
+            ) : out.note ? (
+              <div className="note i"><b>Note · </b>{out.note}</div>
+            ) : (
+              <>
+                <div className="field" style={{ marginBottom: 10 }}>
+                  <label htmlFor="json-out" className="sr-only">Output</label>
+                  <textarea id="json-out" readOnly value={out.text} spellCheck={false} style={{ height: mode === "format" || mode === "minify" ? 300 : 340 }} />
+                </div>
+                <div className="hint" style={{ marginBottom: 12 }}>
+                  {out.count > 1 ? `${out.count} matches · ` : ""}{formatBytes(new TextEncoder().encode(out.text).length)}
+                  {mode === "minify" && info ? ` · ${Math.max(0, Math.round((1 - new TextEncoder().encode(out.text).length / info.bytes) * 100))}% smaller than input` : ""}
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="btn pri" onClick={copy}>Copy</button>
+                  <button className="btn gh" style={{ whiteSpace: "nowrap" }} onClick={() => download(out.text, `data.${out.ext}`, out.type)}>Download .{out.ext}</button>
+                </div>
+              </>
             )}
           </div>
         </div>
