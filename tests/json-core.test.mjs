@@ -77,3 +77,86 @@ test("zip: crc32, unique names, and a STORE archive that unzip accepts", async (
   catch (e) { if (e.code === "ENOENT") return; throw e; }
   assert.match(listing, /\('hi\.txt', 'hello'\), \('hi \(2\)\.txt', 'world'\)/);
 });
+
+test("big integers survive parse → beautify/minify unchanged", async () => {
+  const { parseJSON, formatJSON, minifyJSON, toCSV, toYAML } = await import("../src/lib/jsonCore.js");
+  const src = '{"id": 12345678901234567890, "n": 1.5, "s": "99999999999999999999", "f": 0.12345678901234567890}';
+  const r = parseJSON(src);
+  assert.equal(r.ok, true);
+  assert.equal(r.bigNumbers, 2);
+  assert.equal(minifyJSON(r.value), '{"id":12345678901234567890,"n":1.5,"s":"99999999999999999999","f":0.12345678901234567890}');
+  assert.match(formatJSON(r.value, 2), /"id": 12345678901234567890/);
+  assert.match(toYAML(r.value), /^id: 12345678901234567890$/m);
+  assert.equal(toCSV([r.value]).split("\n")[1].split(",")[0], "12345678901234567890");
+  assert.equal(parseJSON('{"a": 9007199254740991}').bigNumbers, 0);
+});
+
+test("stringify matches JSON.stringify for ordinary values", async () => {
+  const { stringify } = await import("../src/lib/jsonCore.js");
+  const v = { a: [1, { b: null, c: "x\n\"y\"" }], d: {}, e: [], f: -0, g: 1e21, "h k": true };
+  assert.equal(stringify(v, 2), JSON.stringify(v, null, 2));
+  assert.equal(stringify(v, 0), JSON.stringify(v));
+  assert.equal(stringify(v, "tab"), JSON.stringify(v, null, "\t"));
+});
+
+test("repairJSON fixes common breakage and lists what it changed", async () => {
+  const { repairJSON, minifyJSON } = await import("../src/lib/jsonCore.js");
+  const broken = `// config
+{
+  name: 'Asha',   /* inline */
+  "tags": ["a", "b",],
+  active: True, score: NaN,
+  "nested": {"x": 1 "y": 2}
+  "smart": “quoted”,
+`;
+  const r = repairJSON(broken);
+  assert.equal(r.ok, true);
+  assert.equal(minifyJSON(r.value), '{"name":"Asha","tags":["a","b"],"active":true,"score":null,"nested":{"x":1,"y":2},"smart":"quoted"}');
+  for (const f of ["Removed comments", "Added quotes around keys", "Replaced single quotes with double quotes", "Removed trailing commas",
+    "Converted Python True/False/None", "Replaced NaN/Infinity with null", "Added missing commas", "Replaced curly “smart” quotes", "Closed unclosed brackets"]) {
+    assert.ok(r.fixes.includes(f), `missing fix: ${f} in ${r.fixes}`);
+  }
+  const nd = repairJSON('{"a":1}\n{"a":2}\n');
+  assert.equal(minifyJSON(nd.value), '[{"a":1},{"a":2}]');
+  assert.ok(nd.fixes[0].includes("NDJSON"));
+  assert.equal(repairJSON("{ : }").ok, false);
+  const proto = repairJSON('{"__proto__": {"polluted": 1}}');
+  assert.equal(Object.keys(proto.value)[0], "__proto__");
+  assert.equal({}.polluted, undefined);
+});
+
+test("queryPath recursive descent", async () => {
+  const { queryPath } = await import("../src/lib/jsonCore.js");
+  const d = { a: { id: 1, b: [{ id: 2 }, { c: { id: 3 } }] } };
+  assert.deepEqual(queryPath(d, "$..id").matches, [1, 2, 3]);
+});
+
+test("diffJSON matches array items by id and reports paths", async () => {
+  const { diffJSON, formatPath } = await import("../src/lib/jsonCore.js");
+  const a = { users: [{ id: 1, name: "A" }, { id: 2, name: "B" }], v: 1, gone: true };
+  const b = { users: [{ id: 0, name: "Z" }, { id: 1, name: "A" }, { id: 2, name: "Bee" }], v: "1", extra: [1] };
+  const d = diffJSON(a, b).changes.map((c) => `${c.kind} ${formatPath(c.path)}`);
+  assert.deepEqual(d, ["changed $.users[id=2].name", "added $.users[id=0]", "changed $.v", "removed $.gone", "added $.extra"]);
+  assert.equal(diffJSON({ a: [1, 2] }, { a: [1, 2] }).changes.length, 0);
+  assert.equal(formatPath(["a b", 0, "c"]), "$['a b'][0].c");
+});
+
+test("TypeScript and JSON Schema generation merge array samples", async () => {
+  const { toTypeScript, toJSONSchema } = await import("../src/lib/jsonCore.js");
+  const v = { users: [{ id: 1, name: "A", tags: ["x"] }, { id: 2, name: null, email: "e@x" }], "total-count": 2, meta: {} };
+  assert.equal(toTypeScript(v), [
+    "export interface Root {\n  users: User[];\n  \"total-count\": number;\n  meta: Record<string, unknown>;\n}",
+    "export interface User {\n  id: number;\n  name: string | null;\n  tags?: string[];\n  email?: string;\n}",
+  ].join("\n\n"));
+  assert.equal(toTypeScript([1, "a"]), "export type Root = (string | number)[];");
+  const s = toJSONSchema(v);
+  assert.deepEqual(s.properties.users.items.required, ["id", "name"]);
+  assert.deepEqual(s.properties.users.items.properties.name, { type: ["string", "null"] });
+  assert.deepEqual(toJSONSchema([1, 2.5]).items, { type: "number" });
+});
+
+test("innerJSON detects stringified JSON", async () => {
+  const { innerJSON, parseJSON } = await import("../src/lib/jsonCore.js");
+  assert.ok(innerJSON(parseJSON('"{\\"a\\":1}"').value));
+  assert.equal(innerJSON("hello"), null);
+});
