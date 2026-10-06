@@ -1,6 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
 
+const UNREACHABLE = "Couldn't reach the Shopify check service right now. Please try again in a few minutes.";
+
+/* status → theme token (works in light and dark) */
+const tone = (r) => (r.isShopify ? 'var(--good)' : r.confidence > 0.3 ? 'var(--warn)' : 'var(--bad)');
+const toneBg = (r) => `color-mix(in srgb, ${tone(r)} 12%, transparent)`;
+
 export default function ShopifyDetectorTool() {
   const [url, setUrl] = useState('');
   const [result, setResult] = useState(null);
@@ -26,14 +32,25 @@ export default function ShopifyDetectorTool() {
       const base = import.meta.env.VITE_SUPABASE_URL;
       if (!base) throw new Error("The Shopify check isn't configured on this deployment.");
       const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const response = await fetch(
-        `${base}/functions/v1/shopify-check?url=${encodeURIComponent(trimmed)}`,
-        {
-          headers: { Accept: 'application/json', ...(key ? { apikey: key, Authorization: `Bearer ${key}` } : {}) },
-        }
-      );
+      let response;
+      try {
+        response = await fetch(
+          `${base}/functions/v1/shopify-check?url=${encodeURIComponent(trimmed)}`,
+          {
+            headers: { Accept: 'application/json', ...(key ? { apikey: key, Authorization: `Bearer ${key}` } : {}) },
+            signal: AbortSignal.timeout(30000),
+          }
+        );
+      } catch (e) {
+        /* fetch only throws for timeouts and network/CORS failures — e.g. the
+           shopify-check function isn't deployed, so the gateway answers without CORS */
+        throw new Error(e?.name === 'TimeoutError'
+          ? 'The site took too long to answer. Try again, or check the homepage URL.'
+          : UNREACHABLE);
+      }
 
       const data = await response.json().catch(() => null);
+      if (response.status === 404 && !data?.error) throw new Error(UNREACHABLE);
       if (!response.ok || !data) {
         throw new Error(data?.error?.message || 'Failed to check URL. Please try again.');
       }
@@ -101,40 +118,14 @@ export default function ShopifyDetectorTool() {
 
   const getStatusIcon = () => {
     if (!result) return null;
-    if (result.isShopify) return <CheckCircle className="w-6 h-6" style={{ color: '#00A56A' }} />;
-    if (result.confidence > 0.3) return <AlertCircle className="w-6 h-6" style={{ color: '#FFC453' }} />;
-    return <XCircle className="w-6 h-6" style={{ color: '#D72C0D' }} />;
+    const Icon = result.isShopify ? CheckCircle : result.confidence > 0.3 ? AlertCircle : XCircle;
+    return <Icon size={24} style={{ color: tone(result) }} />;
   };
-
-  const getStatusColor = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'text-[#00A56A]';
-    if (result.confidence > 0.3) return 'text-[#FFC453]';
-    return 'text-[#D72C0D]';
-  };
-
-  const getStatusBg = () => {
-    if (!result) return '';
-    if (result.isShopify) return 'bg-[#E6F7F1]';
-    if (result.confidence > 0.3) return 'bg-[#FFF8E6]';
-    return 'bg-[#FFF0ED]';
-  };
+  const getStatusColor = () => (result ? tone(result) : undefined);
+  const getStatusBg = () => (result ? toneBg(result) : undefined);
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <div style={{ padding: '10px', backgroundColor: 'rgba(255, 138, 42, 0.1)', borderRadius: '8px' }}>
-            <Zap size={20} style={{ color: 'var(--pri)' }} />
-          </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 600 }}>Shopify Detector</h1>
-        </div>
-        <p style={{ color: 'var(--tx3)', fontSize: '14px' }}>
-          Quickly detect if a website is powered by Shopify with instant verification
-        </p>
-      </div>
-
       {/* Form */}
       <form onSubmit={handleSubmit} style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -149,7 +140,7 @@ export default function ShopifyDetectorTool() {
               minWidth: '200px',
               padding: '12px 16px',
               fontSize: '14px',
-              border: '1px solid var(--panel2)',
+              border: '1px solid var(--line)',
               borderRadius: '8px',
               backgroundColor: 'var(--bg)',
               color: 'var(--tx)',
@@ -158,7 +149,7 @@ export default function ShopifyDetectorTool() {
               transition: 'border-color 0.2s',
             }}
             onFocus={(e) => (e.target.style.borderColor = 'var(--pri)')}
-            onBlur={(e) => (e.target.style.borderColor = 'var(--panel2)')}
+            onBlur={(e) => (e.target.style.borderColor = 'var(--line)')}
           />
           <button
             type="submit"
@@ -187,7 +178,7 @@ export default function ShopifyDetectorTool() {
 
       {/* Error */}
       {error && (
-        <div style={{ padding: '16px', backgroundColor: '#FFF0ED', border: '1px solid #FFD9D2', borderRadius: '8px', marginBottom: '24px', color: '#D72C0D' }}>
+        <div role="alert" style={{ padding: '14px 16px', backgroundColor: 'color-mix(in srgb, var(--bad) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 40%, transparent)', borderRadius: '8px', marginBottom: '24px', color: 'var(--bad)', fontSize: '14px' }}>
           {error}
         </div>
       )}
@@ -197,7 +188,7 @@ export default function ShopifyDetectorTool() {
         <div style={{ 
           padding: '24px', 
           backgroundColor: 'var(--panel)', 
-          border: '1px solid var(--panel2)',
+          border: '1px solid var(--line)',
           borderRadius: '12px',
           marginBottom: '24px'
         }}>
@@ -224,7 +215,8 @@ export default function ShopifyDetectorTool() {
                 style={{
                   padding: '8px 12px',
                   backgroundColor: 'var(--panel2)',
-                  border: '1px solid var(--panel2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--tx)',
                   borderRadius: '6px',
                   fontSize: '12px',
                   cursor: 'pointer',
@@ -241,7 +233,8 @@ export default function ShopifyDetectorTool() {
                 style={{
                   padding: '8px 12px',
                   backgroundColor: 'var(--panel2)',
-                  border: '1px solid var(--panel2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--tx)',
                   borderRadius: '6px',
                   fontSize: '12px',
                   cursor: 'pointer',
@@ -260,7 +253,7 @@ export default function ShopifyDetectorTool() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace' }}>
             <Globe size={14} style={{ color: 'var(--tx3)' }} />
             <span style={{ wordBreak: 'break-all' }}>{result.url}</span>
-            {result.shop_domain && <span style={{ color: '#008060', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
+            {result.shop_domain && <span style={{ color: 'var(--good)', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
           </div>
 
           {/* Message */}
@@ -274,14 +267,14 @@ export default function ShopifyDetectorTool() {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
                 <span style={{ fontWeight: 500 }}>Detection Confidence</span>
-                <span style={{ fontWeight: 600, color: '#008060' }}>{Math.round(result.confidence * 100)}%</span>
+                <span style={{ fontWeight: 600, color: 'var(--good)' }}>{Math.round(result.confidence * 100)}%</span>
               </div>
               <div style={{ height: '8px', backgroundColor: 'var(--panel2)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
                     width: `${result.confidence * 100}%`,
-                    background: result.confidence > 0.7 ? 'linear-gradient(90deg, #00A56A 0%, #008060 100%)' : result.confidence > 0.3 ? 'linear-gradient(90deg, #FFC453 0%, #FFB020 100%)' : 'linear-gradient(90deg, #E34850 0%, #D72C0D 100%)',
+                    background: result.confidence > 0.7 ? 'var(--good)' : result.confidence > 0.3 ? 'var(--warn)' : 'var(--bad)',
                     transition: 'width 0.8s ease',
                   }}
                 />
@@ -299,6 +292,7 @@ export default function ShopifyDetectorTool() {
                   padding: '12px',
                   backgroundColor: 'var(--panel2)',
                   border: 'none',
+                  color: 'var(--tx)',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   display: 'flex',
