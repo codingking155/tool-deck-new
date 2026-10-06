@@ -93,6 +93,8 @@ export default function ShopifyDetectorTool({ notify }) {
       const data = await response.json().catch(() => null);
       if (c.signal.aborted && !timedOut) return;
       if (!response.ok || !data) {
+        /* a bare 404 comes from the Supabase gateway (function not deployed), not from our function */
+        if (response.status === 404 && !data?.error) throw new Error("Couldn't reach the Shopify check service right now. Please try again in a few minutes.");
         throw new Error(data?.error?.message || 'Failed to check URL. Please try again.');
       }
       setResult({
