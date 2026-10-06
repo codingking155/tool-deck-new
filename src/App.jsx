@@ -133,7 +133,13 @@ export default function App() {
   useEffect(() => {
     const f = (e) => {
       const isCmd = e.ctrlKey || e.metaKey;
-      if (isCmd && e.key.toLowerCase() === "k") { e.preventDefault(); setCp((v) => !v); return; }
+      if (isCmd && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        /* on Home the big launcher is the search: focus it instead of opening the palette */
+        const home = document.getElementById("home-search");
+        if (home) { home.focus(); home.select(); return; }
+        setCp((v) => !v); return;
+      }
       if (isCmd && e.key === "/") { e.preventDefault(); setTheme((t) => (t === "dark" ? "light" : "dark")); }
     };
     window.addEventListener("keydown", f);
@@ -210,9 +216,9 @@ export default function App() {
           <div className="sp" />
           <HeaderClocks />
           <div className="hbtns">
-            <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
+            {!isHome && <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
               <Search size={17} strokeWidth={2.2} aria-hidden="true" /><span className="hlabel">Search</span><kbd className="hlabel">Ctrl K</kbd>
-            </button>
+            </button>}
             <button className="hbtn ibtn" onClick={toggleTheme} title="Toggle theme (Ctrl/Cmd+/)" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
               <span className="themeic" key={theme}>{theme === "dark" ? <Sun size={18} strokeWidth={2.2} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.2} aria-hidden="true" />}</span>
             </button>

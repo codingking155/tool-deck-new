@@ -75,7 +75,7 @@ function Launcher({ q, setQ, hits, nav, inputRef }) {
     <div className="lx" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
       <div className={`lx-box ${show ? "open" : ""}`}>
         <Search className="lx-ic" size={20} strokeWidth={2.2} aria-hidden="true" />
-        <input ref={inputRef} type="search" placeholder="What do you need to do?" value={q} autoComplete="off" spellCheck={false} enterKeyHint="go"
+        <input ref={inputRef} id="home-search" type="search" placeholder="What do you need to do?" value={q} autoComplete="off" spellCheck={false} enterKeyHint="go"
           role="combobox" aria-expanded={show} aria-controls="lx-list" aria-autocomplete="list" aria-label="Search tools" aria-describedby="tool-count"
           aria-activedescendant={show ? `lx-opt-${act}` : undefined}
           onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
