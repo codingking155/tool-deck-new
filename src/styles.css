@@ -441,6 +441,20 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .phbox{display:flex;gap:15px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;animation:pop .3s both}
 .phbox h3{font-family:var(--disp);font-size:19px;font-weight:700}
 .phbox .m{font-size:12px;color:var(--tx2);font-family:var(--mono);margin-top:3px}
+.phbox .m .ok,.phok{color:var(--good)}.phbox .m .bad,.phbad{color:var(--warn)}
+.phhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.phinp{position:relative}.phinp .inp{padding-right:52px}
+.phclr{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;border-radius:9px;background:transparent;color:var(--tx3);cursor:pointer;font-size:15px}
+.phclr:hover{color:var(--tx);background:var(--panel2)}
+.phv{display:inline-flex;align-items:center;gap:8px;min-width:0}.phv .hl{color:var(--pri2);font-weight:600}
+.phcp{flex:none;width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--tx3);cursor:pointer;font-size:13px}
+.phcp:hover{color:var(--pri2);border-color:var(--pri-line)}
+.phcall{display:flex;align-items:center;gap:9px;padding:10px 22px;font-size:12.5px;color:var(--tx2);border-top:1px solid var(--line2)}
+.phcall .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--tx3)}
+.phcall.good .dot{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+.phcall.warn .dot{background:var(--warn)}.phcall.bad .dot{background:var(--bad)}
+.kv .v.phwrap{word-break:normal}
+@media(max-width:600px){.kv:has(.phv),.kv:has(.phwrap){flex-direction:column;gap:4px}.kv .phv{justify-content:space-between;width:100%}.kv .v.phwrap{text-align:left}}
 .modes{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:4px;gap:3px;margin-bottom:16px;width:max-content;max-width:100%}
 .modes button{border:0;background:none;color:var(--tx2);font-size:12.5px;font-weight:600;padding:7px 13px;min-height:36px;border-radius:8px;cursor:pointer;font-family:var(--body);white-space:nowrap}
 .modes button.on,.modes button[aria-pressed=true],.modes button[aria-selected=true]{background:var(--pri-soft);color:var(--pri2)}

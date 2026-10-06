@@ -112,13 +112,20 @@ export function detectPhone(raw) {
   if (!raw || !raw.trim()) return null;
   // "+44 (0) 20 …": the bracketed 0 is the national trunk prefix and must not
   // survive into the international number.
-  let s = raw.trim();
+  let s = raw.trim()
+    .replace(/^tel:/i, "")
+    .replace(/^(?:https?:\/\/)?(?:api\.)?wa\.me\/\+?(\d+).*$/i, "+$1");
+  // Extensions ("… ext. 204", "… x204", "…#204") are kept aside, not dialled.
+  let ext = null;
+  s = s.replace(/[\s,;]*(?:ext\.?|extension|x|#)\s*(\d{1,7})\s*$/i, (_, d) => { ext = d; return ""; });
   if (/^(\+|00)/.test(s)) s = s.replace(/\(\s*0\s*\)/g, "");
   s = s.replace(/[().\-\s]/g, "");
   let hasPrefix = false;
   if (s.startsWith("+")) { s = s.slice(1); hasPrefix = true; }
   else if (s.startsWith("00")) { s = s.slice(2); hasPrefix = true; }
   if (!/^\d{1,16}$/.test(s)) return { error: "Use digits, spaces, dashes, brackets and an optional leading +." };
+  // A leading 0 without +/00 is a national trunk prefix: the country can't be read from it.
+  if (!hasPrefix && s.startsWith("0")) return { error: "This looks like a national number — pick the country it's from, or add the international prefix (e.g. +44).", trunk: true, digits: s, ext };
   let node = DIAL_TRIE, best = null, depth = 0;
   for (const ch of s) {
     node = node[ch]; if (!node) break;
@@ -129,10 +136,21 @@ export function detectPhone(raw) {
   const national = s.slice(best.dial.length);
   const validLen = national.length >= 4 && national.length <= 12;
   return {
-    ...best, flag: flagOf(best.iso), national, assumed: !hasPrefix,
+    ...best, flag: flagOf(best.iso), national, assumed: !hasPrefix, ext,
     e164: `+${best.dial}${national}`,
     intl: `+${best.dial} ${groupNational(national)}`,
     valid: validLen ? "Plausible length" : "Unusual length for this region",
     type: national.length >= 9 ? "Likely mobile / geographic" : "Unknown",
   };
 }
+
+/* ISO → { name, zone } for every region in the tables, plus a sorted list for country pickers. */
+export const REGION_INFO = (() => {
+  const m = {};
+  for (const [, iso, name, zone] of COUNTRIES) if (!m[iso]) m[iso] = { name, zone };
+  for (const [iso, [name, zone]] of Object.entries(NANP_INFO)) m[iso] = { name, zone };
+  return m;
+})();
+export const REGION_LIST = Object.entries(REGION_INFO)
+  .map(([iso, { name }]) => ({ iso, name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
