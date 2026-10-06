@@ -256,7 +256,7 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 .field>label,.field .lbl{display:block;font:600 12.5px var(--body);color:var(--tx2);margin-bottom:6px;letter-spacing:0}
 .field .lbl-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
 .field .lbl-row label{margin:0;font:600 12.5px var(--body);color:var(--tx2)}
-.inp,.field input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),.field select,.field textarea{width:100%;height:var(--ctl);background:var(--input-bg);border:1px solid var(--line-strong);border-radius:var(--r);color:var(--tx);
+.inp,.field input:where(:not([type=checkbox],[type=radio],[type=range],[type=color])),.field select,.field textarea{width:100%;height:var(--ctl);background:var(--input-bg);border:1px solid var(--line-strong);border-radius:var(--r);color:var(--tx);
   padding:0 12px;font:400 14px var(--body);transition:border-color var(--dur-1),box-shadow var(--dur-1),background var(--dur-1);color-scheme:dark;touch-action:manipulation}
 .light .inp,.light .field input,.light .field select,.light .field textarea{color-scheme:light}
 .field input[type=url],.field input[type=time],.field input[type=date],.field input[type=number],.field input.mono,.inp.mono{font-family:var(--mono);font-size:13.5px}
@@ -271,7 +271,7 @@ button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed}
 .field input[type=range]{height:28px;accent-color:var(--brand)}
 .field input[type=color]{height:44px;padding:4px;cursor:pointer}
 .field input[type=checkbox],.field input[type=radio]{accent-color:var(--brand);width:16px;height:16px}
-@media(max-width:600px){.inp,.field input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),.field select{height:48px;font-size:16px}.field textarea{font-size:16px}}
+@media(max-width:600px){.inp,.field input:where(:not([type=checkbox],[type=radio],[type=range],[type=color])),.field select{height:48px;font-size:16px}.field textarea{font-size:16px}}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3)}
 .two>*,.three>*{min-width:0}
 @media(max-width:360px){.two,.three{grid-template-columns:1fr}}
