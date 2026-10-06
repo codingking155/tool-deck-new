@@ -190,7 +190,6 @@ await scenario("Breach: email results render; password check sends only a 5-char
 
 await scenario("IP: WebRTC leak check flags a public address that differs from the one sites see", async (p) => {
   await p.goto(`${BASE}/tool/ip`);
-  await p.getByRole("button", { name: "Check my IP & IPv6" }).click();
   await p.getByText("203.0.113.9").first().waitFor();
   await p.getByRole("button", { name: "Run WebRTC check" }).click();
   await p.getByText("Possible IP leak").first().waitFor();
@@ -200,6 +199,22 @@ await scenario("IP: WebRTC leak check flags a public address that differs from t
       async setLocalDescription() { setTimeout(() => { this.onicecandidate?.({ candidate: { candidate: "candidate:2 1 udp 1 198.51.100.7 9 typ srflx" } }); this.onicecandidate?.({ candidate: null }); }, 20); } };
   });
   await p.route("https://api.ipify.org/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS, body: '{"ip":"203.0.113.9"}' }));
+} });
+
+await scenario("IP: DNS leak check groups resolvers by network and explains a public resolver", async (p) => {
+  await p.goto(`${BASE}/tool/ip`);
+  await p.getByRole("button", { name: "Run DNS check" }).click();
+  await p.getByText("You're using Google Public DNS").first().waitFor();
+  await p.getByText("2 server addresses").first().waitFor();
+  if (await p.getByText("74.125.178.144").count() !== 1) throw new Error("expected each resolver IP once");
+}, { mock: async (p) => {
+  await p.route("https://bash.ws/id", (r) => r.fulfill({ status: 200, headers: CORS, body: "abcdef1234567890" }));
+  await p.route(/^https:\/\/\d+\.abcdef1234567890\.bash\.ws\//, (r) => r.fulfill({ status: 200, headers: CORS, body: "" }));
+  await p.route("https://bash.ws/dnsleak/test/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS, body: JSON.stringify([
+    { type: "ip", ip: "203.0.113.9", country_name: "India", asn: "AS55836 Reliance Jio" },
+    { type: "dns", ip: "172.217.34.208", country_name: "United States of America", asn: "AS15169 Google LLC" },
+    { type: "dns", ip: "74.125.178.144", country_name: "United States of America", asn: "AS15169 Google LLC" },
+    { type: "conclusion", ip: "DNS may be leaking." }]) }));
 } });
 
 const fireInstallEvent = (p) => p.evaluate(() => {
