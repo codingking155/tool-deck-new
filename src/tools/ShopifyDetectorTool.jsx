@@ -22,20 +22,21 @@ export default function ShopifyDetectorTool() {
       setResult(null);
       setShowTechnical(false);
 
-      // Call the external Shopify detection API
+      // Our own shopify-check edge function (same response shape as before)
+      const base = import.meta.env.VITE_SUPABASE_URL;
+      if (!base) throw new Error("The Shopify check isn't configured on this deployment.");
+      const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
       const response = await fetch(
-        `https://api.shopifyornot.in/check?url=${encodeURIComponent(trimmed)}&source=web`,
+        `${base}/functions/v1/shopify-check?url=${encodeURIComponent(trimmed)}`,
         {
-          headers: { Accept: 'application/json' },
-          mode: 'cors',
+          headers: { Accept: 'application/json', ...(key ? { apikey: key, Authorization: `Bearer ${key}` } : {}) },
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to check URL. Please try again.');
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data) {
+        throw new Error(data?.error?.message || 'Failed to check URL. Please try again.');
       }
-
-      const data = await response.json();
       const confidence = data.confidence ?? 0;
       
       let message = '';
