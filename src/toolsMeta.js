@@ -53,7 +53,15 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
-  { id: "pdf", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
+  { id: "breach", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "scan",
+    blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
+    faqs: [
+      ["How does the email check work?", "Your address is sent to our server, which looks it up in the XposedOrNot breach database and returns the breaches it appears in. Nothing is stored or logged."],
+      ["Is it safe to type my password here?", "Yes. The password is hashed in your browser and only the first 5 characters of the hash are sent (k-anonymity), so neither we nor the service can see it."],
+      ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
+      ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
+    ] },
+  { id: "pdf",icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
     blurb: "A set of 16 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser with no server involved, so your documents stay on your device."],
@@ -69,5 +77,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
-  "Merge, split and compress PDFs",
+  "Merge, split and compress PDFs", "Check if your email was in a breach",
 ];

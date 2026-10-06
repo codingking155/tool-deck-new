@@ -79,6 +79,7 @@ jobs:
           #   check-price-alerts       ← pg_cron; guarded by its own CRON_SECRET
           #   price-alerts-unsubscribe ← email links; guarded by a signed token
           #   speedtest                ← plain browser fetches; rate-limited per IP
-          for fn in check-price-alerts price-alerts-unsubscribe speedtest; do
+          #   breach-check             ← plain browser POST; rate-limited per IP
+          for fn in check-price-alerts price-alerts-unsubscribe speedtest breach-check; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
