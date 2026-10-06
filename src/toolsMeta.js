@@ -3,10 +3,11 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
-  { id: "utc", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export.", pv: "utc",
-    blurb: "Build day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export. Runs entirely in your browser.",
+  { id: "utc", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export — plus an order → target send wait calculator with an hourly UTC table.", pv: "utc",
+    blurb: "Build day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export, plus an order → target send calculator that gives the wait between an order time and the next send time with an hourly UTC table. Runs entirely in your browser.",
     faqs: [
       ["How do I convert a UTC time to my local time?", "Enter the UTC start time and your timezone; every row shows the matching local time and date, updated live."],
+      ["How is the order → target send wait calculated?", "Pick the customer's timezone, the order date and time, and the target send time. The tool finds the next matching local send time after the order (or on a fixed send date you choose) and shows the wait, both UTC timestamps and an hourly table, with daylight-saving handled per row."],
       ["Does the schedule highlight weekends?", "Yes — the day-wise schedule tints weekend rows so you can spot them."],
       ["Can I export the schedule?", "Yes — copy the whole table or download it as CSV. Nothing you enter is stored anywhere."],
     ] },

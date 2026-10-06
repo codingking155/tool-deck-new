@@ -221,3 +221,50 @@ export function fmtDur(ms) {
 }
 
 export const fmt12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h >= 12 ? "PM" : "AM"}`;
+
+/* ─── order → target-send wait (no weekend rules) ───────────────────────── */
+
+/** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day if it is not after the order. */
+export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "") {
+  let date = sendDate || orderDate;
+  let send = zonedToUtc(date, sendTime, tz);
+  for (let i = 0; i < 30 && send <= orderUtc; i++) {
+    if (sendDate) send = new Date(send.getTime() + 86400000);
+    else { date = nextLocalDate(date, tz); send = zonedToUtc(date, sendTime, tz); }
+  }
+  return send;
+}
+
+export function fmtDurDays(ms) {
+  const tm = Math.max(0, Math.round(ms / 60000));
+  const d = Math.floor(tm / 1440), h = Math.floor((tm % 1440) / 60), m = tm % 60;
+  return d > 0 ? `${d} day${d > 1 ? "s" : ""} ${h} hr ${m} min` : `${h} hr ${m} min`;
+}
+
+export const fmt12Str = (t) => { const [h, m] = t.split(":").map(Number); return fmt12(h, m); };
+
+/** 24 hourly what-if rows starting at the order time (local wall-clock steps). */
+export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = "") {
+  if (!orderDate || !orderTime || !sendTime || !tz) return [];
+  const [y, mo, d] = orderDate.split("-").map(Number);
+  const [sh, sm] = orderTime.split(":").map(Number);
+  const start = Date.UTC(y, mo - 1, d, sh, sm, 0);
+  const rows = [];
+  for (let i = 0; i < 24; i++) {
+    try {
+      const w = new Date(start + i * 3600000);
+      const localDate = `${w.getUTCFullYear()}-${pad(w.getUTCMonth() + 1)}-${pad(w.getUTCDate())}`;
+      const local24 = `${pad(w.getUTCHours())}:${pad(w.getUTCMinutes())}`;
+      const orderUtc = zonedToUtc(localDate, local24, tz);
+      const sendUtc = nextSendUtc(orderUtc, localDate, sendTime, tz, sendDate);
+      const waitMs = sendUtc - orderUtc;
+      if (!(waitMs > 0)) continue;
+      rows.push({
+        localDate, local24, local12: fmt12Str(local24), offset: offsetLabel(tz, orderUtc),
+        utcOrder: fmtUtc(orderUtc), utcOrderDate: fmtUtcDate(orderUtc),
+        targetUtc: fmtUtc(sendUtc), targetUtcDate: fmtUtcDate(sendUtc), wait: fmtDurDays(waitMs),
+      });
+    } catch { /* skip an unresolvable hour */ }
+  }
+  return rows;
+}
