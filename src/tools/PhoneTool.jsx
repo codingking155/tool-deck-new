@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { analyzeNumber, validityText } from "../lib/phoneCheck.js";
 import { detectPhone } from "../lib/phone.js";
 import { fmtLocal, offsetLabel } from "../lib/time.js";
 import { useNow, readParams, writeParams } from "../hooks/index.js";
@@ -8,6 +9,15 @@ export default function PhoneTool({ notify }) {
   useEffect(() => { writeParams({ n: input.trim() || null }); }, [input]);
   const now = useNow(1000);
   const det = useMemo(() => detectPhone(input), [input]);
+  const [info, setInfo] = useState(null);
+  const e164 = det && det.e164;
+  useEffect(() => {
+    setInfo(null);
+    if (!e164) return;
+    let live = true;
+    analyzeNumber(e164).then((a) => live && setInfo(a)).catch(() => {});
+    return () => { live = false; };
+  }, [e164]);
   const copy = (t, l) => navigator.clipboard.writeText(t).then(() => notify(`${l} copied.`)).catch(() => notify("Copy blocked."));
   return (
     <div className="grid2" style={{ gridTemplateColumns: "1fr", maxWidth: 660, margin: "0 auto" }}>
@@ -30,12 +40,13 @@ export default function PhoneTool({ notify }) {
                 <div className="phflag">{det.flag}</div>
                 <div>
                   <h4>{det.name}</h4>
-                  <div className="m">+{det.dial}{det.area ? ` (area ${det.area})` : ""} · {det.valid} · {det.type}{det.assumed ? " · prefix assumed" : ""}</div>
+                  <div className="m">+{det.dial}{det.area ? ` (area ${det.area})` : ""} · {info ? validityText(info) : det.valid} · {info ? (info.typeLabel || "Type unknown") : det.type}{det.assumed ? " · prefix assumed" : ""}</div>
                 </div>
               </div>
               <div className="panel" style={{ marginTop: 12 }}>
                 <div className="kv"><span className="k">International format</span><span className="v hl">{det.intl}</span></div>
                 <div className="kv"><span className="k">E.164</span><span className="v">{det.e164}</span></div>
+                {info && info.valid && <div className="kv"><span className="k">National format</span><span className="v">{info.national}</span></div>}
                 <div className="kv"><span className="k">Timezone</span><span className="v">{det.zone} · now {fmtLocal(now, det.zone)} ({offsetLabel(det.zone, now)})</span></div>
               </div>
               <div className="pillrow" style={{ marginTop: 12 }}>
