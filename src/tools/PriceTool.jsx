@@ -133,7 +133,12 @@ export default function PriceTool({ notify, nav }) {
         </div>
       </div>
 
-      <div className="pt-out" aria-live="polite" aria-busy={loading}>
+      {/* a short announcement instead of a live region around the whole result */}
+      <p className="sr-only" role="status">
+        {state.kind === "ready" ? (product.currentPrice != null ? `Current price ${money(product.currentPrice)}` : UNAVAILABLE) : loading ? "Checking the live price…" : ""}
+      </p>
+
+      <div className="pt-out" aria-busy={loading}>
         {state.kind === "idle" && (
           <div className="panel rise d2">
             <EmptyState icon={LineChart} title="Should you buy now, or wait?">

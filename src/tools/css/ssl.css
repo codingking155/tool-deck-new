@@ -55,3 +55,4 @@
 .ssl-sk-m{display:grid;grid-template-columns:1fr 1fr 2fr;gap:var(--s2);margin-top:var(--s5)}
 .ssl-sk-m .skel{height:64px}
 @media(max-width:600px){.ssl .inrow.stack>input{flex:none}}
+#ssl-domain{font-family:var(--mono)}
