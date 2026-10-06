@@ -33,24 +33,26 @@ export default function Home({ nav, reduced }) {
       <section className="hero rise">
         <h2>All the everyday tools you need, in one <em>intelligent workspace</em>.</h2>
         <div className="rotator" aria-live="polite"><span key={ri}>{ROTATE[ri]}</span></div>
-        <div className="searchbar rise d2">
-          <span className="ic" aria-hidden="true">⌕</span>
-          <input placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
-            aria-label="Search tools"
-            onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); }} />
-          <kbd>Ctrl K</kbd>
-        </div>
         <div className="stats rise d3">
           <div className="stat"><b>{c1}</b><span>tools inside</span></div>
           <div className="stat"><b>{c2}+</b><span>dial codes indexed</span></div>
           <div className="stat"><b>{c3}</b><span>fully on-device</span></div>
         </div>
       </section>
-      <div className="pillrow" role="group" aria-label="Filter tools by category" style={{ justifyContent: "center", margin: "0 0 14px" }}>
+      <div className="finder">
+          <div className="searchbar rise d2">
+            <span className="ic" aria-hidden="true">⌕</span>
+            <input placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Search tools"
+              onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); }} />
+            <kbd>Ctrl K</kbd>
+          </div>
+      <div className="pillrow catrow" role="group" aria-label="Filter tools by category">
         {CATEGORIES.map((c) => (
           <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}
             style={cat === c ? { borderColor: "var(--pri2)", color: "var(--pri2)" } : undefined}>{c}</button>
         ))}
+      </div>
       </div>
       <section className="bento">
         {list.map((t, i) => (

@@ -728,3 +728,30 @@ table.rt.pt-table{min-width:520px}
 @media(hover:none){.searchbar kbd{display:none}.bcard:hover{box-shadow:none}}
 .shell{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
 @media(max-width:600px){.shell{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}}
+
+/* ---- mobile: sticky finder, compact cards, tool-page nav ---- */
+.finder .searchbar{margin-bottom:0}
+.finder .catrow{justify-content:center;margin:18px 0 14px}
+@media(max-width:600px){
+  .finder{position:sticky;top:0;z-index:20;margin:0 -14px 12px;padding:8px 14px 6px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .finder .searchbar{margin-top:0}
+  .finder .searchbar input{height:48px}
+  .finder .searchbar .ic{top:13px}
+  .finder .catrow{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;margin:8px -14px 0;padding:0 14px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+  .finder .catrow::-webkit-scrollbar{display:none}
+  .finder .catrow .pill{flex:none;min-height:36px;scroll-snap-align:start;white-space:nowrap}
+  .bento{gap:10px;margin-top:12px}
+  .bcard,.bcard.big{display:grid;grid-template-columns:44px 1fr;column-gap:12px;align-items:start;padding:14px}
+  .bcard .bic{grid-row:1/4;margin:0}
+  .bcard h3,.bcard .wbadge,.bcard p{grid-column:2}
+  .bcard h3{font-size:16px}
+  .bcard .wbadge{justify-self:start;margin:3px 0 2px}
+  .bcard p{margin-top:2px;font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bcard .open{display:none}
+  .crumb{position:sticky;top:0;z-index:15;margin:0 -14px 14px;padding:6px 14px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .crumb button{min-height:44px;padding:0 12px 0 0;font-size:14px;font-weight:600}
+  .thead h2{font-size:20px}
+}
+.app{overflow-x:clip}
+@media(max-width:560px){.preview{display:none!important}}
+@media(max-width:600px){.cw-layer{display:none}}
