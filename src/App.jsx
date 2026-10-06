@@ -14,6 +14,7 @@ import CornerWebs from "./components/CornerWebs.jsx";
 import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 /* After a deploy, an open tab may ask for a chunk hash that no longer exists:
    reload once to pick up the new build instead of showing the error panel. */
@@ -240,6 +241,7 @@ export default function App() {
       <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />
       <InstallPrompt />
       <Toast msg={toast} />
+      <SpeedInsights />
     </div>
   );
 }
