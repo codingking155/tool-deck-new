@@ -182,3 +182,40 @@ export function useVisitCount() {
   }, []);
   return count;
 }
+
+/* ─── swipe gesture detection (mobile tool navigation) ──────────────────── */
+
+export function useSwipe(onSwipe) {
+  useEffect(() => {
+    let startX = 0;
+    let startTime = 0;
+    const minDistance = 60;
+    const maxTime = 500;
+
+    const handleTouchStart = (e) => {
+      startX = e.touches[0]?.clientX || 0;
+      startTime = Date.now();
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!startX) return;
+      const endX = e.changedTouches[0]?.clientX || 0;
+      const distance = startX - endX;
+      const time = Date.now() - startTime;
+
+      // Swipe threshold: 60px in 500ms
+      if (Math.abs(distance) >= minDistance && time <= maxTime) {
+        const direction = distance > 0 ? "left" : "right";
+        onSwipe?.(direction);
+      }
+      startX = 0;
+    };
+
+    document.addEventListener("touchstart", handleTouchStart, false);
+    document.addEventListener("touchend", handleTouchEnd, false);
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [onSwipe]);
+}
