@@ -91,8 +91,8 @@ function EmailPane({ notify }) {
           </div>
         </div>
       </form>
-      <DataFlow steps={[[Mail, "Your email"], [Server, "ToolDeck server"], [Database, "XposedOrNot"]]}>
-        Your email is sent once to our server, which asks the XposedOrNot breach database and returns the result.
+      <DataFlow steps={[[Mail, "Your email"], [Server, "ToolDeck server"], [Database, "Breach database"]]}>
+        Your email is sent once to our server, which asks a public breach database and returns the result.
         It isn't stored or logged. Only check addresses you own.
       </DataFlow>
 
@@ -184,9 +184,9 @@ function PasswordPane({ notify }) {
           </div>
         </div>
       </form>
-      <DataFlow steps={[[Laptop, "Hashed on this device"], [Hash, "First 5 hash characters"], [Database, "Have I Been Pwned"]]}>
+      <DataFlow steps={[[Laptop, "Hashed on this device"], [Hash, "First 5 hash characters"], [Database, "Breach database"]]}>
         Your password never leaves your browser. We hash it locally and send only the first 5 characters of that hash to
-        Have I Been Pwned's Pwned Passwords service (k-anonymity), then match the rest here.
+        a leaked-password database (k-anonymity), then match the rest here.
       </DataFlow>
 
       <div aria-live="polite" aria-busy={phase === "loading"}>
@@ -218,8 +218,8 @@ export default function BreachTool({ notify }) {
       <div className="panel">
         <div className="ph">
           {tab === "email"
-            ? <><h2>Has your email been in a data breach?</h2><p>Checks the XposedOrNot database and shows what was exposed.</p></>
-            : <><h2>Has your password been leaked?</h2><p>Checks Have I Been Pwned's Pwned Passwords without sending your password.</p></>}
+            ? <><h2>Has your email been in a data breach?</h2><p>Checks a public breach database and shows what was exposed.</p></>
+            : <><h2>Has your password been leaked?</h2><p>Checks a leaked-password database without sending your password.</p></>}
         </div>
         {tab === "email" ? <EmailPane notify={notify} /> : <PasswordPane notify={notify} />}
       </div>

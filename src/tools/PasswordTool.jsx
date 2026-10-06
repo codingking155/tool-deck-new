@@ -73,13 +73,13 @@ function recommend(checks, band, breach) {
   return out;
 }
 
-/* Breach-check states (HIBP k-anonymity) */
+/* Breach-check states (k-anonymity lookup) */
 const BREACH_VIEW = {
-  idle: { tone: "idle", Icon: ShieldQuestion, title: "Not checked yet", sub: "Run the breach check to compare against Have I Been Pwned's 700+ million breached passwords." },
-  checking: { tone: "idle", Icon: Loader2, title: "Checking…", sub: "Sending 5 characters of the hash to Have I Been Pwned." },
+  idle: { tone: "idle", Icon: ShieldQuestion, title: "Not checked yet", sub: "Run the breach check to compare against 700+ million breached passwords." },
+  checking: { tone: "idle", Icon: Loader2, title: "Checking…", sub: "Sending 5 characters of the hash to the breach database." },
   found: { tone: "warn", Icon: AlertTriangle, title: "Found in known breaches", sub: "This password has appeared in at least one known data breach. Use a unique password instead." },
   clear: { tone: "good", Icon: CircleCheck, title: "Not found in known breaches", sub: "Not in known public breaches (it could still exist in unreleased data)." },
-  unavailable: { tone: "warn", Icon: AlertTriangle, title: "Couldn't check right now", sub: "Have I Been Pwned didn't answer. Try again later." },
+  unavailable: { tone: "warn", Icon: AlertTriangle, title: "Couldn't check right now", sub: "The breach database didn't answer. Try again later." },
 };
 
 function BreachStatus({ status }) {
@@ -88,7 +88,7 @@ function BreachStatus({ status }) {
     <div className={`pw-breach pw-t-${v.tone}`} aria-live="polite">
       <span className="pw-bic" aria-hidden="true"><v.Icon size={18} className={status === "checking" ? "spin" : undefined} /></span>
       <div className="pw-bb">
-        <div className="pw-bk">Breach check · Have I Been Pwned</div>
+        <div className="pw-bk">Breach check · leaked passwords</div>
         <b>{v.title}</b>
         <p>{v.sub}</p>
       </div>
@@ -149,7 +149,7 @@ export default function PasswordTool({ notify }) {
     } else if (result === false) {
       notify("✓ Not found in known breaches (yet tested)");
     } else {
-      notify("⚠️ Could not check HIBP API. Try again later.");
+      notify("⚠️ Could not run the breach check. Try again later.");
     }
   }, [password, notify]);
 

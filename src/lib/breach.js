@@ -10,7 +10,7 @@ export async function checkPassword(password, signal) {
   return pwnedCount(await r.text(), hash.slice(5));
 }
 
-/** Emails: via the breach-check edge function (XposedOrNot). */
+/** Emails: via the breach-check edge function. */
 export async function checkEmail(email, signal) {
   const base = import.meta.env.VITE_SUPABASE_URL;
   if (!base) throw new Error("The email check isn't configured on this deployment.");
