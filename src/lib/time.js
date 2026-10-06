@@ -143,39 +143,6 @@ export function getNextValidSendUtc(orderUtc, sendTime, tz, options = {}) {
   throw new Error("No valid send day found within 60 days — check the non-working-day configuration.");
 }
 
-/* ─── UTC day-wise wait schedule (PRD spec) ─────────────────────────────── */
-
-const UNIT_MS = { minutes: 60000, hours: 3600000, days: 86400000 };
-
-export function buildWaitSchedule({ startDate, startTime, amount, unit, repetitions, tz1, tz2 }) {
-  if (!startDate || !startTime || !amount || amount <= 0 || !repetitions) return [];
-  const [y, mo, d] = startDate.split("-").map(Number);
-  const [h, mi] = startTime.split(":").map(Number);
-  const start = Date.UTC(y, mo - 1, d, h, mi, 0);
-  const step = amount * (UNIT_MS[unit] || UNIT_MS.hours);
-  // Garbage dates/times (e.g. from a shared URL) or a huge interval would make
-  // an Invalid Date, which throws in toISOString / formatToParts.
-  if (!Number.isFinite(start) || !Number.isFinite(step) || step <= 0) return [];
-  const rows = [];
-  const n = Math.min(Math.max(1, +repetitions || 1), 120);
-  for (let i = 0; i < n; i++) {
-    const ms = start + i * step;
-    if (!(Math.abs(ms) <= 8.64e15)) break;
-    const t = new Date(ms);
-    rows.push({
-      idx: i + 1, t,
-      utcTime: fmtUtc(t), utcDate: fmtUtcDate(t),
-      localTime: fmtLocal(t, tz1), localDate: fmtLocalDate(t, tz1),
-      cmpTime: tz2 ? fmtLocal(t, tz2) : null, cmpDate: tz2 ? fmtLocalDate(t, tz2) : null,
-      dow: dowOf(t, "local", tz1),
-      isWeekend: [0, 6].includes(dowOf(t, "local", tz1)),
-      localDayStr: localDateOf(t, tz1),
-      iso: t.toISOString(),
-    });
-  }
-  return rows;
-}
-
 /* ─── validation warnings (audited v2) ──────────────────────────────────── */
 
 export function getDateTimeWarning(dateStr, timeStr, tz, label) {
@@ -201,7 +168,6 @@ export function getDateTimeWarning(dateStr, timeStr, tz, label) {
 export const fmtUtc = (d) => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 export const fmtUtcDate = (d) => `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 export const fmtLocal = (d, tz) => { const p = zoneParts(d, tz); return `${pad(p.hour)}:${pad(p.minute)}`; };
-export const fmtLocalDate = (d, tz) => { const p = zoneParts(d, tz); return `${pad(p.day)} ${MONTHS[p.month - 1]} ${p.year}`; };
 
 export function offsetLabel(tz, date = new Date()) {
   const p = zoneParts(date, tz);

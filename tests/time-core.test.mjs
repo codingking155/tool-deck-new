@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   zonedToUtc, localDateOf, nextLocalDate, getNextValidSendUtc,
-  buildWaitSchedule, getDateTimeWarning, offsetLabel,
+  getDateTimeWarning, offsetLabel,
 } from "../src/lib/time.js";
 
 test("wall-clock → UTC round-trips a plain time (IST, no DST)", () => {
@@ -42,18 +42,6 @@ test("send-time resolution crosses a DST gap without drifting the local time", (
 test("getDateTimeWarning flags a nonexistent local time inside the DST gap", () => {
   const w = getDateTimeWarning("2026-03-08", "02:30", "America/New_York", "The order time");
   assert.ok(w && /transition/.test(w));
-});
-
-test("buildWaitSchedule clamps repetitions and marks weekends in the local zone", () => {
-  const rows = buildWaitSchedule({
-    startDate: "2026-07-24", startTime: "12:00", amount: 24, unit: "hours",
-    repetitions: 999, tz1: "Asia/Kolkata", tz2: null,
-  });
-  assert.equal(rows.length, 120); // clamped
-  assert.equal(rows[0].utcTime, "12:00");
-  assert.equal(rows[0].localTime, "17:30"); // IST
-  const sat = rows.find((r) => r.localDayStr === "2026-07-25");
-  assert.ok(sat.isWeekend);
 });
 
 test("offsetLabel formats whole and half-hour offsets", () => {

@@ -3,13 +3,13 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
-  { id: "utc", where: "device", cat: "Time & network", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export — plus an order → target send wait calculator with an hourly UTC table.", pv: "utc",
-    blurb: "Build day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export, plus an order → target send calculator that gives the wait between an order time and the next send time with an hourly UTC table. Runs entirely in your browser.",
+  { id: "utc", where: "device", cat: "Time & network", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Wait time from an order to the next send time in any timezone — UTC timestamps, an hourly table, weekend skipping and calendar export.", pv: "utc",
+    blurb: "Work out the wait between an order and the next target send time in any timezone, with both UTC timestamps, a live countdown, an hourly what-if table, optional weekend skipping and .ics or Google Calendar export. Runs entirely in your browser.",
     faqs: [
-      ["How do I convert a UTC time to my local time?", "Enter the UTC start time and your timezone; every row shows the matching local time and date, updated live."],
-      ["How is the order → target send wait calculated?", "Pick the customer's timezone, the order date and time, and the target send time. The tool finds the next matching local send time after the order (or on a fixed send date you choose) and shows the wait, both UTC timestamps and an hourly table, with daylight-saving handled per row."],
-      ["Does the schedule highlight weekends?", "Yes — the day-wise schedule tints weekend rows so you can spot them."],
-      ["Can I export the schedule?", "Yes — copy the whole table or download it as CSV. Nothing you enter is stored anywhere."],
+      ["How is the wait calculated?", "Pick the customer's timezone, the order date and time, and the target send time. The tool finds the next matching local send time after the order, or uses a fixed send date if you set one, and shows the wait with both UTC timestamps."],
+      ["What is the hourly table for?", "It shows the same calculation for orders placed each hour over the next 24 hours, so you can see how the wait changes through the day. Each row uses its own local date and GMT offset, so daylight-saving changes are handled."],
+      ["Can it skip weekends?", "Yes. Turn on Skip weekends and any send that would land on Saturday or Sunday moves to Monday. It is off by default."],
+      ["Can I add the send time to my calendar?", "Yes — download an .ics file or open a pre-filled Google Calendar event. Nothing you enter is stored anywhere, and presets stay on your device."],
     ] },
   { id: "phone", where: "device", cat: "Time & network", icon: "📞", c: "#06B6D4", name: "Phone → Country", desc: "Paste any number, instantly see its country, flag, formats and timezone.", pv: "globe",
     blurb: "Paste any phone number to instantly see its country, flag, international and E.164 formats, and local timezone. Detection is by dialing prefix and never reveals the owner or live location.",
@@ -86,7 +86,7 @@ export const WHERE_LABEL = {
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
 
 export const ROTATE = [
-  "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
+  "Calculate order-to-send wait times in UTC", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
   "Merge, split and compress PDFs", "Check if your email was in a breach",
 ];

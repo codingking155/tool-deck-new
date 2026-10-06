@@ -67,7 +67,7 @@ export function useDocumentMeta(tool) {
   useEffect(() => {
     const title = tool ? `${tool.name} · ToolDeck BLR` : "ToolDeck BLR — fast, private browser utilities";
     const desc = tool ? tool.blurb
-      : "Six fast, private browser tools: UTC wait schedules, phone → country, Shopify detector, speed test, IP & IPv6, price tracker. Nothing you type is stored.";
+      : "Nine fast, private tools: UTC wait times, phone → country, Shopify detectors, speed test, IP & IPv6, price tracker, PDF toolkit and breach checker. Nothing you type is stored.";
     const url = SITE + (tool ? `/tool/${tool.id}` : "/");
     document.title = title;
     setMeta("description", desc);

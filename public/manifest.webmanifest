@@ -1,7 +1,7 @@
 {
   "name": "ToolDeck BLR — browser utilities",
   "short_name": "ToolDeck",
-  "description": "Fast, private browser tools: UTC wait schedules, phone → country, Shopify detector, speed test, IP & IPv6, price tracker.",
+  "description": "Fast, private browser tools: UTC wait times, phone → country, Shopify detector, speed test, IP & IPv6, price tracker.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
