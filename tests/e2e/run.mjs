@@ -86,7 +86,7 @@ await scenario("UTC: reference scenario, weekend skipping and calendar export", 
 
 await scenario("PDF: merge two files", async (p) => {
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "Merge PDF" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Merge PDF" }).click();
   await p.locator("input[type=file]").setInputFiles([fixtures.a, fixtures.c1]);
   await p.locator(".pb .btn", { hasText: "Merge PDF" }).last().click();
   await p.getByText("Done ·").waitFor({ timeout: 60000 });
@@ -96,7 +96,7 @@ await scenario("PDF: merge two files", async (p) => {
 
 await scenario("PDF: protect then unlock round-trip with wrong/missing password handling", async (p) => {
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "Protect PDF" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Protect PDF" }).click();
   await p.locator("input[type=file]").setInputFiles(fixtures.a);
   await p.locator("input[type=password]").fill("pw1 é");
   await p.locator(".pb .btn", { hasText: "Protect PDF" }).last().click();
@@ -106,7 +106,7 @@ await scenario("PDF: protect then unlock round-trip with wrong/missing password 
   assert.ok(enc.toString("latin1").includes("/Encrypt"));
   await assert.rejects(PDFDocument.load(enc));
   await p.getByText("← All PDF tools").click();
-  await p.locator("button.panel", { hasText: "Unlock PDF" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Unlock PDF" }).click();
   await p.locator("input[type=file]").setInputFiles(prot.path);
   const run = () => p.locator(".pb .btn", { hasText: "Unlock PDF" }).last().click();
   await run(); await p.locator(".toast.show").waitFor();
@@ -125,7 +125,7 @@ await scenario("PDF: protect then unlock round-trip with wrong/missing password 
 
 await scenario("PDF: compare finds the changed words; sign embeds an image; page thumbnails drive the page box", async (p) => {
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "Compare PDF" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Compare PDF" }).click();
   const ins = p.locator("input[type=file]");
   await ins.nth(0).setInputFiles(fixtures.c1); await ins.nth(1).setInputFiles(fixtures.c2);
   await p.getByRole("button", { name: "Compare", exact: true }).click();
@@ -133,13 +133,13 @@ await scenario("PDF: compare finds the changed words; sign embeds an image; page
   assert.match(await p.locator(".note.i").first().innerText(), /\+2 words added.*1 removed/s);
 
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "Remove pages" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Remove pages" }).click();
   await p.locator("input[type=file]").setInputFiles(fixtures.a);
   await p.getByRole("button", { name: "Page 2" }).click();
   assert.equal(await p.getByPlaceholder("1-3, 5").inputValue(), "2");
 
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "Sign PDF" }).click();
+  await p.locator("button.pdfh-card", { hasText: "Sign PDF" }).click();
   await p.locator("input[type=file]").first().setInputFiles(fixtures.c1);
   const cv = p.getByLabel("Draw your signature"); await cv.waitFor();
   const box = await cv.boundingBox();
@@ -159,7 +159,7 @@ await scenario("PDF: compare finds the changed words; sign embeds an image; page
 
 await scenario("PDF: multi-file results download as one ZIP", async (p) => {
   await p.goto(`${BASE}/tool/pdf`);
-  await p.locator("button.panel", { hasText: "PDF to JPG" }).click();
+  await p.locator("button.pdfh-card", { hasText: "PDF to JPG" }).click();
   await p.locator("input[type=file]").setInputFiles(fixtures.a);
   await p.locator(".pb .btn", { hasText: "PDF to JPG" }).last().click();
   await p.getByText("Done ·").waitFor({ timeout: 60000 });
