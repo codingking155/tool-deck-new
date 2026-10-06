@@ -2,6 +2,10 @@ import { useState, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 const SignPdf = lazy(() => import("./pdf/SignPdf.jsx"));
 const ComparePdf = lazy(() => import("./pdf/ComparePdf.jsx"));
 const OcrPdf = lazy(() => import("./pdf/OcrPdf.jsx"));
+const qpdfOps = async () => {
+  const [ops, wasm, script] = await Promise.all([import("../lib/qpdf.js"), import("@jspawn/qpdf-wasm/qpdf.wasm?url"), import("@jspawn/qpdf-wasm/qpdf.js?url")]);
+  return { ...ops, rt: { factory: await ops.browserQpdfFactory(script.default), env: { locateFile: (f) => (f.endsWith(".wasm") ? wasm.default : f) } } };
+};
 const pdfOps = () => import("../lib/pdf.js");
 import { readParams, writeParams } from "../hooks/index.js";
 import { parseRanges } from "../lib/pdfRanges.js";
@@ -93,13 +97,23 @@ const TOOLS = [
     run: async ([f], o) => [pdf(await (await pdfOps()).cropPdf(f.bytes, { top: +o.top || 0, right: +o.right || 0, bottom: +o.bottom || 0, left: +o.left || 0 }), `${base(f)}-cropped.pdf`)] },
 
   { id: "sign", g: 5, icon: "✍️", name: "Sign PDF", desc: "Draw, type or upload a signature and place it on any page.", Custom: SignPdf },
-  { id: "unlock", g: 5, icon: "🔓", name: "Unlock PDF", desc: "Remove edit/print/copy restrictions. Cannot break an open-password.",
-    run: async ([f]) => [pdf(await (await pdfOps()).rebuildPdf(f.bytes), `${base(f)}-unlocked.pdf`)] },
+  { id: "unlock", noCount: true, g: 5, icon: "🔓", name: "Unlock PDF", desc: "Remove edit/print/copy restrictions, or the password if you know it.",
+    opts: [{ key: "password", label: "Password (only if the PDF needs one to open)", type: "password" }],
+    run: async ([f], o) => { const q = await qpdfOps(); return [pdf(await q.unlockPdf(f.bytes, o.password || "", q.rt), `${base(f)}-unlocked.pdf`)]; } },
+  { id: "protect", noCount: true, g: 5, icon: "🔒", name: "Protect PDF", desc: "Encrypt with a password (AES-256) and optionally restrict printing, copying or editing.",
+    opts: [{ key: "password", label: "Password to open the PDF", type: "password" },
+      { key: "print", label: "Printing", type: "select", options: [["y", "Allowed"], ["n", "Not allowed"]], def: "y" },
+      { key: "copy", label: "Copying text and images", type: "select", options: [["y", "Allowed"], ["n", "Not allowed"]], def: "y" },
+      { key: "modify", label: "Editing", type: "select", options: [["y", "Allowed"], ["n", "Not allowed"]], def: "y" }],
+    run: async ([f], o) => {
+      const q = await qpdfOps();
+      return [pdf(await q.protectPdf(f.bytes, { userPassword: o.password || "", allowPrint: (o.print || "y") === "y", allowCopy: (o.copy || "y") === "y", allowModify: (o.modify || "y") === "y" }, q.rt), `${base(f)}-protected.pdf`)];
+    } },
 ];
 
 const NOT_AVAILABLE = [
   "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A",
-  "Protect with password", "Redact PDF", "Edit PDF text",
+  "Redact PDF", "Edit PDF text",
 ];
 
 function download(item) {
@@ -121,7 +135,7 @@ function Field({ f, value, onChange }) {
           {f.options.map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
         </select>
       ) : (
-        <input className="inp" type={f.type === "number" ? "number" : "text"} min={f.type === "number" ? 0 : undefined} placeholder={f.ph}
+        <input className="inp" type={f.type === "number" ? "number" : f.type === "password" ? "password" : "text"} min={f.type === "number" ? 0 : undefined} placeholder={f.ph} autoComplete={f.type === "password" ? "new-password" : undefined}
           value={v} onChange={(e) => onChange(f.key, e.target.value)} style={{ marginTop: 4 }} />
       )}
     </label>
@@ -190,7 +204,7 @@ function Workspace({ tool, notify, onBack }) {
       if (!good) { notify(`${f.name}: unsupported file type.`); continue; }
       const bytes = new Uint8Array(await f.arrayBuffer());
       let pages = null;
-      if (!tool.accept) { try { pages = await (await pdfOps()).pageCount(bytes); } catch { notify(`${f.name}: couldn't read this PDF${tool.id === "repair" ? "" : " (try Repair PDF)"}.`); if (tool.id !== "repair") continue; } }
+      if (!tool.accept && !tool.noCount) { try { pages = await (await pdfOps()).pageCount(bytes); } catch { notify(`${f.name}: couldn't read this PDF${tool.id === "repair" ? "" : " (try Repair PDF)"}.`); if (tool.id !== "repair") continue; } }
       ok.push({ id: Math.random().toString(36).slice(2), name: f.name, type: f.type, size: f.size, bytes, pages });
     }
     if (!ok.length) return;

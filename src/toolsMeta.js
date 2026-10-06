@@ -64,14 +64,14 @@ export const TOOLS = [
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
   { id: "pdf", where: "device", cat: "Documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
-    blurb: "A set of 19 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign and unlock. Everything runs locally in your browser; files are never uploaded.",
+    blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
       ["How good is PDF to Word?", "It recovers the text as editable paragraphs and page breaks. Layout, images and tables are not reproduced, and scanned PDFs (no selectable text) can't be converted without OCR."],
       ["Does Compress keep my text selectable?", "No. It re-renders pages as compressed images, which is what makes files much smaller. Use a lower level for better quality."],
-      ["Can Unlock remove a password?", "Only restrictions on editing, printing or copying. A PDF that needs a password to open can't be unlocked here."],
+      ["Can Unlock remove a password?", "Yes, if you know it: enter the password and the PDF is saved without encryption. Without the password it can only remove edit, print and copy restrictions from PDFs that open freely — it cannot crack or guess passwords."],
       ["Is the signature legally binding?", "Sign PDF stamps a visual signature, like signing on paper. It is not a certificate-based digital signature, so check whether your use case needs one."],
-      ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel/PDF-A, password protection, redaction and PDF text editing."],
+      ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel/PDF-A, redaction and PDF text editing."],
     ] },
 ];
 
