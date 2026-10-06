@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { TOOLS, tint, ROTATE } from "../toolsMeta.js";
+import { TOOLS, tint, ROTATE, CATEGORIES } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
 
@@ -19,10 +19,11 @@ function Preview({ kind }) {
 
 export default function Home({ nav, reduced }) {
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState("All");
   const [ri, setRi] = useState(0);
   useEffect(() => { const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, []);
   const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(100);
-  const list = TOOLS.filter((t) => (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
+  const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
   const th = tiltHandlers(reduced);
   return (
     <>
@@ -42,6 +43,12 @@ export default function Home({ nav, reduced }) {
           <div className="stat"><b>{c3}%</b><span>runs in your browser</span></div>
         </div>
       </section>
+      <div className="pillrow" role="group" aria-label="Filter tools by category" style={{ justifyContent: "center", margin: "0 0 14px" }}>
+        {CATEGORIES.map((c) => (
+          <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}
+            style={cat === c ? { borderColor: "var(--pri2)", color: "var(--pri2)" } : undefined}>{c}</button>
+        ))}
+      </div>
       <section className="bento">
         {list.map((t, i) => (
           <button key={t.id} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th} onClick={() => nav(`/tool/${t.id}`)}

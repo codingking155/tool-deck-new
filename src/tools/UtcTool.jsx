@@ -7,6 +7,7 @@ import ZonePicker from "../components/ZonePicker.jsx";
 import { ShareLink } from "../components/chrome.jsx";
 import { useNow, readParams, writeParams } from "../hooks/index.js";
 import UtcOrderMode from "./UtcOrderMode.jsx";
+import UtcBulkMode from "./UtcBulkMode.jsx";
 
 function ScheduleMode({ notify }) {
   const now = useNow(1000);
@@ -141,18 +142,19 @@ const SCHEDULE_KEYS = ["sd", "st", "a", "u", "r", "tz", "tz2"];
 const ORDER_KEYS = ["zone", "date", "order", "send", "senddate"];
 
 export default function UtcTool({ notify }) {
-  const [mode, setMode] = useState(() => (readParams().get("m") === "order" ? "order" : "schedule"));
+  const [mode, setMode] = useState(() => (["order", "bulk"].includes(readParams().get("m")) ? readParams().get("m") : "schedule"));
   useEffect(() => {
-    const stale = mode === "order" ? SCHEDULE_KEYS : ORDER_KEYS;
-    writeParams({ m: mode === "order" ? "order" : null, ...Object.fromEntries(stale.map((k) => [k, null])) });
+    const stale = mode === "order" ? SCHEDULE_KEYS : mode === "bulk" ? [...SCHEDULE_KEYS, ...ORDER_KEYS] : ORDER_KEYS;
+    writeParams({ m: mode === "schedule" ? null : mode, ...Object.fromEntries(stale.map((k) => [k, null])) });
   }, [mode]);
   return (
     <div>
       <div className="modes" role="tablist">
         <button role="tab" aria-selected={mode === "schedule"} className={mode === "schedule" ? "on" : ""} onClick={() => setMode("schedule")}>Day-wise wait schedule</button>
         <button role="tab" aria-selected={mode === "order"} className={mode === "order" ? "on" : ""} onClick={() => setMode("order")}>Order → target send</button>
+        <button role="tab" aria-selected={mode === "bulk"} className={mode === "bulk" ? "on" : ""} onClick={() => setMode("bulk")}>Bulk orders</button>
       </div>
-      {mode === "schedule" ? <ScheduleMode notify={notify} /> : <UtcOrderMode notify={notify} />}
+      {mode === "schedule" ? <ScheduleMode notify={notify} /> : mode === "order" ? <UtcOrderMode notify={notify} /> : <UtcBulkMode notify={notify} />}
     </div>
   );
 }

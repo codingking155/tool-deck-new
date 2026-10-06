@@ -268,3 +268,25 @@ export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = ""
   }
   return rows;
 }
+
+/** Bulk orders: one per line, "YYYY-MM-DD HH:MM[, timezone]" (comma/tab/semicolon separated; "T" allowed). */
+export function bulkSendTimes({ text, defaultTz, sendTime, sendDate = "" }) {
+  const out = [];
+  for (const [i, raw] of String(text).split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line || /^(order|date)/i.test(line)) continue;
+    const [dt, zoneRaw] = line.split(/[,;\t]/).map((s) => s.trim());
+    const m = dt.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/);
+    const tz = zoneRaw || defaultTz;
+    const row = { line: i + 1, input: line, tz };
+    if (!m) { out.push({ ...row, error: "Use YYYY-MM-DD HH:MM" }); continue; }
+    if (!isValidZone(tz)) { out.push({ ...row, error: `Unknown timezone "${tz}"` }); continue; }
+    const date = m[1], time = `${pad(+m[2])}:${m[3]}`;
+    if (+m[2] > 23 || +m[3] > 59) { out.push({ ...row, error: "Invalid time" }); continue; }
+    const orderUtc = zonedToUtc(date, time, tz);
+    const sendUtc = nextSendUtc(orderUtc, date, sendTime, tz, sendDate);
+    out.push({ ...row, date, time, orderUtc, sendUtc, wait: fmtDurDays(sendUtc - orderUtc),
+      orderUtcText: `${fmtUtcDate(orderUtc)} ${fmtUtc(orderUtc)}`, sendUtcText: `${fmtUtcDate(sendUtc)} ${fmtUtc(sendUtc)}`, iso: sendUtc.toISOString() });
+  }
+  return out;
+}

@@ -62,3 +62,20 @@ test("hourly table stays 24 rows with positive waits across a DST change", () =>
   assert.ok(rows.every((r) => !r.wait.startsWith("-") && !r.wait.startsWith("0 hr 0")));
   assert.ok(rows.some((r) => r.offset === "GMT+1") && rows.some((r) => r.offset === "GMT+2"));
 });
+
+import { bulkSendTimes } from "../src/lib/time.js";
+
+test("bulk: parses lines, per-line zones, headers and errors", () => {
+  const rows = bulkSendTimes({
+    text: "order,zone\n2026-07-11 18:00\n2026-07-11T18:00, Europe/Amsterdam\nnope\n2026-07-11 25:00\n2026-07-11 10:00, Mars/Base",
+    defaultTz: TZ, sendTime: "08:00",
+  });
+  assert.equal(rows.length, 5);
+  assert.equal(rows[0].wait, "14 hr 0 min");
+  assert.equal(rows[0].sendUtcText, "12 Jul 2026 14:00");
+  assert.equal(rows[1].tz, "Europe/Amsterdam");
+  assert.equal(rows[1].wait, "14 hr 0 min");
+  assert.match(rows[2].error, /YYYY-MM-DD/);
+  assert.match(rows[3].error, /Invalid time/);
+  assert.match(rows[4].error, /Unknown timezone/);
+});

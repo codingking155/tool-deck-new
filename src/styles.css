@@ -602,3 +602,4 @@ table.rt.pt-table{min-width:520px}
 .zitem .zl{display:flex;flex-direction:column;min-width:0;text-align:left}
 .zitem .zz{font-size:11px;color:var(--tx3);font-family:var(--mono)}
 @media (max-width:560px){.ocard .or{text-align:left}}
+.zitem[data-active="true"]{background:var(--panel2)}

@@ -1,10 +1,10 @@
-import { useState, useRef, useMemo, useEffect } from "react";
-import {
-  mergePdfs, extractPages, removePages, splitPdf, rotatePdf, addPageNumbers,
-  addWatermark, cropPdf, rebuildPdf, imagesToPdf, pageCount,
-} from "../lib/pdf.js";
+import { useState, useRef, useMemo, useEffect, lazy, Suspense } from "react";
+const SignPdf = lazy(() => import("./pdf/SignPdf.jsx"));
+const ComparePdf = lazy(() => import("./pdf/ComparePdf.jsx"));
+const OcrPdf = lazy(() => import("./pdf/OcrPdf.jsx"));
+const pdfOps = () => import("../lib/pdf.js");
 import { readParams, writeParams } from "../hooks/index.js";
-import { parseRanges } from "../lib/pdf.js";
+import { parseRanges } from "../lib/pdfRanges.js";
 
 const PAGES = { key: "pages", label: "Pages (e.g. 1-3, 5, 8-)", type: "text", ph: "1-3, 5" };
 const base = (f) => f.name.replace(/\.[^.]+$/, "");
@@ -30,17 +30,17 @@ const GROUPS = ["Organize", "Optimize", "Convert to PDF", "Convert from PDF", "E
 /* run(files, opts, progress) -> [{ name, blob }]; files are [{ name, bytes }] */
 const TOOLS = [
   { id: "merge", g: 0, icon: "🔗", name: "Merge PDF", desc: "Combine PDFs in the order you want.", multi: true, min: 2,
-    run: async (fs) => [pdf(await mergePdfs(fs.map((f) => f.bytes)), "merged.pdf")] },
+    run: async (fs) => [pdf(await (await pdfOps()).mergePdfs(fs.map((f) => f.bytes)), "merged.pdf")] },
   { id: "split", pick: "spec", g: 0, icon: "✂️", name: "Split PDF", desc: "One file per page, or per range group.",
     opts: [{ key: "spec", label: "Ranges, comma-separated groups (blank = every page)", type: "text", ph: "1-3, 4-6" }],
-    run: async ([f], o) => (await splitPdf(f.bytes, o.spec || "")).map((b, i) => pdf(b, `${base(f)}-part${i + 1}.pdf`)) },
+    run: async ([f], o) => (await (await pdfOps()).splitPdf(f.bytes, o.spec || "")).map((b, i) => pdf(b, `${base(f)}-part${i + 1}.pdf`)) },
   { id: "remove", pick: "pages", g: 0, icon: "🗑️", name: "Remove pages", desc: "Delete the pages you don't need.", opts: [PAGES],
-    run: async ([f], o) => [pdf(await removePages(f.bytes, o.pages || ""), `${base(f)}-trimmed.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).removePages(f.bytes, o.pages || ""), `${base(f)}-trimmed.pdf`)] },
   { id: "extract", pick: "pages", g: 0, icon: "📤", name: "Extract pages", desc: "Pull selected pages into a new PDF.", opts: [PAGES],
-    run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-extract.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).extractPages(f.bytes, o.pages || ""), `${base(f)}-extract.pdf`)] },
   { id: "organize", pick: "pages", g: 0, icon: "🗂️", name: "Organize PDF", desc: "Reorder or duplicate pages — write the new order.",
     opts: [{ key: "pages", label: "New page order (e.g. 3,1,2 or 5-1)", type: "text", ph: "3,1,2" }],
-    run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-organized.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).extractPages(f.bytes, o.pages || ""), `${base(f)}-organized.pdf`)] },
 
   { id: "compress", heavy: true, g: 1, icon: "🗜️", name: "Compress PDF", desc: "Smaller file by re-rendering pages as images (text becomes non-selectable).",
     opts: [{ key: "level", label: "Compression", type: "select", options: [["low", "Low — best quality"], ["medium", "Medium"], ["high", "High — smallest"]], def: "medium" }],
@@ -50,13 +50,14 @@ const TOOLS = [
       if (out.length >= f.bytes.length) throw new Error("Already well-optimised — re-rendering would not make this file smaller.");
       return [pdf(out, `${base(f)}-compressed.pdf`)];
     } },
+  { id: "ocr", g: 1, icon: "🔎", name: "OCR PDF", desc: "Make scanned PDFs searchable and export the text.", Custom: OcrPdf },
   { id: "repair", g: 1, icon: "🩹", name: "Repair PDF", desc: "Rebuild a damaged PDF's structure and recover its pages.",
-    run: async ([f]) => [pdf(await rebuildPdf(f.bytes), `${base(f)}-repaired.pdf`)] },
+    run: async ([f]) => [pdf(await (await pdfOps()).rebuildPdf(f.bytes), `${base(f)}-repaired.pdf`)] },
 
   { id: "jpg2pdf", g: 2, icon: "🖼️", name: "JPG / PNG to PDF", desc: "Turn images into a PDF, one per page.", multi: true, accept: "image/jpeg,image/png",
     opts: [{ key: "fit", label: "Page size", type: "select", options: [["image", "Same as image"], ["a4", "A4 (fit)"]], def: "image" },
       { key: "margin", label: "Margin (pt)", type: "number", def: 0 }],
-    run: async (fs, o) => [pdf(await imagesToPdf(fs.map((f) => ({ bytes: f.bytes, type: /png$/i.test(f.type) ? "png" : "jpg" })), { fit: o.fit || "image", margin: Number(o.margin) || 0 }), "images.pdf")] },
+    run: async (fs, o) => [pdf(await (await pdfOps()).imagesToPdf(fs.map((f) => ({ bytes: f.bytes, type: /png$/i.test(f.type) ? "png" : "jpg" })), { fit: o.fit || "image", margin: Number(o.margin) || 0 }), "images.pdf")] },
 
   { id: "pdf2jpg", heavy: true, g: 3, icon: "📷", name: "PDF to JPG", desc: "Every page as a high-quality JPG.",
     opts: [{ key: "scale", label: "Resolution", type: "select", options: [["1.5", "Standard"], ["2", "High"], ["3", "Very high"]], def: "2" }],
@@ -75,26 +76,28 @@ const TOOLS = [
   { id: "rotate", pick: "pages", g: 4, icon: "🔄", name: "Rotate PDF", desc: "Rotate all pages, or just some.",
     opts: [{ key: "deg", label: "Rotate", type: "select", options: [["90", "90° clockwise"], ["180", "180°"], ["270", "90° counter-clockwise"]], def: "90" },
       { key: "pages", label: "Pages (blank = all)", type: "text", ph: "2-4" }],
-    run: async ([f], o) => [pdf(await rotatePdf(f.bytes, Number(o.deg) || 90, o.pages || ""), `${base(f)}-rotated.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).rotatePdf(f.bytes, Number(o.deg) || 90, o.pages || ""), `${base(f)}-rotated.pdf`)] },
   { id: "numbers", g: 4, icon: "🔢", name: "Add page numbers", desc: "Stamp page numbers on every page.",
     opts: [{ key: "position", label: "Position", type: "select", options: [["bottom-center", "Bottom centre"], ["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-center", "Top centre"], ["top-right", "Top right"], ["top-left", "Top left"]], def: "bottom-center" },
       { key: "start", label: "Start at", type: "number", def: 1 }],
-    run: async ([f], o) => [pdf(await addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: Number(o.start) || 1 }), `${base(f)}-numbered.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: Number(o.start) || 1 }), `${base(f)}-numbered.pdf`)] },
   { id: "watermark", g: 4, icon: "💧", name: "Watermark", desc: "Diagonal text watermark on every page.",
     opts: [{ key: "text", label: "Watermark text", type: "text", ph: "CONFIDENTIAL" },
       { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" }],
-    run: async ([f], o) => [pdf(await addWatermark(f.bytes, { text: o.text, opacity: Number(o.opacity) || 0.25 }), `${base(f)}-watermarked.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).addWatermark(f.bytes, { text: o.text, opacity: Number(o.opacity) || 0.25 }), `${base(f)}-watermarked.pdf`)] },
+  { id: "compare", g: 4, icon: "🆚", name: "Compare PDF", desc: "Spot text and visual differences between two versions.", Custom: ComparePdf },
   { id: "crop", g: 4, icon: "✂", name: "Crop PDF", desc: "Trim margins off every page (points; 72 pt = 1 inch).",
     opts: ["top", "right", "bottom", "left"].map((k) => ({ key: k, label: `${k[0].toUpperCase() + k.slice(1)} (pt)`, type: "number", def: 0 })),
-    run: async ([f], o) => [pdf(await cropPdf(f.bytes, { top: +o.top || 0, right: +o.right || 0, bottom: +o.bottom || 0, left: +o.left || 0 }), `${base(f)}-cropped.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).cropPdf(f.bytes, { top: +o.top || 0, right: +o.right || 0, bottom: +o.bottom || 0, left: +o.left || 0 }), `${base(f)}-cropped.pdf`)] },
 
+  { id: "sign", g: 5, icon: "✍️", name: "Sign PDF", desc: "Draw, type or upload a signature and place it on any page.", Custom: SignPdf },
   { id: "unlock", g: 5, icon: "🔓", name: "Unlock PDF", desc: "Remove edit/print/copy restrictions. Cannot break an open-password.",
-    run: async ([f]) => [pdf(await rebuildPdf(f.bytes), `${base(f)}-unlocked.pdf`)] },
+    run: async ([f]) => [pdf(await (await pdfOps()).rebuildPdf(f.bytes), `${base(f)}-unlocked.pdf`)] },
 ];
 
 const NOT_AVAILABLE = [
-  "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A", "OCR (scanned PDFs)",
-  "Protect with password", "Sign PDF", "Redact PDF", "Compare PDF", "Edit PDF text",
+  "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A",
+  "Protect with password", "Redact PDF", "Edit PDF text",
 ];
 
 function download(item) {
@@ -182,7 +185,7 @@ function Workspace({ tool, notify, onBack }) {
       if (!good) { notify(`${f.name}: unsupported file type.`); continue; }
       const bytes = new Uint8Array(await f.arrayBuffer());
       let pages = null;
-      if (!tool.accept) { try { pages = await pageCount(bytes); } catch { notify(`${f.name}: couldn't read this PDF${tool.id === "repair" ? "" : " (try Repair PDF)"}.`); if (tool.id !== "repair") continue; } }
+      if (!tool.accept) { try { pages = await (await pdfOps()).pageCount(bytes); } catch { notify(`${f.name}: couldn't read this PDF${tool.id === "repair" ? "" : " (try Repair PDF)"}.`); if (tool.id !== "repair") continue; } }
       ok.push({ id: Math.random().toString(36).slice(2), name: f.name, type: f.type, size: f.size, bytes, pages });
     }
     if (!ok.length) return;
@@ -274,6 +277,11 @@ export default function PdfTool({ notify }) {
   useEffect(() => { writeParams({ t: id || null }); }, [id]);
   const tool = useMemo(() => TOOLS.find((t) => t.id === id), [id]);
 
+  if (tool?.Custom) return (
+    <Suspense fallback={<div className="hint" style={{ textAlign: "center", padding: 30 }}>Loading…</div>}>
+      <tool.Custom notify={notify} onBack={() => setId("")} />
+    </Suspense>
+  );
   if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} />;
 
   return (

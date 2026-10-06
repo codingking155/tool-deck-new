@@ -1,26 +1,11 @@
 /* Pure PDF operations (pdf-lib). Everything runs in the browser; no network. */
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 
+import { parseRanges } from "./pdfRanges.js";
+export { parseRanges };
+
 const load = (bytes) => PDFDocument.load(bytes, { ignoreEncryption: true, throwOnInvalidObject: false });
 
-/** "1-3, 5, 8-" -> zero-based page indices (in written order, duplicates kept). */
-export function parseRanges(spec, total) {
-  const out = [];
-  for (const raw of String(spec).split(",")) {
-    const part = raw.trim();
-    if (!part) continue;
-    const m = part.match(/^(\d*)\s*-\s*(\d*)$/) || part.match(/^(\d+)$/);
-    if (!m) throw new Error(`Invalid page range "${part}"`);
-    let a, b;
-    if (m.length === 2) a = b = Number(m[1]);
-    else { a = m[1] ? Number(m[1]) : 1; b = m[2] ? Number(m[2]) : total; }
-    if (a < 1 || b < 1 || a > total || b > total) throw new Error(`Page ${part} is outside 1-${total}`);
-    if (a <= b) for (let i = a; i <= b; i++) out.push(i - 1);
-    else for (let i = a; i >= b; i--) out.push(i - 1);
-  }
-  if (!out.length) throw new Error("Enter at least one page.");
-  return out;
-}
 
 async function pick(bytes, indices) {
   const src = await load(bytes);
@@ -146,6 +131,21 @@ export async function pagesFromJpegs(pages, scale) {
     const img = await doc.embedJpg(p.bytes);
     const page = doc.addPage([p.width / scale, p.height / scale]);
     page.drawImage(img, { x: 0, y: 0, width: p.width / scale, height: p.height / scale });
+  }
+  return doc.save();
+}
+
+/** Stamp images (signatures) onto pages. placements: [{ page (0-based), x, y (centre, fractions from top-left of the visible page),
+    w (fraction of page width), bytes, type: "png"|"jpg" }]. Pages with /Rotate are refused (placement maths assumes upright pages). */
+export async function placeImages(bytes, placements) {
+  const doc = await load(bytes);
+  for (const p of placements) {
+    const page = doc.getPage(p.page);
+    if (page.getRotation().angle % 360 !== 0) throw new Error(`Page ${p.page + 1} is rotated — set it upright with Rotate PDF first.`);
+    const img = p.type === "jpg" ? await doc.embedJpg(p.bytes) : await doc.embedPng(p.bytes);
+    const cb = page.getCropBox();
+    const w = p.w * cb.width, h = (img.height / img.width) * w;
+    page.drawImage(img, { x: cb.x + p.x * cb.width - w / 2, y: cb.y + (1 - p.y) * cb.height - h / 2, width: w, height: h });
   }
   return doc.save();
 }

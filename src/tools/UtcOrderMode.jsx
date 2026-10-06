@@ -8,6 +8,7 @@ import { Switch, ShareLink } from "../components/chrome.jsx";
 import { readParams, writeParams, useNow } from "../hooks/index.js";
 
 const CLOCK_KEY = "toolDeck.clock12";
+const PRESET_KEY = "toolDeck.utcPresets";
 const DEFAULTS = { date: "", order: "21:30", send: "07:30", senddate: "" };
 
 function unusualWait(ms) {
@@ -44,6 +45,16 @@ export default function UtcOrderMode({ notify }) {
   const [is12, setIs12] = useState(() => { try { return localStorage.getItem(CLOCK_KEY) !== "24"; } catch { return true; } });
   const [showTable, setShowTable] = useState(false);
   const now = useNow(1000);
+  const [presets, setPresets] = useState(() => { try { return JSON.parse(localStorage.getItem(PRESET_KEY) || "[]").slice(0, 12); } catch { return []; } });
+  const [presetName, setPresetName] = useState("");
+  const savePresets = (next) => { setPresets(next); try { localStorage.setItem(PRESET_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ } };
+  const addPreset = () => {
+    const name = presetName.trim();
+    if (!name) return notify("Name the preset first.");
+    savePresets([{ name, tz, order: orderTime, send: sendTime, senddate: sendDate }, ...presets.filter((p) => p.name !== name)].slice(0, 12));
+    setPresetName(""); notify("Preset saved on this device.");
+  };
+  const applyPreset = (p) => { if (isValidZone(p.tz)) setTz(p.tz); setOrderTime(p.order); setSendTime(p.send); setSendDate(p.senddate || ""); };
 
   useEffect(() => { try { localStorage.setItem(CLOCK_KEY, is12 ? "12" : "24"); } catch { /* storage unavailable */ } }, [is12]);
   useEffect(() => {
@@ -109,6 +120,24 @@ export default function UtcOrderMode({ notify }) {
               {userZoneDiffers && (
                 <button type="button" className="linkbtn" onClick={() => setTz(USER_TZ)}>📍 Use my timezone ({USER_TZ.split("/").pop().replace(/_/g, " ")})</button>
               )}
+            </div>
+            <div className="field">
+              <label htmlFor="pn">Saved presets</label>
+              {presets.length > 0 && (
+                <div className="pillrow" style={{ marginBottom: 8 }}>
+                  {presets.map((p) => (
+                    <span key={p.name} style={{ display: "inline-flex" }}>
+                      <button type="button" className="pill" onClick={() => applyPreset(p)} title={`${p.tz} · order ${p.order} · send ${p.send}`}>{p.name}</button>
+                      <button type="button" className="pill" aria-label={`Delete preset ${p.name}`} onClick={() => savePresets(presets.filter((x) => x.name !== p.name))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input id="pn" type="text" placeholder="Preset name, e.g. Mexico morning" value={presetName} maxLength={30}
+                  onChange={(e) => setPresetName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPreset()} />
+                <button type="button" className="btn gh" onClick={addPreset}>Save</button>
+              </div>
             </div>
             <div className="field"><label htmlFor="od">Order Date</label><input id="od" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} /></div>
 

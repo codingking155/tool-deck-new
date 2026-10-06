@@ -106,3 +106,62 @@ export async function pdfThumbs(bytes, { max = 60, width = 120, signal } = {}) {
   }
   return { thumbs: out, total: pdf.numPages };
 }
+
+async function renderCanvas(pdf, n, width) {
+  const page = await pdf.getPage(n);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: width / base.width });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return canvas;
+}
+
+/** One page as a data URL (for previews / click-to-place). */
+export async function pdfPageImage(bytes, pageNum, width = 560) {
+  const pdf = await open(bytes);
+  const c = await renderCanvas(pdf, Math.min(Math.max(1, pageNum), pdf.numPages), width);
+  return { url: c.toDataURL("image/jpeg", 0.85), width: c.width, height: c.height, total: pdf.numPages };
+}
+
+/** Raw RGBA of one page (for pixel comparison). */
+export async function pdfPageRgba(bytes, pageNum, width = 500) {
+  const pdf = await open(bytes);
+  const c = await renderCanvas(pdf, pageNum, width);
+  const d = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+  return { width: c.width, height: c.height, data: d.data };
+}
+
+/** Selectable text of every page. */
+export async function pdfTextPages(bytes) {
+  const pdf = await open(bytes);
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const tc = await (await pdf.getPage(i)).getTextContent();
+    pages.push(tc.items.map((it) => it.str).join(" "));
+  }
+  return pages;
+}
+
+export const pdfPageCount = async (bytes) => (await open(bytes)).numPages;
+
+/** OCR -> searchable PDF + plain text. Language data is fetched by tesseract.js from its CDN on first use;
+    the document itself is processed locally. */
+export async function ocrPdf(bytes, { lang = "eng", scale = 2, onProgress } = {}) {
+  const [{ createWorker }, { mergePdfs }] = await Promise.all([import("tesseract.js"), import("./pdf.js")]);
+  const pdf = await open(bytes);
+  const worker = await createWorker(lang);
+  try {
+    const pages = [], texts = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const canvas = await renderCanvas(pdf, i, Math.round((await (await pdf.getPage(i)).getViewport({ scale: 1 })).width * scale));
+      const { data } = await worker.recognize(canvas, {}, { pdf: true });
+      if (!data?.pdf) throw new Error("OCR engine returned no PDF output.");
+      pages.push(new Uint8Array(data.pdf)); texts.push(data.text || "");
+      onProgress?.(i, pdf.numPages);
+    }
+    return { pdf: await mergePdfs(pages), text: texts.join("\n\n").trim() };
+  } finally { await worker.terminate(); }
+}
