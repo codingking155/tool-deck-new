@@ -53,6 +53,15 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
+  { id: "pdf", icon: "📑", c: "#FF0000", name: "PDF Toolkit", desc: "Convert, merge, split, and compress PDFs — all in your browser.", pv: "file",
+    blurb: "Convert PDFs to Word, merge multiple PDFs, extract individual pages, and compress files. All processing happens in your browser with zero uploads to any server.",
+    faqs: [
+      ["How do I convert PDF to Word?", "Select the PDF to Word tool, upload your PDF, and download the converted Word document. Formatting is preserved where possible."],
+      ["Can I merge multiple PDFs?", "Yes, select the Merge tool and upload 2 or more PDFs. They'll be combined in the order you select them."],
+      ["Is my PDF data stored anywhere?", "No. All PDF processing happens entirely in your browser. Nothing is uploaded to any server — your files stay completely private."],
+      ["How do I extract specific pages from a PDF?", "Use the Split tool to extract each page as a separate PDF file. You can then download only the pages you need."],
+      ["Can I reduce the file size of a PDF?", "Yes, use the Compress tool to reduce file size. Note that compression quality depends on the PDF content."],
+    ] },
 ];
 
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
@@ -60,4 +69,5 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
+  "Convert PDFs to Word", "Merge multiple PDFs", "Split PDFs into pages", "Compress PDF files",
 ];

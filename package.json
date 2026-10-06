@@ -15,7 +15,10 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.475.0"
+    "lucide-react": "^0.475.0",
+    "pdfjs-dist": "^4.4.168",
+    "docx": "^8.5.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
