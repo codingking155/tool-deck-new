@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
+import ToolIcon from "../components/ToolIcon.jsx";
 
 /* Tiny animated illustration in each card's corner — one per tool, drawn in the
    tool's own hue (--cc) on the theme tokens so it reads in light and dark. */
@@ -80,7 +81,7 @@ export default function Home({ nav, reduced }) {
           <button key={t.id} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th} onClick={() => nav(`/tool/${t.id}`)}
             style={{ borderTop: `2px solid ${tint(t.c, "66")}`, "--cc": t.c }}>
             <Preview kind={t.pv} />
-            <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}>{t.icon}</div>
+            <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}><ToolIcon tool={t} /></div>
             <h3>{t.name}</h3>
             {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
             <p>{t.desc}</p>
