@@ -1,0 +1,28 @@
+# Render Blueprint for the YouTube Downloader backend (FastAPI + yt-dlp + FFmpeg).
+# The ToolDeck frontend stays on Vercel; it reaches this service via VITE_DOWNLOADER_API_URL.
+# Setup steps: youtube-downloader/README.md → "Deploying with ToolDeck".
+services:
+  - type: web
+    name: tooldeck-ytdl
+    runtime: docker
+    rootDir: youtube-downloader/backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8000"
+      # Browser origins allowed to call the API (comma-separated). Add preview domains if needed.
+      - key: ALLOWED_ORIGINS
+        value: https://tooldeck.in,https://www.tooldeck.in
+      # Render's load balancer appends one X-Forwarded-For entry.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: DOWNLOAD_DIR
+        value: /tmp/tooldeck-ytdl
+      - key: MAX_CONCURRENT_DOWNLOADS
+        value: "2"
+      - key: MAX_FILESIZE_MB
+        value: "2048"

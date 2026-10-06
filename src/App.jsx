@@ -31,6 +31,7 @@ function lazyRetry(load) {
 const UtcTool = lazyRetry(() => import("./tools/UtcTool.jsx"));
 const PhoneTool = lazyRetry(() => import("./tools/PhoneTool.jsx"));
 const ShopifyDetectorTool = lazyRetry(() => import("./tools/ShopifyDetectorTool.jsx"));
+const YtDownloaderTool = lazyRetry(() => import("./tools/YtDownloaderTool.jsx"));
 const SpeedTool = lazyRetry(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazyRetry(() => import("./tools/IpTool.jsx"));
 const PriceTool = lazyRetry(() => import("./tools/PriceTool.jsx"));
@@ -45,7 +46,7 @@ const MyAlerts = lazyRetry(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool, ytdownloader: YtDownloaderTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }

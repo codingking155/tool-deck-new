@@ -183,3 +183,20 @@ def test_sweep_removes_stale_files(client):
     (orphan / "x.mp4").write_bytes(b"x")
     main.jobs.sweep(now=time.time() + settings.file_ttl_seconds + 5)
     assert not orphan.exists()
+
+
+def test_client_key_ignores_spoofed_forwarded_for(monkeypatch):
+    import dataclasses
+
+    from starlette.requests import Request
+
+    import main
+
+    def request(xff):
+        headers = [(b"x-forwarded-for", xff.encode())] if xff else []
+        return Request({"type": "http", "headers": headers, "client": ("10.0.0.9", 1234)})
+
+    assert main.client_key(request("1.2.3.4")) == "10.0.0.9"  # hops=0: header ignored
+    monkeypatch.setattr(main, "settings", dataclasses.replace(main.settings, trusted_proxy_hops=1))
+    assert main.client_key(request("6.6.6.6, 203.0.113.7")) == "203.0.113.7"  # spoofed left entry ignored
+    assert main.client_key(request("")) == "10.0.0.9"

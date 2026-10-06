@@ -4,6 +4,14 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
+  { id: "ytdownloader", where: "server", cat: "Files & documents", icon: "🎬", c: "#EF4444", name: "YouTube Video Downloader", desc: "Save videos you own or have permission to use — any available quality up to 4K, or MP3/M4A audio.", pv: "film",
+    blurb: "Paste a YouTube link to see its thumbnail, title, channel and duration, then download it in any quality the video actually offers (up to 4K) or extract MP3/M4A audio, with live progress. Only for videos you own or have permission to download — private, members-only, paid and region-locked videos stay that way.",
+    faqs: [
+      ["What am I allowed to download?", "Only videos you own, have the rights holder's permission to download, or that are licensed for downloading (for example under Creative Commons). Respect copyright and YouTube's Terms of Service."],
+      ["Why can't I download a private, members-only or age-restricted video?", "Those videos are protected by sign-in, payment or other access controls. The tool only fetches what is publicly reachable and never bypasses restrictions, so you'll see a clear message instead."],
+      ["Why isn't 4K or 1080p listed?", "Only qualities YouTube actually reports for that video are shown. If it was uploaded in 720p, the highest option is 720p."],
+      ["Are my files or links stored?", "No. Each download is processed in a temporary folder on ToolDeck's download service and deleted as soon as it has been sent to you; anything left behind is removed automatically within half an hour."],
+    ] },
   { id: "utc", where: "device", cat: "Time & network", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Wait time from an order to the next send time in any timezone — UTC timestamps, an hourly table, weekend skipping and calendar export.", pv: "utc",
     blurb: "Work out the wait between an order and the next target send time in any timezone, with both UTC timestamps, a live countdown, an hourly what-if table, optional weekend skipping and .ics or Google Calendar export. Runs entirely in your browser.",
     faqs: [
