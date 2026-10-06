@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      ALLOWED_ORIGINS: http://localhost:3000
+      FILE_TTL_SECONDS: "1800"
+    ports:
+      - "8000:8000"
+    tmpfs:
+      - /tmp:size=8g,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
