@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
 import {
-  ArrowDown, ArrowUp, Activity, Play, FlaskConical, Check, X, Info, Minus, RotateCcw,
+  ArrowDown, ArrowUp, Activity, Play, Check, X, Info, Minus, RotateCcw,
   Video, Tv, MonitorPlay, Gamepad2, Briefcase, Trash2,
 } from "lucide-react";
 import {
@@ -182,46 +182,6 @@ function StageRail({ stage, stoppedAt, running }) {
       })}
     </ol>
   );
-}
-
-/* ────────────────────────────────────────────────────────────────────────────
-   DEMO RUN — scripted values through the same callbacks; uses no data, never saved
-   ──────────────────────────────────────────────────────────────────────────── */
-
-const DEMO_SERVER = "Demo server (simulated)";
-
-function wait(ms, signal) {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject({ cancelled: true });
-    const stop = () => { clearTimeout(t); reject({ cancelled: true }); };
-    const t = setTimeout(() => { signal.removeEventListener("abort", stop); resolve(); }, ms);
-    signal.addEventListener("abort", stop, { once: true });
-  });
-}
-
-async function runDemo(cb, signal) {
-  cb("finding"); await wait(700, signal);
-  cb("server", { name: DEMO_SERVER });
-  cb("idle");
-  const raw = [];
-  for (let i = 0; i < 10; i++) { await wait(130, signal); raw.push(17 + ((i * 7) % 5)); cb("idle_sample", raw); }
-  const ramp = async (phase, target, ms) => {
-    cb(phase);
-    const n = Math.round(ms / 110);
-    for (let i = 1; i <= n; i++) {
-      await wait(110, signal);
-      cb("live", +(target * (1 - Math.exp(-i / (n / 5))) * (0.95 + 0.05 * Math.sin(i * 1.7))).toFixed(2));
-    }
-  };
-  await ramp("down", 182.4, 4200);
-  await ramp("up", 46.8, 3300);
-  cb("calc"); await wait(500, signal);
-  const when = new Date();
-  return {
-    demo: true, when: when.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }), iso: when.toISOString(),
-    server: DEMO_SERVER, ping: 19, jitter: 1.6, down: 182.4, up: 46.8, loadedDown: 38, loadedUp: 52,
-    loss: null, lossDetail: null, dataUsed: 0, tabHidden: false, partial: false,
-  };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -546,7 +506,6 @@ export default function SpeedTool({ notify }) {
   const [livePing, setLivePing] = useState(null);     // { ms, n } provisional, from idle probes so far
   const [res, setRes] = useState(null);
   const [err, setErr] = useState("");
-  const [demo, setDemo] = useState(false);
   const [stoppedAt, setStoppedAt] = useState(null);
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
@@ -592,10 +551,10 @@ export default function SpeedTool({ notify }) {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, [running]);
 
-  const start = useCallback(async (asDemo = false) => {
+  const start = useCallback(async () => {
     if (running) return;
     setErr(""); setRes(null); setLive(0); setLivePing(null); setPickedName(null); setDownSamples([]); setUpSamples([]);
-    setDemo(asDemo); setStoppedAt(null);
+    setStoppedAt(null);
     sampleIndexRef.current = { down: 0, up: 0 };
     stepRef.current = 0;
     const ctrl = new AbortController();
@@ -623,9 +582,9 @@ export default function SpeedTool({ notify }) {
       }
     };
     try {
-      const r = asDemo ? await runDemo(cb, ctrl.signal) : await runFullTest(null, servers, cb, ctrl.signal);
+      const r = await runFullTest(null, servers, cb, ctrl.signal);
       setRes(r); setStage("done");
-      if (!asDemo) setHistory((h) => { const nh = [r, ...h]; saveHistory(nh); return nh; });
+      setHistory((h) => { const nh = [r, ...h]; saveHistory(nh); return nh; });
       if (r.tabHidden) notify("Heads-up: the tab was in the background during the test — browsers throttle hidden tabs, so treat this result as a lower bound.");
     } catch (e) {
       setStoppedAt(stepRef.current);
@@ -637,7 +596,7 @@ export default function SpeedTool({ notify }) {
 
   const cancel = () => abortRef.current?.abort();
   const clearHistory = () => { setHistory([]); saveHistory([]); notify("History cleared."); };
-  const prev = !demo && history.find((h) => res && h.iso !== res.iso);
+  const prev = history.find((h) => res && h.iso !== res.iso);
   const delta = res && prev ? compareRuns(res, prev) : null;
   const failure = stage === "failed" ? describeError(new Error(err), { service: "the test servers" }) : null;
 
@@ -655,11 +614,10 @@ export default function SpeedTool({ notify }) {
 
           <div className="spd-statusrow">
             <p className="spd-status" role="status" aria-live="polite" aria-atomic="true">
-              {demo && (running || stage === "done") ? "Demo · " : ""}{STAGE_TEXT[stage]}
+              {STAGE_TEXT[stage]}
               <span className="sr-only">{announce}</span>
             </p>
-            {demo && (running || stage === "done") && <StatusBadge tone="brand" icon={FlaskConical}>Simulated — not your connection</StatusBadge>}
-            {!demo && pickedName && running && <span className="spd-server">Server · {pickedName}</span>}
+            {pickedName && running && <span className="spd-server">Server · {pickedName}</span>}
           </div>
 
           {(stage === "ready" || stage === "offline") && (
@@ -667,21 +625,18 @@ export default function SpeedTool({ notify }) {
               <Speedometer mbps={null} phase="down" label="Ready" idle />
               {stage === "offline" && (
                 <Notice tone="off" title="You're offline">
-                  Your browser reports no network connection. The test will be available again when you're back online — the demo still works.
+                  Your browser reports no network connection. The test will be available again when you're back online.
                 </Notice>
               )}
               <div className="spd-cta">
                 {/* The test only runs on an explicit click: it moves real data, which matters on mobile plans. */}
-                <button type="button" className="btn pri auto spd-go" onClick={() => start(false)} disabled={stage === "offline"}>
+                <button type="button" className="btn pri auto spd-go" onClick={() => start()} disabled={stage === "offline"}>
                   <Play size={17} aria-hidden="true" strokeWidth={2.4} />Run speed test
-                </button>
-                <button type="button" className="btn qt" onClick={() => start(true)}>
-                  <FlaskConical size={15} aria-hidden="true" />Try a demo run
                 </button>
               </div>
               <p className="spd-data">
                 <Info size={13} aria-hidden="true" />
-                <span>Uses about 20–35 MB on a typical connection (never more than 200 MB on very fast links). The demo uses no data.</span>
+                <span>Uses about 20–35 MB on a typical connection (never more than 200 MB on very fast links).</span>
               </p>
             </div>
           )}
@@ -718,10 +673,9 @@ export default function SpeedTool({ notify }) {
                 <Notice tone="i" title="Test cancelled">Nothing was saved. Run it again whenever you're ready.</Notice>
               )}
               <div className="actions">
-                <button type="button" className="btn pri auto" onClick={() => start(demo)}>
-                  <RotateCcw size={16} aria-hidden="true" />{demo ? "Replay demo" : "Run again"}
+                <button type="button" className="btn pri auto" onClick={() => start()}>
+                  <RotateCcw size={16} aria-hidden="true" />Run again
                 </button>
-                {!demo && <button type="button" className="btn qt" onClick={() => start(true)}><FlaskConical size={15} aria-hidden="true" />Try a demo run</button>}
               </div>
             </div>
           )}
@@ -729,12 +683,10 @@ export default function SpeedTool({ notify }) {
           {stage === "done" && res && <>
             <Results res={res} delta={delta} downSamples={downSamples} upSamples={upSamples} />
             <div className="actions spd-actions">
-              <button type="button" className="btn pri auto" onClick={() => start(false)}>
-                <RotateCcw size={16} aria-hidden="true" />{demo ? "Run real test" : "Run again"}
+              <button type="button" className="btn pri auto" onClick={() => start()}>
+                <RotateCcw size={16} aria-hidden="true" />Run again
               </button>
-              {demo
-                ? <button type="button" className="btn qt" onClick={() => start(true)}><FlaskConical size={15} aria-hidden="true" />Replay demo</button>
-                : <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />}
+              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />}
             </div>
           </>}
 

@@ -37,7 +37,7 @@ export const TOOLS = [
   { id: "speed", where: "server", cat: "Time & network", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
     blurb: "Measure ping, jitter, download and upload speed from your browser against a global edge network — no redirects, no app. A full run transfers roughly 20–35 MB.",
     faqs: [
-      ["How much data does a speed test use?", "A full run transfers roughly 20–35 MB. There's also a demo run that uses no data."],
+      ["How much data does a speed test use?", "A full run transfers roughly 20–35 MB."],
       ["What is a good ping and download speed?", "Under 60 ms ping suits gaming; 25 Mbps download handles 4K streaming; 20 Mbps down and 5 up covers most work-from-home needs."],
       ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against the live measurement endpoints."],
     ] },
