@@ -124,6 +124,9 @@ await scenario("PDF: protect then unlock round-trip with wrong/missing password 
 });
 
 await scenario("PDF: compare finds the changed words; sign embeds an image; page thumbnails drive the page box", async (p) => {
+  /* The signature is drawn with raw mouse events, which a wandering decorative spider can swallow (it takes
+     pointerdown to get squished). Reduced motion renders no spiders, so the stroke always reaches the canvas. */
+  await p.emulateMedia({ reducedMotion: "reduce" });
   await p.goto(`${BASE}/tool/pdf`);
   await p.locator("button.pdfh-card", { hasText: "Compare PDF" }).click();
   const ins = p.locator("input[type=file]");
@@ -141,6 +144,7 @@ await scenario("PDF: compare finds the changed words; sign embeds an image; page
   await p.goto(`${BASE}/tool/pdf`);
   await p.locator("button.pdfh-card", { hasText: "Sign PDF" }).click();
   await p.locator("input[type=file]").first().setInputFiles(fixtures.c1);
+  assert.equal(await p.locator(".cs-spider").count(), 0, "decorative spiders must be off while drawing");
   const cv = p.getByLabel("Draw your signature"); await cv.waitFor();
   const box = await cv.boundingBox();
   await p.mouse.move(box.x + 40, box.y + 100); await p.mouse.down();
