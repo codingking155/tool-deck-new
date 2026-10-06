@@ -824,3 +824,56 @@ table.rt.pt-table{min-width:520px}
 .pdfh-card:hover .pdfh-go,.pdfh-card:focus-visible .pdfh-go{opacity:1;transform:none;color:var(--pri)}
 .pdfh-empty{text-align:center;padding:30px;color:var(--tx3)}
 @media (prefers-reduced-motion:reduce){.pdfh-card,.pdfh-go{transition:none}.pdfh-card:hover{transform:none}}
+
+/* ── Modern polish layer (applies to every tool) ── */
+:root{--ease:cubic-bezier(.2,.7,.2,1);--r-card:18px}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px;border-radius:6px}
+.btn:focus-visible,.hbtn:focus-visible,.inp:focus-visible{outline-offset:3px}
+::selection{background:var(--pri-soft);color:var(--tx)}
+
+/* breadcrumb bar: sticky glass, with prev/next tool switcher */
+.crumb{position:sticky;top:8px;z-index:20;padding:8px 12px;margin-bottom:20px;border:1px solid var(--line);border-radius:14px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.crumb .cr-nav{margin-left:auto;display:flex;gap:6px}
+.crumb .cr-nav button{width:30px;height:30px;justify-content:center;border:1px solid var(--line);border-radius:9px;background:var(--panel);transition:border-color .15s,color .15s,transform .15s var(--ease)}
+.crumb .cr-nav button:hover{border-color:var(--pri-line);color:var(--pri2);transform:translateY(-1px)}
+.crumb>span:last-of-type{color:var(--tx);font-weight:600}
+
+/* tool header */
+.thead{padding:18px 20px;border:1px solid var(--line);border-radius:var(--r-card);background:linear-gradient(120deg,var(--pri-soft),transparent 60%),var(--glass)}
+.thead h2{font-size:26px}
+
+/* panels */
+.panel{transition:border-color .2s,box-shadow .25s var(--ease),transform .25s var(--ease);box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 8px 28px rgba(0,0,0,.10)}
+.panel:hover{border-color:color-mix(in srgb,var(--pri) 28%,var(--line))}
+.panel .ph{display:flex;flex-direction:column}
+
+/* inputs */
+.inp,.field input,.field select,.field textarea{transition:border-color .15s,box-shadow .15s,background .15s}
+.inp:hover,.field input:hover,.field select:hover,.field textarea:hover{border-color:color-mix(in srgb,var(--pri) 30%,var(--line))}
+.field input::placeholder,.field textarea::placeholder{color:var(--tx3);opacity:.8}
+
+/* buttons */
+.btn{transition:filter .15s,transform .15s var(--ease),box-shadow .2s,border-color .15s,background .15s}
+.btn.pri:hover{transform:translateY(-1px);box-shadow:0 14px 32px rgba(255,138,42,.32)}
+.btn.gh:hover{background:var(--panel2);transform:translateY(-1px)}
+.btn.gh:active,.btn.pri:active{transform:scale(.97)}
+.btn:disabled{filter:grayscale(.4);transform:none;box-shadow:none}
+.btn[aria-busy=true]{position:relative;color:transparent;pointer-events:none}
+.btn[aria-busy=true]::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;color:#2A1500;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* notes get an accent edge */
+.note{border-left-width:3px;border-radius:10px}
+.note.i{border-left-color:var(--teal)}
+.note.w{border-left-color:var(--warn)}
+
+/* scrollbars */
+*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+
+/* mobile: comfortable tap targets, full-width stacking */
+@media (max-width:640px){
+  .crumb{top:4px;padding:6px 8px}
+  .thead{padding:14px}.thead h2{font-size:21px}
+  .inp,.field input,.field select{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){.panel,.btn,.crumb .cr-nav button{transition:none}.btn:hover{transform:none!important}}
