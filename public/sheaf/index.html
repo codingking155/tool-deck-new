@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sheaf: PDF tools that run in your browser</title>
+<meta name="description" content="Merge, split, compress, convert, sign and lock PDFs. Everything runs in your browser; files are never uploaded.">
+<script src="js/theme.js"></script>
+<link rel="stylesheet" href="vendor/fonts.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Libraries are self-hosted (copied from node_modules by the sheafVendor plugin in vite.config.js).
+     Deferred classic scripts and the pdf.js module run in document order once the page is parsed. -->
+<script src="vendor/pdf-lib.min.js" defer></script>
+<script type="module" src="js/pdfjs.js"></script>
+<script src="vendor/jszip.min.js" defer></script>
+<script src="vendor/Sortable.min.js" defer></script>
+<script src="js/core.js" defer></script>
+<script src="js/components.js" defer></script>
+<script src="js/tools.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>

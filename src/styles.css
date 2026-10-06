@@ -1021,3 +1021,15 @@ table.rt.pt-table{min-width:520px}
   .yd-modes{width:100%}
   .yd-modes button{flex:1;justify-content:center}
 }
+.pdfh-studio{position:relative;display:flex;gap:14px;align-items:flex-start;width:100%;margin:0 0 26px;padding:16px 44px 16px 16px;text-align:left;cursor:pointer;color:var(--tx);font:inherit;background:color-mix(in srgb,var(--good) 12%,var(--panel));border:1px solid var(--line-strong);border-radius:14px;transition:border-color .15s,background .15s}
+.pdfh-studio:hover,.pdfh-studio:focus-visible{border-color:var(--pri-line);background:var(--panel2);outline:none}
+.pdfh-studio:focus-visible{box-shadow:0 0 0 3px var(--pri-soft)}
+.pdfh-studio .pdfh-ico{flex:none;margin:0}
+.pdfh-studio b{display:block;font-size:15px}
+.pdfh-studio b i{font-style:normal;font-size:11px;font-weight:600;margin-left:6px;padding:1px 7px;border-radius:99px;color:var(--good);border:1px solid currentColor}
+.pdfh-studio small{display:block;margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--tx3)}
+.pdfh-studio:hover .pdfh-go,.pdfh-studio:focus-visible .pdfh-go{opacity:1;transform:none;color:var(--pri)}
+.sheaf-wrap{max-width:1400px;margin:0 auto}
+.sheaf-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.sheaf-t{flex:1;min-width:0;font-size:13px;color:var(--tx3)}
+.sheaf-frame{display:block;width:100%;height:max(620px,calc(100vh - 170px));border:1px solid var(--line);border-radius:14px;background:var(--panel)}

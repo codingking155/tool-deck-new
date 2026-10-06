@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 const SignPdf = lazy(() => import("./pdf/SignPdf.jsx"));
 const ComparePdf = lazy(() => import("./pdf/ComparePdf.jsx"));
 const OcrPdf = lazy(() => import("./pdf/OcrPdf.jsx"));
+const SheafStudio = lazy(() => import("./pdf/SheafStudio.jsx"));
 const qpdfOps = async () => {
   const [ops, wasm, script] = await Promise.all([import("../lib/qpdf.js"), import("@jspawn/qpdf-wasm/qpdf.wasm?url"), import("@jspawn/qpdf-wasm/qpdf.js?url")]);
   return { ...ops, rt: { factory: await ops.browserQpdfFactory(script.default), env: { locateFile: (f) => (f.endsWith(".wasm") ? wasm.default : f) } } };
@@ -111,6 +112,11 @@ const TOOLS = [
     } },
 ];
 
+/* ToolDeck tool id -> the same tool in Sheaf, the visual studio (public/sheaf). */
+const SHEAF = { merge: "merge", split: "split", remove: "remove", extract: "extract", organize: "organize", compress: "compress",
+  jpg2pdf: "img2pdf", pdf2jpg: "pdf2jpg", rotate: "rotate", numbers: "pagenum", watermark: "watermark", crop: "crop",
+  protect: "protect", unlock: "unlock", sign: "sign" };
+
 const NOT_AVAILABLE = [
   "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A",
   "Redact PDF", "Edit PDF text",
@@ -183,7 +189,7 @@ function PageThumbs({ file, spec, ordered, onChange }) {
   );
 }
 
-function Workspace({ tool, notify, onBack }) {
+function Workspace({ tool, notify, onBack, onStudio }) {
   const [files, setFiles] = useState([]);
   const [opts, setOpts] = useState({});
   const [busy, setBusy] = useState("");
@@ -231,6 +237,7 @@ function Workspace({ tool, notify, onBack }) {
     <div className="panel rise d1" style={{ maxWidth: 720, margin: "0 auto" }}>
       <div className="ph">
         <button className="btn gh" onClick={onBack} style={{ float: "right" }}>← All PDF tools</button>
+        {SHEAF[tool.id] && <button className="btn gh" onClick={() => onStudio(SHEAF[tool.id])} style={{ float: "right", marginRight: 8 }}>Visual editor</button>}
         <h3>{tool.icon} {tool.name}</h3><p>{tool.desc}</p>
       </div>
       <div className="pb">
@@ -306,13 +313,20 @@ export default function PdfTool({ notify }) {
   useEffect(() => { writeParams({ t: id || null }); }, [id]);
   const [query, setQuery] = useState("");
   const tool = useMemo(() => TOOLS.find((t) => t.id === id), [id]);
+  const studio = id === "sheaf" || id.startsWith("sheaf:");
+
+  if (studio) return (
+    <Suspense fallback={<div className="hint" style={{ textAlign: "center", padding: 30 }}>Loading…</div>}>
+      <SheafStudio tool={id.slice(6)} onBack={() => setId("")} />
+    </Suspense>
+  );
 
   if (tool?.Custom) return (
     <Suspense fallback={<div className="hint" style={{ textAlign: "center", padding: 30 }}>Loading…</div>}>
       <tool.Custom notify={notify} onBack={() => setId("")} />
     </Suspense>
   );
-  if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} />;
+  if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} onStudio={(s) => setId(`sheaf:${s}`)} />;
 
   const q = query.trim().toLowerCase();
   const match = (t) => !q || (t.name + " " + t.desc).toLowerCase().includes(q);
@@ -325,6 +339,14 @@ export default function PdfTool({ notify }) {
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
           placeholder={`Search ${TOOLS.length} PDF tools…`} aria-label="Search PDF tools" />
       </div>
+      {!q && (
+        <button className="pdfh-studio" onClick={() => setId("sheaf")}>
+          <span className="pdfh-ico" aria-hidden="true">🗃️</span>
+          <span><b>Sheaf studio <i>New</i></b>
+            <small>A visual workspace for 15 of these tools: drag pages to reorder, rotate or delete them, see watermarks, page numbers, crops and signatures live on the page, then keep working on the result.</small></span>
+          <span className="pdfh-go" aria-hidden="true">→</span>
+        </button>
+      )}
       {GROUPS.map((g, gi) => {
         const items = shown.filter((t) => t.g === gi);
         if (!items.length) return null;
