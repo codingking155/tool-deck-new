@@ -17,7 +17,7 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
   "Unable to retrieve the latest price right now."
 - Never put secrets in frontend code. Provider keys live in Supabase secrets.
 - Define React components at module scope (the app re-renders every second; inner components remount).
-- Two Shopify tools (`shopify`, `shopifydetector`) are intentional — don't merge without asking.
+- The old 18-signal `shopify` tool was removed; `shopifydetector` is the only Shopify tool. Its detection engine (`shared/shopifyCore`) and the `shopify-check` edge function remain as an API.
 - Bottom of the page: spiders yes, cobwebs no.
 - Git: develop on the branch named in the session; commit messages end with the Co-Authored-By /
   Claude-Session lines given by the harness; don't open PRs unless asked.

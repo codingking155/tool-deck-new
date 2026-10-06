@@ -1,5 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import RecentChecks from '../components/RecentChecks.jsx';
+import { hostOf, addRecent, loadRecent, saveRecent } from '../lib/recentChecks.js';
 import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
+
+const RECENT_KEY = "toolDeck.shopifyDetectorRecent";
 
 export default function ShopifyDetectorTool() {
   const [url, setUrl] = useState('');
@@ -8,6 +12,12 @@ export default function ShopifyDetectorTool() {
   const [error, setError] = useState(null);
   const [showTechnical, setShowTechnical] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [recent, setRecent] = useState(() => loadRecent(RECENT_KEY));
+  useEffect(() => {
+    const host = result && hostOf(result.url);
+    if (!host) return;
+    setRecent((r) => { const next = addRecent(r, { host, label: result.isShopify ? "Shopify" : "Not Shopify" }); saveRecent(RECENT_KEY, next); return next; });
+  }, [result]);
 
   const checkUrl = useCallback(async (urlToCheck) => {
     const trimmed = urlToCheck.trim();
@@ -184,6 +194,7 @@ export default function ShopifyDetectorTool() {
             {loading ? 'Checking...' : 'Check Now'}
           </button>
         </div>
+        <RecentChecks items={recent} onPick={(h) => setUrl(h)} onClear={() => { setRecent([]); saveRecent(RECENT_KEY, []); }} />
       </form>
 
       {/* Error */}

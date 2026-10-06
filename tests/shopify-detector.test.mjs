@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyzeShopify, buildReport, SHOPIFY_SIGNALS } from "../src/lib/shopify.js";
+import { analyzeShopify, buildReport, SHOPIFY_SIGNALS } from "../shared/shopifyCore/detect.mjs";
 
 /* ── realistic fixtures ─────────────────────────────────────────────── */
 
@@ -130,7 +130,7 @@ test("report omits absent fields instead of printing null", () => {
 
 /* ── header signals (server API path) ───────────────────────────────── */
 
-import { applyHeaderSignals } from "../src/lib/shopify.js";
+import { applyHeaderSignals } from "../shared/shopifyCore/detect.mjs";
 
 test("header evidence alone yields a confident yes (headless-proof)", () => {
   const base = analyzeShopify("", "https://acmehydro.com"); // empty body, no signals

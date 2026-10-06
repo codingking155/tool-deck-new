@@ -226,8 +226,6 @@ canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none;will-chang
 .pv-txt{fill:var(--pa);font:600 30px var(--mono);text-anchor:middle}
 .pv-bar{fill:var(--pa);opacity:.85;animation:pvslide 2.6s ease-in-out infinite}
 .pv-draw{fill:none;stroke:var(--good);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:pvdraw 3s ease-in-out infinite}
-/* scanner sweep, also used inside the Shopify tool */
-.pv-scan{position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,var(--teal),transparent);animation:scanline 2.2s linear infinite alternate;box-shadow:0 0 12px var(--teal)}
 .pv-orbit{transform-box:view-box;transform-origin:56px 29px;animation:spin 3.6s linear infinite}
 .pv-blink{animation:pvblink 2.4s ease-in-out infinite}
 .pv-sweep{animation:pvsweep 3.4s ease-in-out infinite alternate}

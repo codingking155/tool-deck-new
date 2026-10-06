@@ -18,14 +18,6 @@ export const TOOLS = [
       ["Can this tool locate a person?", "No. It only shows the numbering country or region a number belongs to — never the owner, device, or live location."],
       ["Do I need the + prefix?", "Adding the international prefix gives the most accurate result. Without it, the tool marks the guess as assumed."],
     ] },
-  { id: "shopify", where: "server", cat: "Shopping & web", icon: "🛍️", c: "#22C55E", name: "Shopify Detector", desc: "18-signal scan with shop domain, theme, currency and a live API for automation.", pv: "bag",
-    blurb: "Check whether any website runs Shopify. Eighteen independent signals — page markers, response headers and live storefront endpoints — score into one confidence value, plus shop domain, theme, currency and Shopify Plus detection. Works from a URL, or pasted page source when a site blocks direct reads. Also exposes a JSON API for CRM, Zapier and n8n.",
-    faqs: [
-      ["How can I tell if a website uses Shopify?", "Scan the store URL; the tool checks eighteen markers — CDN assets, checkout endpoints, response headers and live endpoint probes — then scores a confidence value, alongside shop domain, theme and currency when detectable."],
-      ["Is the Shopify checker free?", "Yes, it's free and needs no sign-up. With the server API deployed it reads response headers server-side (the strongest evidence); otherwise it tries the site directly, falls back to read-only proxies, and can also read pasted page source."],
-      ["Why does a check sometimes fail?", "Some stores block cross-origin reads or hide markers behind a headless front end. Paste the page source (Ctrl+U) or deploy the server API for one-click, header-based checks."],
-      ["Can I automate this — CRM, Zapier, n8n?", "Yes — deploy the Supabase API and call it as a JSON endpoint; branch your automation on is_shopify. See \"API for CRM / Zapier / n8n\" inside the tool for the exact request/response shape."],
-    ] },
   { id: "shopifydetector", where: "server", cat: "Shopping & web", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "lens",
     blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Powered by the ShopifyOrNot API.",
     faqs: [

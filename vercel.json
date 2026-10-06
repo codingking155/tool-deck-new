@@ -1,1 +1,7 @@
-{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
+{
+  "redirects": [
+    { "source": "/tool/shopify", "destination": "/tool/shopifydetector", "permanent": true },
+    { "source": "/tool/shopify/:path*", "destination": "/tool/shopifydetector", "permanent": true }
+  ],
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
