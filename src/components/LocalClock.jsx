@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { pad, zoneParts } from "../lib/time.js";
+import { pad, zoneParts, fmtUtc } from "../lib/time.js";
 import { useIpLocale } from "../hooks/index.js";
 
 /* Local time + location per user's IP: tries an IP-geo lookup, falls back to
@@ -40,7 +40,7 @@ export default function LocalClock({ now }) {
 
   return (
     <div className="uclock loc" title={`Your local time — ${tz} (${ipd.src === "ip" ? "detected from your IP" : "from your device"}). Location is shown only to you and never stored.`}>
-      <div className="lrow trow">🕐 <b>{pad(p.hour)}:{pad(p.minute)}:{pad(p.second)}</b><span style={{ opacity: 0.6, fontSize: 10.5 }}>{tzCity}</span></div>
+      <div className="lrow trow">🕐 <b>{pad(p.hour)}:{pad(p.minute)}:{pad(p.second)}</b><span style={{ opacity: 0.6, fontSize: 10.5 }}>{tzCity}</span><span className="utcinline">{fmtUtc(now)} UTC</span></div>
       <div className="lrow">{locLine}
         {!(gps && gps.ok) && gps !== "loading" && <button className="pinbtn" onClick={locate} title="Use your device's GPS for the exact city (asks permission; nothing is stored)">🎯 Precise</button>}
       </div>
