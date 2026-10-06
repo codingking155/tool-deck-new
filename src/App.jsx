@@ -89,7 +89,6 @@ function Crumb({ href, nav, children }) {
 }
 
 function NotFound({ nav }) {
-  useEffect(() => { document.title = "Page not found · ToolDeck BLR"; }, []);
   return (
     <div className="panel notfound">
       <h1>Page not found</h1>
@@ -166,7 +165,7 @@ export default function App() {
   const isHome = route === "/" || route === "/index.html" || route === "";
   const notFound = !tool && !isAlertsPage && !isHome;
 
-  useDocumentMeta(tool);
+  useDocumentMeta(tool, notFound);
 
   return (
     <div className={`app ${theme === "light" ? "light" : ""}`}>

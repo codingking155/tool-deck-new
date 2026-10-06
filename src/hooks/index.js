@@ -63,8 +63,9 @@ export function writeParams(obj) {
 
 /* ─── per-tool document meta (title/OG/JSON-LD) ─────────────────────────── */
 
-export function useDocumentMeta(tool) {
+export function useDocumentMeta(tool, notFound = false) {
   useEffect(() => {
+    if (notFound) { document.title = "Page not found · ToolDeck BLR"; setMeta("robots", "noindex"); return () => setMeta("robots", "index,follow"); }
     const title = tool ? `${tool.name} · ToolDeck BLR` : "ToolDeck BLR — fast, private browser utilities";
     const desc = tool ? tool.blurb
       : "Fast, private everyday tools: UTC wait times, phone → country, Shopify detectors, speed test, IP & IPv6 leak checks, price tracker, PDF and image tools, JSON, passwords and breach checks. Nothing you type is stored.";
@@ -87,7 +88,7 @@ export function useDocumentMeta(tool) {
       "@context": "https://schema.org", "@type": "FAQPage",
       mainEntity: tool.faqs.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
     } : null);
-  }, [tool]);
+  }, [tool, notFound]);
 }
 
 /* ─── animated count-up ─────────────────────────────────────────────────── */

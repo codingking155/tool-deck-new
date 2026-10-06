@@ -37,12 +37,15 @@ function withTimeout<T>(p: Promise<T>, ms: number, late?: (v: T) => void): Promi
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function resolveAll(host: string): Promise<string[]> {
+/* null = the resolver itself failed (SERVFAIL, timeout, unsupported) — not the same as "no such domain" */
+async function resolveAll(host: string): Promise<string[] | null> {
   const out: string[] = [];
+  let resolverFailed = false;
   for (const type of ["A", "AAAA"] as const) {
-    try { out.push(...(await Deno.resolveDns(host, type))); } catch { /* no record of this type */ }
+    try { out.push(...(await withTimeout(Deno.resolveDns(host, type), 4000))); }
+    catch (e) { if (!(e instanceof Deno.errors.NotFound)) resolverFailed = true; }
   }
-  return out;
+  return out.length || !resolverFailed ? out : null;
 }
 
 const closeQuietly = (c: { close(): void }) => { try { c.close(); } catch { /* already closed */ } };
@@ -111,6 +114,7 @@ Deno.serve(withCors(async (req) => {
   const host = n.host;
 
   const addrs = await resolveAll(host);
+  if (addrs === null) return fail(502, "dns_unavailable", "Couldn't look up that domain right now. Try again in a moment.");
   if (!addrs.length) return fail(400, "unresolvable_host", "That domain doesn't resolve. Check the spelling.");
   if (anyResolvedAddressBlocked(addrs)) return fail(400, "blocked_host", "That domain points to a private or internal address and can't be checked.");
   const addr = addrs.find((a) => !a.includes(":")) ?? addrs[0];

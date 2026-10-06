@@ -45,3 +45,12 @@ test("cors: fail-closed default allowlist with Vercel previews; ALLOWED_ORIGIN o
   assert.equal(allowedOrigin("https://tooldeck.in", custom), null);
   assert.equal(allowedOrigin("https://anything", originPolicy("*")), "*");
 });
+
+test("CORS default allowlist: own previews only, not any tool-deck-* Vercel project", async () => {
+  const { allowedOrigin, originPolicy } = await import("../shared/net/cors.mjs");
+  const def = originPolicy("");
+  assert.ok(allowedOrigin("https://tool-deck-gw9mar8td-codingking155-9340s-projects.vercel.app", def));
+  assert.ok(allowedOrigin("https://tooldeck.in", def));
+  assert.ok(allowedOrigin("https://tool-deck-new.vercel.app", def));
+  assert.equal(allowedOrigin("https://tool-deck-attacker.vercel.app", def), null);
+});

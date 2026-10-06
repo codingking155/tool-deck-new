@@ -154,7 +154,7 @@ export function classifyTlsError(message) {
     return out("untrusted", "The certificate chain isn't trusted (self-signed, unknown issuer or an incomplete chain).");
   }
   if (/timed?\s*out|deadline/i.test(m)) return out("unreachable", "The server didn't answer on port 443 in time.");
+  if (/handshake|alert|protocol|eof|close_notify|closed/i.test(m)) return out("handshake_failed", "The TLS handshake failed (the server may not support modern TLS).");
   if (/refused|unreachable|reset|no route|dns|lookup|resolve|network|connect/i.test(m)) return out("unreachable", "Couldn't connect to the server on port 443.");
-  if (/handshake|alert|protocol|eof/i.test(m)) return out("handshake_failed", "The TLS handshake failed (the server may not support modern TLS).");
   return out("error", "The TLS connection failed.");
 }

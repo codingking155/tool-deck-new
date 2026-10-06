@@ -102,3 +102,11 @@ test("classifyTlsError maps runtime messages to honest statuses", () => {
   assert.equal(s("received fatal alert: HandshakeFailure"), "handshake_failed");
   assert.equal(s("???"), "error");
 });
+
+test("classifyTlsError: connection-closed handshake failures aren't reported as unreachable", async () => {
+  const { classifyTlsError } = await import("../shared/sslCore/index.mjs");
+  assert.equal(classifyTlsError("peer closed connection without sending TLS close_notify").status, "handshake_failed");
+  assert.equal(classifyTlsError("connection closed during handshake").status, "handshake_failed");
+  assert.equal(classifyTlsError("Connection refused (os error 111)").status, "unreachable");
+  assert.equal(classifyTlsError("connection timed out").status, "unreachable");
+});

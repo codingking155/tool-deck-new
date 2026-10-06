@@ -14,6 +14,7 @@
 export const DEFAULT_ALLOWED_ORIGINS = [
   "https://tooldeck.in",
   "https://www.tooldeck.in",
+  "https://tool-deck-new.vercel.app",
   "http://localhost:5173",
   "http://localhost:4173",
 ];
@@ -21,7 +22,6 @@ export const DEFAULT_ALLOWED_ORIGINS = [
 // Vercel preview deployments of this project.
 export const DEFAULT_ORIGIN_PATTERNS = [
   /^https:\/\/[a-z0-9-]+-codingking155-9340s-projects\.vercel\.app$/,
-  /^https:\/\/tool-deck[a-z0-9-]*\.vercel\.app$/,
 ];
 
 const escape = (s) => s.replace(/[.+?^${}()|[\]\\/]/g, "\\$&");
