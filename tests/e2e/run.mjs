@@ -197,6 +197,12 @@ await scenario("IP: WebRTC leak check flags a public address that differs from t
   await p.route("https://api.ipify.org/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS, body: '{"ip":"203.0.113.9"}' }));
 } });
 
+const fireInstallEvent = (p) => p.evaluate(() => {
+  const e = new Event("beforeinstallprompt", { cancelable: true });
+  e.prompt = () => { window.__installPrompted = true; };
+  e.userChoice = Promise.resolve({ outcome: "accepted" });
+  window.dispatchEvent(e);
+});
 const installBox = (p) => p.getByRole("region", { name: "Install ToolDeck" });
 
 await scenario("Install prompt: appears once for a new user after a delay, 'Not now' really closes it, and it never returns", async (p) => {
