@@ -1,6 +1,5 @@
 /* Pure PDF operations (pdf-lib). Everything runs in the browser; no network. */
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
 
 import { parseRanges } from "./pdfRanges.js";
 export { parseRanges };
@@ -80,7 +79,7 @@ export async function addWatermark(bytes, { text, size = 60, opacity = 0.25, ang
   const doc = await load(bytes);
   let font;
   if (fontBytes) {
-    doc.registerFontkit(fontkit);
+    doc.registerFontkit((await import("@pdf-lib/fontkit")).default);
     try { font = await doc.embedFont(fontBytes, { subset: true }); }
     catch { throw new Error("That font file couldn't be read. Use a .ttf, .otf or .woff file."); }
   } else {
