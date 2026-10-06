@@ -7,7 +7,7 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 - `npm run check` — quiet tests + build (prints only failures). Run before every commit. Use this, not `npm test`,
   unless you need per-test names (`npm test`).
 - `npx vite preview --port 4173` to browse a build; `npm run preview:csp` serves it with vercel.json's CSP/security
-  headers (run e2e against that after touching anything that loads/fetches a new origin, then update the CSP).
+  headers (after touching anything that loads/fetches a new origin, update the CSP in vercel.json).
 - e2e: `npm run e2e -- <filter…>` (e.g. `npm run e2e -- pdf ip`) builds like CI, serves with the CSP, runs only the
   matching scenarios, prints just failures + summary, and stops the server. NEVER run e2e in any task (the
   owner's rule, to save tokens) — not to verify, debug or before merging — unless the user explicitly asks for it
