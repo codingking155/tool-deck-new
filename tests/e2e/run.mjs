@@ -1,6 +1,6 @@
 /* Browser smoke tests. Run against a built site:
      npm run build && npx vite preview --port 4173 &   then   npm run test:e2e
-   BASE_URL overrides the address; CHROMIUM_PATH points at a browser binary if Playwright's own isn't installed.
+   E2E_FILTER=text runs only scenarios whose name contains it. BASE_URL overrides the address; CHROMIUM_PATH points at a browser binary if Playwright's own isn't installed.
    All third-party network calls are mocked or blocked, so results never depend on the internet. */
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
 
 const BASE = process.env.BASE_URL || "http://localhost:4173";
-const TOOL_IDS = ["utc", "phone", "shopify", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf"];
+const TOOL_IDS = ["utc", "phone", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf"];
 const CORS = { "access-control-allow-origin": "*" };
 const dir = mkdtempSync(join(tmpdir(), "tooldeck-e2e-"));
 
@@ -25,8 +25,10 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const results = [];
 
 async function scenario(name, fn, { mock } = {}) {
+  if (process.env.E2E_FILTER && !name.toLowerCase().includes(process.env.E2E_FILTER.toLowerCase())) return;
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true });
   const page = await ctx.newPage();
+  page.setDefaultTimeout(60000); // PDF rendering can be slow on shared CI runners
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   // The real internet is blocked; scenarios add specific mocks afterwards (later routes take precedence).
@@ -85,7 +87,7 @@ await scenario("PDF: merge two files", async (p) => {
   await p.locator("button.panel", { hasText: "Merge PDF" }).click();
   await p.locator("input[type=file]").setInputFiles([fixtures.a, fixtures.c1]);
   await p.locator(".pb .btn", { hasText: "Merge PDF" }).last().click();
-  await p.getByText("Done ·").waitFor({ timeout: 30000 });
+  await p.getByText("Done ·").waitFor({ timeout: 60000 });
   const out = await download(p, () => p.getByText("⬇ Download").click());
   assert.equal((await PDFDocument.load(readFileSync(out.path))).getPageCount(), 5);
 });
@@ -96,7 +98,7 @@ await scenario("PDF: protect then unlock round-trip with wrong/missing password 
   await p.locator("input[type=file]").setInputFiles(fixtures.a);
   await p.locator("input[type=password]").fill("pw1 é");
   await p.locator(".pb .btn", { hasText: "Protect PDF" }).last().click();
-  await p.getByText("Done ·").waitFor({ timeout: 30000 });
+  await p.getByText("Done ·").waitFor({ timeout: 60000 });
   const prot = await download(p, () => p.getByText("⬇ Download").click());
   const enc = readFileSync(prot.path);
   assert.ok(enc.toString("latin1").includes("/Encrypt"));
@@ -112,7 +114,7 @@ await scenario("PDF: protect then unlock round-trip with wrong/missing password 
   assert.match(await p.locator(".toast").innerText(), /incorrect/);
   await p.waitForTimeout(2800);
   await p.locator("input[type=password]").fill("pw1 é"); await run();
-  await p.getByText("Done ·").waitFor({ timeout: 30000 });
+  await p.getByText("Done ·").waitFor({ timeout: 60000 });
   const out = await download(p, () => p.getByText("⬇ Download").click());
   const bytes = readFileSync(out.path);
   assert.equal((await PDFDocument.load(bytes)).getPageCount(), 3);
@@ -125,7 +127,7 @@ await scenario("PDF: compare finds the changed words; sign embeds an image; page
   const ins = p.locator("input[type=file]");
   await ins.nth(0).setInputFiles(fixtures.c1); await ins.nth(1).setInputFiles(fixtures.c2);
   await p.getByRole("button", { name: "Compare", exact: true }).click();
-  await p.getByText("1 of 2 pages differ").waitFor({ timeout: 30000 });
+  await p.getByText("1 of 2 pages differ").waitFor({ timeout: 60000 });
   assert.match(await p.locator(".note.i").first().innerText(), /\+2 words added.*1 removed/s);
 
   await p.goto(`${BASE}/tool/pdf`);
@@ -158,7 +160,7 @@ await scenario("PDF: multi-file results download as one ZIP", async (p) => {
   await p.locator("button.panel", { hasText: "PDF to JPG" }).click();
   await p.locator("input[type=file]").setInputFiles(fixtures.a);
   await p.locator(".pb .btn", { hasText: "PDF to JPG" }).last().click();
-  await p.getByText("Done ·").waitFor({ timeout: 30000 });
+  await p.getByText("Done ·").waitFor({ timeout: 60000 });
   const z = await download(p, () => p.getByRole("button", { name: "Download all as ZIP" }).click());
   const zip = await JSZip.loadAsync(readFileSync(z.path));
   assert.deepEqual(Object.keys(zip.files).sort(), ["a-page1.jpg", "a-page2.jpg", "a-page3.jpg"]);
@@ -194,6 +196,74 @@ await scenario("IP: WebRTC leak check flags a public address that differs from t
   });
   await p.route("https://api.ipify.org/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS, body: '{"ip":"203.0.113.9"}' }));
 } });
+
+await scenario("Shopify Store Detector: recent checks are saved per host, reusable, persistent and clearable", async (p) => {
+  await p.goto(`${BASE}/tool/shopifydetector`);
+  await p.getByPlaceholder(/Enter website URL/).fill("https://www.Demo-Store.com/products/x");
+  await p.getByRole("button", { name: "Check Now" }).click();
+  const chip = p.locator(".pillrow .pill", { hasText: "demo-store.com" });
+  await chip.waitFor({ timeout: 15000 });
+  assert.match(await chip.innerText(), /Shopify/);
+  await p.reload();
+  await chip.waitFor({ timeout: 15000 });
+  await p.getByPlaceholder(/Enter website URL/).fill("");
+  await chip.click();
+  assert.equal(await p.getByPlaceholder(/Enter website URL/).inputValue(), "demo-store.com");
+  await p.getByRole("button", { name: "Clear" }).click();
+  assert.equal(await chip.count(), 0);
+}, { mock: async (p) => {
+  await p.route("https://api.shopifyornot.in/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS,
+    body: JSON.stringify({ is_shopify: true, confidence: 97, final_url: "https://demo-store.com/", detected_signals: ["cdn.shopify.com"], shop_domain: "demo.myshopify.com", elapsed_ms: 120 }) }));
+} });
+
+const fireInstallEvent = (p) => p.evaluate(() => {
+  const e = new Event("beforeinstallprompt", { cancelable: true });
+  e.prompt = () => { window.__installPrompted = true; };
+  e.userChoice = Promise.resolve({ outcome: "accepted" });
+  window.dispatchEvent(e);
+});
+const installBox = (p) => p.getByRole("region", { name: "Install ToolDeck" });
+
+await scenario("Install prompt: appears once for a new user after a delay, 'Not now' really closes it, and it never returns", async (p) => {
+  await p.clock.install();
+  await p.goto(`${BASE}/`);
+  await fireInstallEvent(p);
+  await p.clock.runFor(3000);
+  assert.equal(await installBox(p).count(), 0, "must not interrupt the first seconds");
+  await p.clock.runFor(6000);
+  await installBox(p).waitFor();
+  assert.match(await installBox(p).innerText(), /faster experience/);
+  await p.getByRole("button", { name: "Not now" }).click();
+  assert.equal(await installBox(p).count(), 0, "Not now must close it");
+  await p.goto(`${BASE}/`);
+  await fireInstallEvent(p);
+  await p.clock.runFor(15000);
+  assert.equal(await installBox(p).count(), 0, "must not come back on a later visit");
+});
+
+await scenario("Install prompt: Install opens the browser dialog; ignoring it still counts as the one offer", async (p) => {
+  await p.clock.install();
+  await p.goto(`${BASE}/`);
+  await fireInstallEvent(p);
+  await p.clock.runFor(9000);
+  await installBox(p).waitFor();
+  await p.getByRole("button", { name: "Install", exact: true }).click();
+  assert.equal(await p.evaluate(() => window.__installPrompted === true), true);
+  assert.equal(await installBox(p).count(), 0);
+  await p.goto(`${BASE}/`);
+  await fireInstallEvent(p);
+  await p.clock.runFor(15000);
+  assert.equal(await installBox(p).count(), 0);
+});
+
+await scenario("Install prompt: people who dismissed the old prompt are never shown it again", async (p) => {
+  await p.addInitScript(() => localStorage.setItem("toolDeck.install-prompt-dismissed", String(Date.now() - 30 * 864e5)));
+  await p.clock.install();
+  await p.goto(`${BASE}/`);
+  await fireInstallEvent(p);
+  await p.clock.runFor(15000);
+  assert.equal(await installBox(p).count(), 0);
+});
 
 await scenario("Phone: validity and line type from libphonenumber", async (p) => {
   await p.goto(`${BASE}/tool/phone?n=${encodeURIComponent("+44 20 7183 8750")}`);

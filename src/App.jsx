@@ -18,7 +18,6 @@ const Analytics = lazy(() => import("./pages/Analytics.jsx"));
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
 const UtcTool = lazy(() => import("./tools/UtcTool.jsx"));
 const PhoneTool = lazy(() => import("./tools/PhoneTool.jsx"));
-const ShopifyTool = lazy(() => import("./tools/ShopifyTool.jsx"));
 const ShopifyDetectorTool = lazy(() => import("./tools/ShopifyDetectorTool.jsx"));
 const SpeedTool = lazy(() => import("./tools/SpeedTool.jsx"));
 const IpTool = lazy(() => import("./tools/IpTool.jsx"));
@@ -33,7 +32,7 @@ const BreachTool = lazy(() => import("./tools/BreachTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
-  utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
+  utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool,
 };
 
@@ -132,7 +131,7 @@ export default function App() {
       }
     }
   });
-  /* prefix trick: /tool/shopify/<any-domain> auto-checks it, like a URL prefix */
+  /* anything after /tool/<id>/ is handed to the tool as `arg` */
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
   const ToolView = tool ? TOOL_VIEWS[tool.id] : null;

@@ -1,1 +1,3 @@
+/tool/shopify    /tool/shopifydetector    301
+/tool/shopify/*  /tool/shopifydetector    301
 /*    /index.html   200
