@@ -44,7 +44,7 @@ const GROUPS = [
 /* run(files, opts, progress) -> [{ name, blob }]; files are [{ name, bytes }]
    name: card + sub-tool title · short: one-line card purpose · desc: sub-tool hint · action: primary button label */
 const TOOLS = [
-  { id: "merge", g: 0, ico: Merge, name: "Merge PDF", short: "Combine several PDFs into one, in your order.", desc: "Combine PDFs in the order you want.",
+  { id: "merge", g: 0, ico: Merge, name: "Merge PDF", short: "Combine PDFs into one, in your order.", desc: "Combine PDFs in the order you want.",
     multi: true, min: 2, action: "Merge PDF", order: "Merged top to bottom — use the arrows to change the order.",
     run: async (fs) => [pdf(await (await pdfOps()).mergePdfs(fs.map((f) => f.bytes)), "merged.pdf")] },
   { id: "split", pick: "spec", g: 0, ico: Scissors, name: "Split PDF", short: "One file per page, or per range.", desc: "One file per page, or per range group.", action: "Split PDF",
@@ -70,11 +70,11 @@ const TOOLS = [
       if (out.length >= f.bytes.length) throw new Error("Already well-optimised — re-rendering would not make this file smaller.");
       return [pdf(out, `${base(f)}-compressed.pdf`)];
     } },
-  { id: "repair", g: 1, ico: Wrench, name: "Repair PDF", short: "Rebuild a damaged file and recover its pages.", desc: "Rebuild a damaged PDF's structure and recover its pages.", action: "Repair PDF",
+  { id: "repair", g: 1, ico: Wrench, name: "Repair PDF", short: "Rebuild a damaged PDF.", desc: "Rebuild a damaged PDF's structure and recover its pages.", action: "Repair PDF",
     run: async ([f]) => [pdf(await (await pdfOps()).rebuildPdf(f.bytes), `${base(f)}-repaired.pdf`)] },
   { id: "ocr", g: 1, ico: ScanText, name: "OCR PDF", short: "Make scanned PDFs searchable.", desc: "Make scanned PDFs searchable and export the text.", Custom: OcrPdf },
 
-  { id: "jpg2pdf", g: 2, ico: Images, name: "JPG / PNG to PDF", short: "Turn images into a PDF, one per page.", desc: "Turn images into a PDF, one per page.", multi: true, accept: "image/jpeg,image/png",
+  { id: "jpg2pdf", g: 2, ico: Images, name: "JPG / PNG to PDF", short: "Images into a PDF, one per page.", desc: "Turn images into a PDF, one per page.", multi: true, accept: "image/jpeg,image/png",
     action: "Convert to PDF", order: "One page per image, top to bottom — use the arrows to change the order.",
     opts: [{ key: "fit", label: "Page size", type: "select", options: [["image", "Same as image"], ["a4", "A4 (fit)"]], def: "image" },
       { key: "margin", label: "Margin (pt)", type: "number", def: 0 }],
@@ -93,7 +93,7 @@ const TOOLS = [
       return [{ name: `${base(f)}.docx`, blob }];
     } },
 
-  { id: "watermark", g: 3, ico: Droplets, name: "Watermark", short: "Diagonal text stamped on every page.", desc: "Diagonal text watermark on every page.", action: "Add watermark",
+  { id: "watermark", g: 3, ico: Droplets, name: "Watermark", short: "Diagonal text on every page.", desc: "Diagonal text watermark on every page.", action: "Add watermark",
     opts: [{ key: "text", label: "Watermark text", type: "text", ph: "CONFIDENTIAL" },
       { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" },
       { key: "font", label: "Font file for non-Latin text (optional: .ttf, .otf, .woff)", type: "file", accept: ".ttf,.otf,.woff" }],
@@ -107,7 +107,7 @@ const TOOLS = [
     opts: ["top", "right", "bottom", "left"].map((k) => ({ key: k, label: `${k[0].toUpperCase() + k.slice(1)} (pt)`, type: "number", def: 0 })),
     run: async ([f], o) => [pdf(await (await pdfOps()).cropPdf(f.bytes, { top: +o.top || 0, right: +o.right || 0, bottom: +o.bottom || 0, left: +o.left || 0 }), `${base(f)}-cropped.pdf`)] },
   { id: "sign", g: 3, ico: Signature, name: "Sign PDF", short: "Draw, type or upload a signature.", desc: "Draw, type or upload a signature and place it on any page.", Custom: SignPdf },
-  { id: "compare", g: 3, ico: GitCompareArrows, name: "Compare PDF", short: "Spot what changed between two versions.", desc: "Spot text and visual differences between two versions.", Custom: ComparePdf },
+  { id: "compare", g: 3, ico: GitCompareArrows, name: "Compare PDF", short: "See what changed between versions.", desc: "Spot text and visual differences between two versions.", Custom: ComparePdf },
 
   { id: "protect", noCount: true, g: 4, ico: Lock, name: "Protect PDF", short: "Encrypt with a password (AES-256).", desc: "Encrypt with a password (AES-256) and optionally restrict printing, copying or editing.", action: "Protect PDF",
     opts: [{ key: "password", label: "Password to open the PDF", type: "password" },
@@ -118,7 +118,7 @@ const TOOLS = [
       const q = await qpdfOps();
       return [pdf(await q.protectPdf(f.bytes, { userPassword: o.password || "", allowPrint: (o.print || "y") === "y", allowCopy: (o.copy || "y") === "y", allowModify: (o.modify || "y") === "y" }, q.rt), `${base(f)}-protected.pdf`)];
     } },
-  { id: "unlock", noCount: true, g: 4, ico: LockOpen, name: "Unlock PDF", short: "Lift restrictions, or a password you know.", desc: "Remove edit/print/copy restrictions, or the password if you know it.", action: "Unlock PDF",
+  { id: "unlock", noCount: true, g: 4, ico: LockOpen, name: "Unlock PDF", short: "Lift restrictions or a known password.", desc: "Remove edit/print/copy restrictions, or the password if you know it.", action: "Unlock PDF",
     opts: [{ key: "password", label: "Password (only if the PDF needs one to open)", type: "password" }],
     run: async ([f], o) => { const q = await qpdfOps(); return [pdf(await q.unlockPdf(f.bytes, o.password || "", q.rt), `${base(f)}-unlocked.pdf`)]; } },
 ];
@@ -235,8 +235,8 @@ function Workspace({ tool, notify, onBack, onOpen }) {
   const clearResults = () => { results.forEach((r) => URL.revokeObjectURL(r.url)); setResults([]); };
 
   const add = async (list) => {
-    const ok = [];
-    for (const f of Array.from(list)) {
+    const ok = [], picked = Array.from(list);
+    for (const f of picked) {
       const good = tool.accept ? accept.split(",").includes(f.type) : f.type === "application/pdf" || /\.pdf$/i.test(f.name);
       if (!good) { notify(`${f.name}: unsupported file type.`); setError(`${f.name}: unsupported file type.`); continue; }
       const bytes = new Uint8Array(await f.arrayBuffer());
@@ -245,7 +245,7 @@ function Workspace({ tool, notify, onBack, onOpen }) {
       ok.push({ id: Math.random().toString(36).slice(2), name: f.name, type: f.type, size: f.size, bytes, pages });
     }
     if (!ok.length) return;
-    if (ok.length === Array.from(list).length) setError("");
+    if (ok.length === picked.length) setError("");
     clearResults();
     setFiles((p) => (tool.multi ? [...p, ...ok] : ok.slice(0, 1)));
   };

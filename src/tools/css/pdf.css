@@ -26,7 +26,7 @@
 .pdfh-ico svg{width:20px;height:20px}
 .pdfh-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .pdfh-tx b{font:600 14px var(--body);letter-spacing:-.005em}
-.pdfh-tx small{font-size:12.5px;line-height:1.4;color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdfh-tx small{font-size:12.5px;line-height:1.4;color:var(--tx3);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .pdfh-go{position:absolute;right:12px;top:50%;width:16px;height:16px;transform:translateY(-50%);color:var(--tx3);transition:transform var(--dur-1) var(--ease),color var(--dur-1)}
 .pdfh-card:hover .pdfh-go,.pdfh-card:focus-visible .pdfh-go{color:var(--pri2);transform:translate(2px,-50%)}
 .pdfh-na{margin-top:var(--s7);padding-top:var(--s4);border-top:1px solid var(--line2);font-size:12.5px;line-height:1.6;color:var(--tx3)}
@@ -222,3 +222,4 @@
   .pdfh-card:hover,.pdfh-card:active{transform:none}
   .pdfh-card:hover .pdfh-go{transform:translateY(-50%)}
 }
+.pdfs-nav+.hint{margin:-4px 0 var(--s3)}
