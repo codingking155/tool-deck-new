@@ -35,7 +35,8 @@ const LEVEL = {
 function WebRtcCard({ known }) {
   const [state, setState] = useState({ phase: "idle" });
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  /* re-arm on mount: StrictMode's dev double-mount would otherwise leave it false forever */
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const run = async () => {
     setState({ phase: "running" });
     const { supported, candidates } = await collectIceCandidates();

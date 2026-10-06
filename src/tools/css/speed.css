@@ -110,8 +110,8 @@
 
 /* ── complete: secondary metrics ── */
 .spd-h3{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin:var(--s5) 0 var(--s2)}
-.spd-secs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line2);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden}
-.spd-sec{background:var(--surface);padding:var(--s3) var(--s3);min-width:0}
+.spd-secs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden}
+.spd-sec{padding:var(--s3);min-width:0;box-shadow:1px 0 0 var(--line2),0 1px 0 var(--line2)}
 .spd-sec .k{font-size:11.5px;color:var(--tx3);font-weight:500}
 .spd-sec .v{font:600 var(--fs-lg) var(--disp);color:var(--tx);margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .spd-sec .v small{font:500 11.5px var(--body);color:var(--tx3);margin-left:3px}
