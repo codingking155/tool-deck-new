@@ -1,18 +1,19 @@
 import { preflight, json, fail, log } from "../_shared/http.ts";
-import { rateLimit, clientIp } from "../_shared/ratelimit.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
+import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
 import { isValidEmail, parseXonAnalytics, isXonNotFound, summarize } from "../../../shared/breachCore/index.mjs";
 
 // POST { email } -> { email_checked, breaches[], summary } using XposedOrNot's free API.
 // - Email goes in the POST body (never a URL) and is never logged; http.ts redacts it anyway.
 // - Only a genuine 404 "Not found" from the provider means "no breaches". Any other failure is
 //   reported as unavailable — never as an all-clear.
-// - Per-IP limit (8/min) so the endpoint can't be used to enumerate other people's exposure at scale.
+// - Per-IP limit (8/min, shared across instances via Postgres) so the endpoint can't be used to enumerate other people's exposure at scale.
 
 Deno.serve(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   if (req.method !== "POST") return fail(405, "method_not_allowed", "POST only.");
 
-  const rl = rateLimit(`breach:${clientIp(req)}`, 8, 60_000);
+  const rl = await sharedRateLimit("breach", clientIp(req), 8, 60);
   if (!rl.ok) return fail(429, "rate_limited", `Too many checks — try again in ${rl.retryAfter}s.`);
 
   let email = "";
