@@ -1,3 +1,4 @@
 /tool/shopify    /tool/shopifydetector    301
 /tool/shopify/*  /tool/shopifydetector    301
+/sheaf            /sheaf/index.html        302
 /*    /index.html   200
