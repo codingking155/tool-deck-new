@@ -797,3 +797,10 @@ table.rt.pt-table{min-width:520px}
 .app{overflow-x:clip}
 @media(max-width:560px){.preview{display:none!important}}
 @media(max-width:600px){.cw-layer{display:none}}
+
+/* tool icons: lucide line icons tinted with the tool's hue */
+.ticon{color:var(--cc,var(--pri2));filter:drop-shadow(0 1px 6px color-mix(in srgb,var(--cc,var(--pri2)) 35%,transparent))}
+.light .ticon{color:color-mix(in srgb,var(--cc,var(--pri2)) 72%,#000);filter:none}
+.bcard .bic,.thead .tic{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 18px color-mix(in srgb,var(--cc,var(--pri2)) 14%,transparent)}
+.bcard:hover .ticon{transform:scale(1.08)}
+.ticon{transition:transform .25s ease}

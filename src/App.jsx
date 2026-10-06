@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
+import ToolIcon from "./components/ToolIcon.jsx";
 import { Search, Sun, Moon } from "lucide-react";
 import { TOOLS, tint } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
@@ -198,7 +199,7 @@ export default function App() {
           {tool && (
             <div className="tpage" key={tool.id}>
               <div className="crumb"><button onClick={() => nav("/")}>← All tools</button><span>/</span><span>{tool.name}</span></div>
-              <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70") }}>{tool.icon}</div>
+              <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
                 <div><h2>{tool.name}</h2><p>{tool.desc}</p></div></div>
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
