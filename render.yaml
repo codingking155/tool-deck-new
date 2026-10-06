@@ -8,7 +8,9 @@ services:
     rootDir: youtube-downloader/backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
+    # Free plan: no cost. It sleeps after ~15 min idle (the next request waits ~1 min while it wakes)
+    # and has 512 MB RAM and a fraction of a CPU, so the limits below are kept modest.
+    plan: free
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
@@ -23,6 +25,10 @@ services:
       - key: DOWNLOAD_DIR
         value: /tmp/tooldeck-ytdl
       - key: MAX_CONCURRENT_DOWNLOADS
-        value: "2"
+        value: "1"
+      - key: MAX_QUEUED_JOBS
+        value: "5"
       - key: MAX_FILESIZE_MB
-        value: "2048"
+        value: "1024"
+      - key: MAX_DURATION_SECONDS
+        value: "3600"
