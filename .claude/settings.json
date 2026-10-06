@@ -3,6 +3,7 @@
     "deny": [
       "Read(./node_modules/**)",
       "Read(./dist/**)",
+      "Read(./dist-csp/**)",
       "Read(./shopify-detector/node_modules/**)",
       "Read(./shopify-detector/.next/**)",
       "Read(./package-lock.json)",
@@ -10,11 +11,25 @@
       "Read(./**/*.ttf)",
       "Read(./.env)",
       "Read(./.env.local)",
-      "Read(./.env.production)"
+      "Read(./.env.production)",
+      "Read(./**/*.woff)",
+      "Read(./**/*.woff2)"
     ]
   },
   "env": {
     "BASH_MAX_OUTPUT_LENGTH": "8000",
     "MAX_MCP_OUTPUT_TOKENS": "8000"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
   }
 }
