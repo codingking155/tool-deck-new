@@ -4,7 +4,7 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
-  { id: "ytdownloader", where: "server", cat: "Files & documents", icon: "🎬", c: "#EF4444", name: "YouTube Video Downloader", desc: "Save videos you own or have permission to use — any available quality up to 4K, or MP3/M4A audio.", pv: "film",
+  { id: "ytdownloader", beta: true, where: "server", cat: "Files & documents", icon: "🎬", c: "#EF4444", name: "YouTube Video Downloader", desc: "Save videos you own or have permission to use — any available quality up to 4K, or MP3/M4A audio.", pv: "film",
     blurb: "Paste a YouTube link to see its thumbnail, title, channel and duration, then download it in any quality the video actually offers (up to 4K) or extract MP3/M4A audio, with live progress. Only for videos you own or have permission to download — private, members-only, paid and region-locked videos stay that way.",
     faqs: [
       ["What am I allowed to download?", "Only videos you own, have the rights holder's permission to download, or that are licensed for downloading (for example under Creative Commons). Respect copyright and YouTube's Terms of Service."],
@@ -66,7 +66,7 @@ export const TOOLS = [
       ["What does 'Not breached' mean?", "The password isn't in HIBP's public breach data (700+ million passwords from confirmed leaks). But always use a unique password per account."],
       ["What if HIBP is unavailable?", "The entropy check still works offline. If HIBP is down, try again later — the API has 99.9% uptime."],
     ] },
-  { id: "prompt", where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "spark",
+  { id: "prompt", beta: true, where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "spark",
     blurb: "Build clear, structured prompts for ChatGPT, Claude, Gemini and other AI assistants. Fill in the role, task, context, audience, tone, format and rules — or start from a template — and copy a ready-to-use prompt as plain text, Markdown or XML. Runs entirely in your browser.",
     faqs: [
       ["What makes a good AI prompt?", "A clear task plus the context the AI can't guess: who it's for, the tone, the output format and any rules. An example of a good answer helps most of all."],
@@ -81,7 +81,7 @@ export const TOOLS = [
       ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
       ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
     ] },
-  { id: "breach", where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "shield",
+  { id: "breach", beta: true, where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "shield",
     blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
     faqs: [
       ["How does the email check work?", "Your address is sent to our server, which looks it up in the XposedOrNot breach database and returns the breaches it appears in. Nothing is stored or logged."],
