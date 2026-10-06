@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Zap, CheckCircle, XCircle, AlertCircle, ShieldAlert, Copy, ExternalLink, CheckCheck, Loader2, Check } from 'lucide-react';
+import { Search, CircleCheck, CircleX, CircleHelp, ShieldAlert, Copy, ExternalLink, CheckCheck, Loader2, Check, Store, RotateCcw } from 'lucide-react';
+import { Notice, EmptyState } from '../components/ui.jsx';
 import "./css/shopify.css";
 
 const TIMEOUT_MS = 30000;
@@ -7,24 +8,27 @@ const EXAMPLES = ['allbirds.com', 'gymshark.com', 'wikipedia.org'];
 
 /* verdict → what we show. "blocked" = the site refused to serve us the page and nothing else proved it either way */
 const VIEW = {
-  yes: { Icon: CheckCircle, title: 'Shopify store detected' },
-  uncertain: { Icon: AlertCircle, title: 'Possibly Shopify' },
-  blocked: { Icon: ShieldAlert, title: "Couldn't see the page" },
-  no: { Icon: XCircle, title: 'Not a Shopify store' },
+  yes: { Icon: CircleCheck, title: 'Shopify store detected', tone: 'ok' },
+  uncertain: { Icon: CircleHelp, title: 'Unable to determine confidently', tone: 'warn' },
+  blocked: { Icon: ShieldAlert, title: 'Unable to determine — the site blocked our check', tone: 'warn' },
+  no: { Icon: CircleX, title: 'Not Shopify', tone: 'neutral' },
 };
 
 const hostOf = (u) => { try { return new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, ''); } catch { return u; } };
 
-/* Confidence ring: the verdict's accent fills the share of the circle the server is sure of. */
-function Ring({ pct, Icon }) {
+/* Confidence meter: a labelled bar; the number is always printed next to it. */
+function ConfidenceMeter({ pct, measured }) {
   const v = Math.min(100, Math.max(0, Math.round(pct)));
   return (
-    <div className="sd-ring" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v} aria-label="Detection confidence">
-      <svg className="sd-ring-svg" viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="32" cy="32" r="27" className="sd-ring-track" />
-        {v > 0 && <circle cx="32" cy="32" r="27" className="sd-ring-fill" pathLength="100" strokeDasharray={`${v} 100`} />}
-      </svg>
-      {v > 0 ? <b>{v}<small>%</small></b> : <Icon size={22} aria-hidden="true" />}
+    <div className="sd-meter">
+      <div className="sd-meter-top">
+        <span className="sd-meter-k">Detection confidence</span>
+        <b className="sd-meter-v">{measured ? <>{v}<small>%</small></> : 'Not measured'}</b>
+      </div>
+      <div className="sd-meter-track" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v}
+        aria-valuetext={measured ? `${v}%` : 'Not measured'} aria-label="Detection confidence">
+        <i style={{ '--v': `${measured ? v : 0}%` }} />
+      </div>
     </div>
   );
 }
@@ -48,14 +52,26 @@ function describe(data) {
       : 'This website does not appear to be powered by Shopify.';
   }
   if (verdict !== 'yes' && data.platform) details += ` Detected platform: ${data.platform}.`;
-  return { kind, verdict, blocked, pct, details, signals };
+  return { kind, verdict, blocked, pct, details, signals, platform: data.platform || null };
 }
 
-export default function ShopifyDetectorTool({ notify }) {
-  const [url, setUrl] = useState('');
+/* error message → calm headline; the message itself stays as the body */
+function errorTitle(msg, timedOut) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return "You're offline";
+  if (timedOut) return 'The check timed out';
+  if (/isn't configured/i.test(msg)) return 'Not available on this deployment';
+  if (/couldn't reach/i.test(msg)) return "Couldn't reach the check service";
+  if (/429|rate.?limit|too many/i.test(msg)) return 'Too many checks';
+  return "Couldn't check this site";
+}
+
+const fmtElapsed = (ms) => (ms != null ? `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s` : '—');
+
+export default function ShopifyDetectorTool({ notify, arg }) {
+  const [url, setUrl] = useState(() => (typeof arg === 'string' ? arg : ''));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null);   // { title, msg, input?: true }
   const [copied, setCopied] = useState(false);
   const ctrl = useRef(null);
   const copyTimer = useRef(0);
@@ -65,7 +81,7 @@ export default function ShopifyDetectorTool({ notify }) {
   const checkUrl = useCallback(async (urlToCheck) => {
     const trimmed = urlToCheck.trim();
     if (!trimmed) {
-      setError('Please enter a website URL to check.');
+      setError({ input: true, msg: 'Please enter a website URL to check.' });
       return;
     }
     ctrl.current?.abort();
@@ -106,15 +122,23 @@ export default function ShopifyDetectorTool({ notify }) {
       });
     } catch (err) {
       if (ctrl.current !== c || (err?.name === 'AbortError' && !timedOut)) return;   // superseded or unmounted
-      setError(timedOut
+      const msg = timedOut
         ? 'The check took too long. The site may be slow or blocking automated requests — try again.'
         : err?.name === 'TypeError' ? "Couldn't reach the Shopify check service. Check your connection and try again."
-        : err instanceof Error ? err.message : 'Something went wrong while checking that site.');
+        : err instanceof Error ? err.message : 'Something went wrong while checking that site.';
+      setError({ title: errorTitle(msg, timedOut), msg });
     } finally {
       clearTimeout(timer);
       if (ctrl.current === c) setLoading(false);
     }
   }, []);
+
+  /* deep link: /tool/shopifydetector/<domain> checks that domain straight away */
+  useEffect(() => {
+    if (typeof arg !== 'string' || !arg.trim()) return;
+    setUrl(arg);
+    checkUrl(arg);
+  }, [arg, checkUrl]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -144,86 +168,120 @@ export default function ShopifyDetectorTool({ notify }) {
 
   const view = result ? VIEW[result.kind] || VIEW.no : null;
   const tryExample = (ex) => { setUrl(ex); checkUrl(ex); };
+  const inputErr = error?.input;
 
   return (
-    <div className="panel sd">
-      <form onSubmit={handleSubmit} noValidate className="sd-form">
+    <div className="sd">
+      <form onSubmit={handleSubmit} noValidate className="panel sd-form">
         <div className="field">
           <label htmlFor="shopify-url">Website URL</label>
-          <input
-            id="shopify-url"
-            type="text"
-            inputMode="url"
-            enterKeyHint="go"
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="e.g. example-store.com"
-            disabled={loading}
-            aria-invalid={!!error}
-            aria-describedby={error ? 'shopify-error' : 'shopify-hint'}
-          />
+          <div className="inrow stack">
+            <input
+              id="shopify-url"
+              className="mono"
+              type="text"
+              inputMode="url"
+              enterKeyHint="go"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={url}
+              onChange={(e) => { setUrl(e.target.value); if (inputErr) setError(null); }}
+              placeholder="example-store.com"
+              disabled={loading}
+              aria-invalid={!!inputErr}
+              aria-describedby={inputErr ? 'shopify-error' : 'shopify-hint'}
+            />
+            <button type="submit" className="btn pri auto" disabled={loading}>
+              {loading ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
+              {loading ? 'Checking…' : 'Check store'}
+            </button>
+          </div>
+          {inputErr
+            ? <div id="shopify-error" role="alert" className="err-tx">{error.msg}</div>
+            : <div id="shopify-hint" className="hint">Paste a domain or a full URL — we look at the public storefront only.</div>}
         </div>
-        <button type="submit" className="btn pri" disabled={loading}>
-          {loading ? <Loader2 size={16} className="sd-spin" aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />}
-          {loading ? 'Checking…' : 'Check store'}
-        </button>
+        <div className="sd-try">
+          <span>Try</span>
+          {EXAMPLES.map((ex) => <button key={ex} type="button" className="pill" onClick={() => tryExample(ex)} disabled={loading}>{ex}</button>)}
+        </div>
       </form>
-      {!result && !loading && !error && (
-        <p id="shopify-hint" className="sd-try">Try
-          {EXAMPLES.map((ex) => <button key={ex} type="button" className="pill" onClick={() => tryExample(ex)}>{ex}</button>)}
-        </p>
-      )}
 
-      {error && (
-        <div id="shopify-error" role="alert" className="note e sd-gap">{error}</div>
-      )}
+      <div className="sd-slot" aria-live="polite" aria-busy={loading}>
+        {!result && !loading && !error?.title && (
+          <EmptyState icon={Store} title="No store checked yet">
+            Enter a domain to see whether it runs on Shopify, how confident the check is, and the evidence behind it.
+          </EmptyState>
+        )}
 
-      <div aria-live="polite" aria-busy={loading}>
+        {error?.title && !loading && (
+          <Notice tone={/offline/i.test(error.title) ? 'off' : 'w'} title={error.title} role="alert"
+            actions={<button type="button" className="btn gh sm" onClick={() => checkUrl(url)}><RotateCcw size={14} aria-hidden="true" />Try again</button>}>
+            {error.msg}
+          </Notice>
+        )}
+
         {loading && (
-          <div className="sd-result sd-loading" aria-hidden="true">
-            <div className="sd-head"><div className="skel sd-skel-ring" /><div style={{ flex: 1 }}><div className="skel" style={{ height: 20, width: '55%' }} /><div className="skel" style={{ height: 12, width: '80%', marginTop: 10 }} /></div></div>
-            <div className="sd-stats">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ height: 54 }} />)}</div>
+          <div className="sd-result sd-loading">
+            <p className="sd-scan-tx"><Loader2 size={14} className="spin" aria-hidden="true" />Scanning <span className="sd-mono">{hostOf(url.trim()) || 'site'}</span> for Shopify signals…</p>
+            <div className="sd-scan" aria-hidden="true"><i /></div>
+            <div aria-hidden="true">
+              <div className="skel sd-sk-h" />
+              <div className="skel sd-sk-p" />
+              <div className="skel sd-sk-bar" />
+              <div className="sd-sk-stats">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" />)}</div>
+            </div>
           </div>
         )}
+
         {result && !loading && (
-          <section className={`sd-result sd-${result.kind}`} aria-label="Detection result">
+          <section className={`sd-result sd-${result.kind} sd-t-${view.tone}`} aria-label="Detection result">
             <div className="sd-head">
-              <Ring pct={result.kind === 'blocked' ? 0 : result.pct} Icon={view.Icon} />
+              <span className="sd-ic" aria-hidden="true"><view.Icon size={22} strokeWidth={2.2} /></span>
               <div className="sd-verdict">
-                <h2><view.Icon size={18} aria-hidden="true" />{view.title}</h2>
+                <h2>{view.title}</h2>
                 <p>{result.details}</p>
               </div>
-              <div className="sd-actions">
-                <button type="button" className="pill" onClick={handleCopy} aria-label="Copy URL">
-                  {copied ? <CheckCheck size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-                <button type="button" className="pill" onClick={handleVisit} aria-label={`Visit ${hostOf(result.url)} in a new tab`}>
-                  <ExternalLink size={14} aria-hidden="true" />Visit
-                </button>
-              </div>
             </div>
+
+            <ConfidenceMeter pct={result.pct} measured={result.kind !== 'blocked'} />
 
             <dl className="sd-stats">
               <div className="wide"><dt>Website</dt><dd title={result.url}>{hostOf(result.url)}</dd></div>
               <div className="wide"><dt>Store domain</dt><dd title={result.shop_domain || undefined}>{result.shop_domain || '—'}</dd></div>
               <div><dt>Signals found</dt><dd>{result.signals.length}</dd></div>
-              <div><dt>Checked in</dt><dd>{result.elapsed_ms != null ? `${(result.elapsed_ms / 1000).toFixed(result.elapsed_ms < 10000 ? 2 : 1)} s` : '—'}</dd></div>
+              <div><dt>Checked in</dt><dd>{fmtElapsed(result.elapsed_ms)}</dd></div>
             </dl>
 
+            <div className="actions sd-actions">
+              <button type="button" className="btn gh sm" onClick={handleCopy} aria-live="polite">
+                {copied ? <CheckCheck size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                {copied ? 'Copied' : 'Copy URL'}
+              </button>
+              <button type="button" className="btn gh sm" onClick={handleVisit} aria-label={`Visit ${hostOf(result.url)} in a new tab`}>
+                <ExternalLink size={14} aria-hidden="true" />Visit site
+              </button>
+            </div>
+
             {result.signals.length > 0 && (
-              <div className="sd-signals">
-                <h3>What we found <span>{result.signals.length}</span></h3>
+              <details className="more sd-signals" open={result.kind === 'yes'}>
+                <summary>Detection signals <span className="sd-count">{result.signals.length}</span></summary>
                 <ul>
                   {result.signals.map((signal, i) => (
-                    <li key={i} style={{ '--i': i }}><Check size={14} aria-hidden="true" />{signal}</li>
+                    <li key={i}><Check size={14} aria-hidden="true" />{signal}</li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
+
+            <details className="more sd-tech">
+              <summary>Technical evidence</summary>
+              <div className="kv"><span className="k">Final URL</span><span className="v">{result.url || '—'}</span></div>
+              <div className="kv"><span className="k">Verdict</span><span className="v">{result.verdict} · {Math.round(result.pct)}%</span></div>
+              <div className="kv"><span className="k">Page served to checker</span><span className="v">{result.blocked ? 'Blocked (limited evidence)' : 'Yes'}</span></div>
+              {result.platform && <div className="kv"><span className="k">Other platform</span><span className="v">{result.platform}</span></div>}
+              <div className="kv"><span className="k">Response time</span><span className="v">{fmtElapsed(result.elapsed_ms)}</span></div>
+            </details>
           </section>
         )}
       </div>

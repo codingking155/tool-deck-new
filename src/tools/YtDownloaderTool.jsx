@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { AlertTriangle, Check, ClipboardPaste, Download, Film, ImageOff, Loader2, Music2, RotateCcw, Search, X } from "lucide-react";
+import { Check, ClipboardPaste, Clock, Download, Film, ImageOff, Loader2, Music2, RotateCcw, Search, X } from "lucide-react";
+import { Notice } from "../components/ui.jsx";
 import {
   checkYouTubeUrl, defaultFormat, formatBytes, formatDuration, formatEta, formatLabel, formatsOf, safeDownloadName,
   sanitizeFilename, ERROR_TITLES, PERMANENT_ERRORS,
@@ -68,38 +69,63 @@ function Progress({ progress, onCancel }) {
       <ol className="yd-steps" aria-label="Download steps">
         {STEPS.map((label, i) => (
           <li key={label} className={i < step ? "done" : i === step ? "on" : ""} aria-current={i === step ? "step" : undefined}>
-            <span>{i < step ? <Check size={11} aria-hidden="true" /> : i + 1}</span>{label}
+            <span>{i < step ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : i + 1}</span>{label}
+            {i < step && <span className="sr-only"> (done)</span>}
           </li>
         ))}
       </ol>
-      <div className="yd-ptitle" aria-live="polite"><b>{title}</b><span>{pct == null ? "" : `${pct}%`}</span></div>
-      <div className={`yd-bar${pct == null ? " ind" : ""}`} role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}>
-        <i style={pct == null ? undefined : { width: `${pct}%` }} />
+      {/* only the stage is announced; the percentage lives on the progressbar so it isn't read out every tick */}
+      <div className="yd-ptitle"><b aria-live="polite">{title}</b><span aria-hidden="true">{pct == null ? "" : `${pct}%`}</span></div>
+      <div className={`yd-bar${pct == null ? " ind" : ""}`} role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}
+        style={pct == null ? undefined : { "--p": pct / 100 }}>
+        <i />
       </div>
       <div className="yd-pfoot">
         <span>{details.length ? details.join(" · ") : progress.stage === "processing" ? "Almost there…" : "Hang tight…"}</span>
-        <button type="button" className="pill" onClick={onCancel}><X size={13} aria-hidden="true" />Cancel</button>
+        <button type="button" className="btn gh sm" onClick={onCancel}><X size={14} aria-hidden="true" />Cancel</button>
       </div>
     </div>
   );
 }
 
+/* What the person can do about each failure — the URL always stays in the field. */
+const RECOVERY = {
+  not_configured: "This deployment has no download service connected.",
+  backend_unavailable: "The service may be starting up or briefly down. Try again in a minute.",
+  network: "Check your connection, then try again.",
+  private: "Only the owner can see it. Ask them to make it public or unlisted, then try again.",
+  members_only: "It's limited to channel members, so it can't be downloaded here.",
+  age_restricted: "Age-restricted videos need a signed-in YouTube account, which this tool never uses.",
+  paid: "Paid videos can't be downloaded here.",
+  restricted: "YouTube doesn't make this video publicly available.",
+  region_restricted: "It's blocked in the region our download server runs in. Try a different video.",
+  unavailable: "Check the link is right, or try another video.",
+  removed: "The video was taken down. Try another link.",
+  live: "Try again once the stream has ended and YouTube has processed the recording.",
+  rate_limited: "Wait a minute, then try again.",
+  too_many_jobs: "Wait for your other downloads to finish, then try again.",
+  busy: "Lots of people are downloading right now — try again shortly.",
+  format_unavailable: "Pick another quality from the list.",
+  too_large: "Pick a lower quality, or audio only.",
+  too_long: "Videos over the length limit can't be processed.",
+  processing_failed: "Try again, or pick another quality.",
+  ffmpeg_missing: "Try a different format — conversion isn't available right now.",
+};
+
 function ErrorBox({ error, onRetry, onDismiss, dismissLabel }) {
   const canRetry = onRetry && !PERMANENT_ERRORS.has(error.code) && error.code !== "not_configured";
+  const tone = error.code === "network" || error.code === "backend_unavailable" ? "off" : PERMANENT_ERRORS.has(error.code) ? "w" : "e";
   return (
-    <div className="note e yd-err" role="alert">
-      <AlertTriangle size={18} aria-hidden="true" />
-      <div>
-        <b>{ERROR_TITLES[error.code] || "Something went wrong"}</b>
-        <p>{error.message}</p>
-        {(canRetry || onDismiss) && (
-          <div className="pillrow">
-            {canRetry && <button type="button" className="pill" onClick={onRetry}><RotateCcw size={13} aria-hidden="true" />Try again</button>}
-            {onDismiss && <button type="button" className="pill" onClick={onDismiss}>{dismissLabel}</button>}
-          </div>
-        )}
-      </div>
-    </div>
+    <Notice tone={tone} role="alert" className="yd-err" title={ERROR_TITLES[error.code] || "Something went wrong"}
+      actions={(canRetry || onDismiss) && (
+        <>
+          {canRetry && <button type="button" className="btn gh sm" onClick={onRetry}><RotateCcw size={14} aria-hidden="true" />Try again</button>}
+          {onDismiss && <button type="button" className="btn qt sm" onClick={onDismiss}>{dismissLabel}</button>}
+        </>
+      )}>
+      {error.message && error.message !== ERROR_TITLES[error.code] && <p>{error.message}</p>}
+      {RECOVERY[error.code] && <p className="yd-recover">{RECOVERY[error.code]}</p>}
+    </Notice>
   );
 }
 
@@ -110,25 +136,28 @@ function Thumb({ src, duration }) {
       {src && !failed
         ? <img src={src} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" onError={() => setFailed(true)} />
         : <ImageOff size={28} aria-hidden="true" />}
-      {duration && <span className="yd-dur">{duration}</span>}
+      {duration && <span className="yd-dur" aria-hidden="true">{duration}</span>}
     </div>
   );
 }
 
 function Skeleton() {
   return (
-    <div className="yd-card yd-skel" role="status" aria-label="Analyzing video">
+    <div className="panel yd-card yd-skel" role="status" aria-label="Fetching video info">
       <div className="skel yd-thumb" />
       <div className="yd-info">
-        <div className="skel" style={{ height: 20, width: "90%" }} />
-        <div className="skel" style={{ height: 20, width: "60%", marginTop: 8 }} />
-        <div className="skel" style={{ height: 13, width: "35%", marginTop: 12 }} />
-        <div className="skel" style={{ height: 44, marginTop: 24 }} />
-        <div className="skel" style={{ height: 44, marginTop: 12 }} />
+        <div className="skel yd-sk yd-sk-t1" />
+        <div className="skel yd-sk yd-sk-t2" />
+        <div className="skel yd-sk yd-sk-meta" />
+        <div className="skel yd-sk yd-sk-row" />
+        <div className="skel yd-sk yd-sk-row" />
       </div>
     </div>
   );
 }
+
+/* "Download 1080p · MP4" — names exactly the option the backend offered and the person picked. */
+const downloadLabel = (f, mode) => (f ? `Download ${formatLabel(f)}` : mode === "audio" ? "Download audio" : "Download video");
 
 const POLL_MS = 600;
 
@@ -241,6 +270,14 @@ export default function YtDownloaderTool({ notify }) {
     inputRef.current?.focus();
   };
 
+  /* after a failed lookup, go back to the field with the link still in it, selected for editing */
+  const editLink = () => {
+    dispatch({ type: "reset" });
+    setInputError(null);
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  };
+
   const paste = async () => {
     try {
       const text = (await navigator.clipboard.readText()).trim();
@@ -261,101 +298,120 @@ export default function YtDownloaderTool({ notify }) {
   const selected = formats.find((f) => f.format_id === s.formatId);
   const duration = formatDuration(video?.duration);
 
+  const announce = phase === "ready" && video ? `Video found: ${video.title}. Choose a format to download.`
+    : phase === "complete" && s.result ? `Download complete: ${s.result.filename}` : "";
+
   return (
-    <div className="panel yd">
+    <div className="yd">
       {!isConfigured() && (
-        <div className="note w">The download service isn't connected on this deployment yet, so analysis won't work here.</div>
+        <Notice tone="w">The download service isn't connected on this deployment yet, so fetching video info won't work here.</Notice>
       )}
-      <form className="yd-form" noValidate onSubmit={(e) => { e.preventDefault(); if (phase !== "analyzing" && !busy) analyze(input); }}>
-        <div className="field">
-          <label htmlFor="yd-url">YouTube video link</label>
-          <div className="yd-inwrap">
-            <input
-              ref={inputRef}
-              id="yd-url"
-              type="url"
-              inputMode="url"
-              enterKeyHint="go"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              placeholder="Paste a YouTube link"
-              value={input}
-              disabled={busy}
-              aria-invalid={!!inputError}
-              aria-describedby={inputError ? "yd-err" : "yd-hint"}
-              onChange={(e) => { setInput(e.target.value); if (inputError) setInputError(null); }}
-              onKeyDown={(e) => { if (e.key === "Escape" && input) { e.preventDefault(); setInput(""); setInputError(null); } }}
-            />
-            {input
-              ? <button type="button" className="yd-inbtn" aria-label="Clear link" disabled={busy} onClick={() => { setInput(""); setInputError(null); inputRef.current?.focus(); }}><X size={16} aria-hidden="true" /></button>
-              : <button type="button" className="yd-inbtn" aria-label="Paste link from clipboard" disabled={busy} onClick={paste}><ClipboardPaste size={15} aria-hidden="true" /><span>Paste</span></button>}
-          </div>
+      <div className="panel">
+        <div className="pb">
+          <form className="yd-form" noValidate onSubmit={(e) => { e.preventDefault(); if (phase !== "analyzing" && !busy) analyze(input); }}>
+            <div className="field">
+              <label htmlFor="yd-url">YouTube video link</label>
+              <div className="yd-inwrap">
+                <input
+                  ref={inputRef}
+                  id="yd-url"
+                  className="mono"
+                  type="url"
+                  inputMode="url"
+                  enterKeyHint="go"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  value={input}
+                  disabled={busy}
+                  aria-invalid={!!inputError}
+                  aria-describedby={inputError ? "yd-err" : "yd-hint"}
+                  onChange={(e) => { setInput(e.target.value); if (inputError) setInputError(null); }}
+                  onKeyDown={(e) => { if (e.key === "Escape" && input) { e.preventDefault(); setInput(""); setInputError(null); } }}
+                />
+                {input
+                  ? <button type="button" className="yd-inbtn" aria-label="Clear link" disabled={busy} onClick={() => { setInput(""); setInputError(null); inputRef.current?.focus(); }}><X size={16} aria-hidden="true" /></button>
+                  : <button type="button" className="yd-inbtn" aria-label="Paste link from clipboard" disabled={busy} onClick={paste}><ClipboardPaste size={15} aria-hidden="true" /><span>Paste</span></button>}
+              </div>
+            </div>
+            <button type="submit" className="btn pri" disabled={phase === "analyzing" || busy}>
+              {phase === "analyzing" ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
+              {phase === "analyzing" ? "Fetching…" : "Fetch info"}
+            </button>
+          </form>
+          {inputError
+            ? <p id="yd-err" role="alert" className="err-tx yd-hint">{inputError}</p>
+            : <p id="yd-hint" className="hint yd-hint">Works with youtube.com/watch, youtu.be and Shorts links. Only download videos you own or have permission to use.</p>}
         </div>
-        <button type="submit" className="btn pri" disabled={phase === "analyzing" || busy}>
-          {phase === "analyzing" ? <Loader2 size={16} className="sd-spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
-          {phase === "analyzing" ? "Analyzing…" : "Analyze"}
-        </button>
-      </form>
-      {inputError
-        ? <p id="yd-err" role="alert" className="yd-hint bad">{inputError}</p>
-        : <p id="yd-hint" className="yd-hint">Works with youtube.com/watch, youtu.be and Shorts links. Only download videos you own or have permission to download.</p>}
+      </div>
 
-      <div ref={resultRef} className="yd-out" aria-live="polite">
+      <p className="sr-only" role="status">{announce}</p>
+
+      <div ref={resultRef} className="yd-out">
         {phase === "analyzing" && <Skeleton />}
-        {analyzeFailed && <ErrorBox error={error} onRetry={() => s.url && analyze(s.url)} onDismiss={startOver} dismissLabel="Try another link" />}
+        {analyzeFailed && <ErrorBox error={error} onRetry={() => s.url && analyze(s.url)} onDismiss={editLink} dismissLabel="Edit the link" />}
         {video && !analyzeFailed && phase !== "analyzing" && (
-          <article className="yd-card" aria-labelledby="yd-title">
-            <Thumb src={video.thumbnail} duration={duration} />
-            <div className="yd-info">
+          <article className="panel yd-card" aria-labelledby="yd-title">
+            <div className="yd-media">
+              <Thumb src={video.thumbnail} duration={duration} />
               <h2 id="yd-title" title={video.title}>{video.title}</h2>
-              <p className="yd-meta"><span>{video.channel}</span>{duration && <><span aria-hidden="true">•</span><span><span className="sr-only">Duration </span>{duration}</span></>}</p>
+              <p className="yd-meta">
+                <span className="yd-chan">{video.channel}</span>
+                {duration && <span className="yd-len"><Clock size={13} aria-hidden="true" /><span className="sr-only">Duration </span>{duration}</span>}
+              </p>
+            </div>
 
+            <div className="yd-info">
               <div className="yd-fmthead">
-                <label htmlFor="yd-format">Format</label>
-                <div className="modes yd-modes" role="group" aria-label="Download type">
-                  <button type="button" aria-pressed={s.mode === "video"} className={s.mode === "video" ? "on" : ""} disabled={busy || !formatsOf(video, "video").length} onClick={() => dispatch({ type: "mode", mode: "video" })}><Film size={14} aria-hidden="true" />Video</button>
-                  <button type="button" aria-pressed={s.mode === "audio"} className={s.mode === "audio" ? "on" : ""} disabled={busy || !formatsOf(video, "audio").length} onClick={() => dispatch({ type: "mode", mode: "audio" })}><Music2 size={14} aria-hidden="true" />Audio</button>
+                <span className="yd-lbl" id="yd-type-lbl">Download as</span>
+                <div className="seg yd-modes" role="group" aria-labelledby="yd-type-lbl">
+                  <button type="button" aria-pressed={s.mode === "video"} disabled={busy || !formatsOf(video, "video").length} onClick={() => dispatch({ type: "mode", mode: "video" })}><Film size={14} aria-hidden="true" />Video</button>
+                  <button type="button" aria-pressed={s.mode === "audio"} disabled={busy || !formatsOf(video, "audio").length} onClick={() => dispatch({ type: "mode", mode: "audio" })}><Music2 size={14} aria-hidden="true" />Audio</button>
                 </div>
               </div>
-              <div className="field yd-select">
-                <select id="yd-format" value={s.formatId ?? ""} disabled={busy || !formats.length} onChange={(e) => dispatch({ type: "format", formatId: e.target.value })} aria-describedby="yd-fmt-hint">
+
+              <fieldset className="yd-quality" disabled={busy || !formats.length}>
+                <legend className="yd-lbl">Quality <span>· {formats.length} offered for this video</span></legend>
+                <div className="yd-opts">
                   {formats.map((f) => {
                     const size = formatBytes(f.filesize);
-                    return <option key={f.format_id} value={f.format_id}>{formatLabel(f)}{size ? `  —  ~${size}` : ""}</option>;
+                    const note = f.type === "audio" ? [f.note, f.resolution].filter(Boolean).join(" · ") : f.note && `${f.note} video with audio`;
+                    return (
+                      <label key={f.format_id} className={`yd-opt${f.format_id === s.formatId ? " on" : ""}`}>
+                        <input type="radio" name="yd-format" value={f.format_id} checked={f.format_id === s.formatId}
+                          onChange={() => dispatch({ type: "format", formatId: f.format_id })} />
+                        <span className="yd-opt-main">
+                          <b>{formatLabel(f)}</b>
+                          {note && <small>{note}</small>}
+                        </span>
+                        <span className={`yd-size${size ? "" : " unk"}`}>{size ? `~${size}` : "size unknown"}</span>
+                      </label>
+                    );
                   })}
-                </select>
-              </div>
-              <p id="yd-fmt-hint" className="yd-fmthint">
-                {selected && [
-                  selected.type === "audio" ? selected.note : selected.note && `${selected.note} video with audio`,
-                  selected.type === "audio" && selected.resolution,
-                  formatBytes(selected.filesize) ? `about ${formatBytes(selected.filesize)}` : "size unknown",
-                ].filter(Boolean).join(" · ")}
-              </p>
+                </div>
+              </fieldset>
 
               {phase === "downloading" && s.progress && <Progress progress={s.progress} onCancel={cancel} />}
               {phase === "complete" && s.result && (
-                <div className="note ok yd-done" role="status">
-                  <span className="yd-tick"><Check size={16} strokeWidth={2.75} aria-hidden="true" /></span>
-                  <div>
-                    <b>Download complete</b>
-                    <p title={s.result.filename}>{s.result.filename}{formatBytes(s.result.size) ? ` · ${formatBytes(s.result.size)}` : ""}</p>
-                    <div className="pillrow">
-                      <button type="button" className="pill" onClick={download}><RotateCcw size={13} aria-hidden="true" />Download again</button>
-                      <button type="button" className="pill" onClick={startOver}>New video</button>
-                    </div>
-                  </div>
-                </div>
+                <Notice tone="ok" className="yd-done" title="Download complete" actions={
+                  <>
+                    <button type="button" className="btn gh sm" onClick={download}><RotateCcw size={14} aria-hidden="true" />Download again</button>
+                    <button type="button" className="btn qt sm" onClick={startOver}>New video</button>
+                  </>
+                }>
+                  <p className="yd-file" title={s.result.filename}>{s.result.filename}{formatBytes(s.result.size) ? ` · ${formatBytes(s.result.size)}` : ""}</p>
+                </Notice>
               )}
               {phase === "error" && error?.during === "download" && (
                 <ErrorBox error={error} onRetry={download} onDismiss={() => dispatch({ type: "back" })} dismissLabel="Choose another format" />
               )}
               {(phase === "ready") && (
                 <button type="button" className="btn pri yd-dl" onClick={download} disabled={!s.formatId}>
-                  <Download size={16} aria-hidden="true" />{s.mode === "audio" ? "Download audio" : "Download video"}
+                  <Download size={16} aria-hidden="true" />{downloadLabel(selected, s.mode)}
                 </button>
               )}
+              <p className="yd-legal">Downloads run through ToolDeck's server and the file is deleted once it's sent to you. Respect the creator's rights.</p>
             </div>
           </article>
         )}

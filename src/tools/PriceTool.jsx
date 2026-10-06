@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
+import {
+  AlertTriangle, ArrowRight, Bell, CircleCheck, ExternalLink, LineChart, Minus, Package, RefreshCw, Search, Table2,
+  TrendingDown, TrendingUp,
+} from "lucide-react";
 import { ShareLink } from "../components/chrome.jsx";
+import { Notice, StatusBadge, EmptyState } from "../components/ui.jsx";
 import { readParams, writeParams } from "../hooks/index.js";
 import { lookupPrice, UNAVAILABLE } from "../features/priceTracker/api.js";
 import PriceChart from "../features/priceTracker/PriceChart.jsx";
@@ -22,6 +27,8 @@ const ERROR_HELP = {
   not_found: null, unsupported_store: null, unsupported_marketplace: null, no_product_id: null, invalid_url: null,
   short_link_unresolved: null,
 };
+/* problems with the link itself — retrying the same link can't help */
+const LINK_ERRORS = ["invalid_url", "unsupported_store", "unsupported_marketplace", "no_product_id", "short_link_unresolved"];
 
 function useMoney(currency) {
   return useMemo(() => {
@@ -101,156 +108,190 @@ export default function PriceTool({ notify, nav }) {
 
   const loading = state.kind === "loading";
   const shown = product;
+  const readings = product ? product.observations.filter((o) => o.price != null).length : 0;
+  const multi = product ? product.observations.length > 1 : false;
 
   return (
-    <div>
-      <div className="panel rise d1" style={{ marginBottom: 18 }}>
-        <div className="pb" style={{ paddingTop: 18 }}>
-          <form noValidate className="pt-row"
-            onSubmit={(e) => { e.preventDefault(); lookup(url); }}>
-            <div className="field" style={{ marginBottom: 0 }}>
+    <div className="pt">
+      <div className="panel rise d1">
+        <div className="pb">
+          <form noValidate className="pt-form" onSubmit={(e) => { e.preventDefault(); lookup(url); }}>
+            <div className="field">
               <label htmlFor="purl">Amazon product link</label>
-              <input id="purl" type="text" inputMode="url" autoComplete="off" autoCapitalize="off" spellCheck={false}
-                placeholder="https://www.amazon.in/dp/…  or  https://amzn.in/d/…" value={url} onChange={(e) => setUrl(e.target.value)} />
+              <div className="inrow stack">
+                <input id="purl" className="mono" type="text" inputMode="url" autoComplete="off" autoCapitalize="off" spellCheck={false}
+                  aria-describedby="purl-hint"
+                  placeholder="https://www.amazon.in/dp/…  or  https://amzn.in/d/…" value={url} onChange={(e) => setUrl(e.target.value)} />
+                <button className="btn pri" type="submit" disabled={loading}>
+                  {loading ? <RefreshCw size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
+                  {loading ? "Checking…" : "Track price"}
+                </button>
+              </div>
+              <div className="hint" id="purl-hint">Amazon.in links in any format — app share links, mobile links and links with tracking tags all work.</div>
             </div>
-            <button className="btn pri" type="submit" disabled={loading}>
-              {loading ? "Checking…" : "Track price"}
-            </button>
           </form>
-          <div className="hint">Amazon.in links in any format — app share links, mobile links and links with tracking tags all work.</div>
         </div>
       </div>
 
-      {state.kind === "idle" && (
-        <div className="empty rise d2">Paste an Amazon product link to see its live price, the price history we've recorded, and set a price-drop alert.</div>
-      )}
-
-      {loading && !shown && (
-        <div className="panel rise d2" aria-busy="true">
-          <div className="pb" style={{ paddingTop: 18 }}>
-            <div className="pt-head">
-              <div className="skel" style={{ width: 96, height: 96 }} />
-              <div style={{ flex: 1 }}><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18, width: "60%", marginBottom: 14 }} /><div className="skel" style={{ height: 34, width: 160 }} /></div>
-            </div>
-            <div className="hint" style={{ marginTop: 12 }}>Fetching the live price from Amazon…</div>
+      <div className="pt-out" aria-live="polite" aria-busy={loading}>
+        {state.kind === "idle" && (
+          <div className="panel rise d2">
+            <EmptyState icon={LineChart} title="Should you buy now, or wait?">
+              Paste an Amazon product link to see its live price, the price history we've recorded, and set a price-drop alert.
+            </EmptyState>
           </div>
-        </div>
-      )}
+        )}
 
-      {state.kind === "error" && (
-        <div className="panel rise d2" role="alert">
-          <div className="pb" style={{ paddingTop: 18 }}>
-            <div className="pt-err-title">{state.message || UNAVAILABLE}</div>
-            {(state.detail || ERROR_HELP[state.code]) && <div className="hint" style={{ marginTop: 6 }}>{state.detail || ERROR_HELP[state.code]}</div>}
-            {!["invalid_url", "unsupported_store", "unsupported_marketplace", "no_product_id", "short_link_unresolved"].includes(state.code) && (
-              <button className="btn gh" style={{ marginTop: 14 }} onClick={() => lookup(url)}>Try again</button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {shown && (
-        <div className={`panel rise d2${loading ? " pt-dim" : ""}`}>
-          <div className="pb" style={{ paddingTop: 18 }}>
-            {/* ── product ── */}
-            <div className="pt-head">
-              {shown.image
-                ? <img className="pt-img" src={shown.image} alt="" width="96" height="96" loading="lazy" referrerPolicy="no-referrer" />
-                : <div className="pt-img pt-img-none" aria-hidden="true">📦</div>}
-              <div className="pt-meta">
-                <h2 className="pt-title">{shown.title || `Amazon product ${shown.externalId}`}</h2>
-                <div className="pt-chips">
-                  <span className="chip done">{shown.marketplace.replace(/^amazon/, "Amazon")}</span>
-                  <span className="chip done">ASIN {shown.externalId}</span>
-                  {shown.availability && <span className={`chip ${shown.currentPrice == null ? "wk" : "act"}`}>{shown.availability}</span>}
+        {loading && !shown && (
+          <div className="panel rise d2" role="status" aria-label="Fetching the live price from Amazon">
+            <div className="pb">
+              <div className="pt-head">
+                <div className="skel pt-img" />
+                <div className="pt-meta">
+                  <div className="skel pt-sk-line" />
+                  <div className="skel pt-sk-line pt-sk-short" />
+                  <div className="skel pt-sk-price" />
                 </div>
+              </div>
+              <div className="hint">Fetching the live price from Amazon…</div>
+            </div>
+          </div>
+        )}
+
+        {state.kind === "error" && (
+          <Notice tone={state.code === "network" ? "off" : LINK_ERRORS.includes(state.code) ? "w" : "e"} role="alert" className="pt-err rise d2"
+            title={state.message || UNAVAILABLE}
+            actions={!LINK_ERRORS.includes(state.code) && (
+              <button type="button" className="btn gh sm" onClick={() => lookup(url)}><RefreshCw size={14} aria-hidden="true" />Try again</button>
+            )}>
+            {(state.detail || ERROR_HELP[state.code]) && <p>{state.detail || ERROR_HELP[state.code]}</p>}
+          </Notice>
+        )}
+
+        {shown && (
+          <section className={`panel rise d2 pt-result${loading ? " pt-dim" : ""}`} aria-labelledby="pt-title">
+            <div className="pb">
+              <div className="pt-head">
+                {shown.image
+                  ? <img className="pt-img" src={shown.image} alt="" width="96" height="96" loading="lazy" referrerPolicy="no-referrer" />
+                  : <div className="pt-img pt-img-none" aria-hidden="true"><Package size={30} strokeWidth={1.6} /></div>}
+                <div className="pt-meta">
+                  <h2 className="pt-title" id="pt-title" title={shown.title || undefined}>{shown.title || `Amazon product ${shown.externalId}`}</h2>
+                  <div className="badges pt-badges">
+                    {shown.availability && (
+                      <StatusBadge tone={shown.currentPrice == null ? "warn" : "ok"} icon={shown.currentPrice == null ? AlertTriangle : CircleCheck}>{shown.availability}</StatusBadge>
+                    )}
+                    <StatusBadge>{shown.marketplace.replace(/^amazon/, "Amazon")}</StatusBadge>
+                    <StatusBadge><span className="pt-asin">ASIN {shown.externalId}</span></StatusBadge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-hero">
+                <div className="pt-eyebrow">Current price</div>
                 <div className="pt-price-row">
                   <span className="pt-price">{shown.currentPrice != null ? money(shown.currentPrice) : "Price unavailable"}</span>
                   {shown.currentPrice != null && shown.originalPrice != null && shown.originalPrice > shown.currentPrice && (
                     <span className="pt-was">
-                      <s>{money(shown.originalPrice)}</s> {Math.round((1 - shown.currentPrice / shown.originalPrice) * 100)}% off
+                      <s><span className="sr-only">List price </span>{money(shown.originalPrice)}</s> {Math.round((1 - shown.currentPrice / shown.originalPrice) * 100)}% off
                     </span>
                   )}
                 </div>
+                {stats && shown.currentPrice != null && <PriceChange stats={stats} money={money} current={shown.currentPrice} multi={multi} />}
                 <div className="pt-asof">
-                  {shown.lastObservedAt ? <>Price as of {fmtWhen(shown.lastObservedAt)}</> : "Not yet checked"}
+                  {shown.lastObservedAt ? <>Price as of <time dateTime={shown.lastObservedAt}>{fmtWhen(shown.lastObservedAt)}</time></> : "Not yet checked"}
                   {shown.seller && <> · Sold by {shown.seller}</>}
                 </div>
-                <div className="pt-actions">
-                  <a className="pill" href={shown.buyUrl} target="_blank" rel="nofollow sponsored noopener noreferrer">View on Amazon ↗</a>
-                  <button className="pill" onClick={() => lookup(shown.canonicalUrl)} disabled={loading}>{loading ? "Checking…" : "↻ Check again"}</button>
-                </div>
               </div>
-            </div>
-            {shown.warning && <div className="note w" style={{ marginTop: 12 }}><b>{UNAVAILABLE} </b>Showing the last price we confirmed, from {fmtWhen(shown.lastObservedAt)}.</div>}
-            <div className="pt-disclaimer">Prices and availability are accurate as of the time shown and are subject to change. The price on Amazon at the time of purchase applies.</div>
-          </div>
-        </div>
-      )}
 
-      {product && stats && (
-        <div className="panel rise d3" style={{ marginTop: 18 }}>
-          <div className="pb" style={{ paddingTop: 18 }}>
-            <div className="pt-hist-head">
-              <h2>Price history</h2>
-              {ranges.length > 1 && (
-                <div className="rangebar" role="group" aria-label="Time range">
-                  {ranges.map(([l, d]) => <button key={l} className={activeRange === d ? "on" : ""} aria-pressed={activeRange === d} onClick={() => setRange(d)}>{l}</button>)}
-                </div>
+              {stats && <Verdict stats={stats} money={money} range={activeRange} />}
+
+              {shown.warning && (
+                <Notice tone="w" title={UNAVAILABLE}>Showing the last price we confirmed, from {fmtWhen(shown.lastObservedAt)}.</Notice>
               )}
-            </div>
 
-            {stats.insight && <Insight stats={stats} money={money} range={activeRange} />}
-
-            <PriceChart observations={product.observations} start={stats.window.start} end={stats.window.end}
-              fmtPrice={money} fmtWhen={fmtWhen} sourceLabel={sourceLabel} lowest={stats.lowest} highest={stats.highest} />
-
-            {stats.pointCount <= 1 && product.observations.length <= 1 && (
-              <div className="note i" style={{ marginTop: 10 }}>
-                {isToday(stats.trackedSince)
-                  ? "Price tracking started today. More history will appear as we continue monitoring this product."
-                  : `Tracking since ${fmtDay(stats.trackedSince)}. More history will appear as we continue monitoring this product.`}
+              <div className="actions pt-actions">
+                <a className="btn gh sm" href={shown.buyUrl} target="_blank" rel="nofollow sponsored noopener noreferrer">
+                  View on Amazon<ExternalLink size={14} aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span>
+                </a>
+                <button type="button" className="btn gh sm" onClick={() => lookup(shown.canonicalUrl)} disabled={loading}>
+                  <RefreshCw size={14} className={loading ? "spin" : undefined} aria-hidden="true" />{loading ? "Checking…" : "Check again"}
+                </button>
+                <ShareLink notify={notify} />
               </div>
-            )}
+              <p className="pt-disclaimer">Prices and availability are accurate as of the time shown and are subject to change. The price on Amazon at the time of purchase applies.</p>
+            </div>
+          </section>
+        )}
 
-            <div className="pstat">
-              <div className="pcell"><div className="k">Current</div><div className="v pr">{money(product.currentPrice)}</div></div>
-              <div className="pcell"><div className="k">Lowest</div><div className="v gd">{money(stats.lowest?.price)}</div>{stats.lowest && <div className="pt-sub">{fmtDay(stats.lowest.observedAt)}</div>}</div>
-              <div className="pcell"><div className="k">Highest</div><div className="v bd">{money(stats.highest?.price)}</div>{stats.highest && <div className="pt-sub">{fmtDay(stats.highest.observedAt)}</div>}</div>
-              <div className="pcell"><div className="k">Average</div><div className="v">{stats.pointCount > 1 || product.observations.length > 1 ? money(stats.average) : "—"}</div><div className="pt-sub">time-weighted</div></div>
-              <div className="pcell"><div className="k">Change</div>
-                {stats.change && stats.change.amount !== 0
-                  ? <><div className={`v ${stats.change.amount < 0 ? "gd" : "bd"}`}>{stats.change.amount < 0 ? "▼" : "▲"} {Math.abs(stats.change.percent).toFixed(1)}%</div><div className="pt-sub">since {fmtDay(stats.change.since)}</div></>
-                  : <><div className="v">No change</div><div className="pt-sub">{product.observations.length > 1 ? `since ${fmtDay(stats.change?.since || stats.trackedSince)}` : "one reading so far"}</div></>}
+        {product && stats && (
+          <section className="panel rise d3 pt-history" aria-labelledby="pt-hist-h">
+            <div className="pb">
+              <div className="pt-hist-head">
+                <h2 id="pt-hist-h">Price history</h2>
+                {ranges.length > 1 && (
+                  <div className="seg pt-range" role="group" aria-label="Time range">
+                    {ranges.map(([l, d]) => <button type="button" key={l} aria-pressed={activeRange === d} onClick={() => setRange(d)}>{l}</button>)}
+                  </div>
+                )}
               </div>
-              <div className="pcell"><div className="k">Readings</div><div className="v">{product.observations.filter((o) => o.price != null).length}</div><div className="pt-sub">since {fmtDay(stats.trackedSince)}</div></div>
-            </div>
 
-            <div className="pt-source">
-              History is built only from real readings: ToolDeck checks this price every few hours{product.historyImported ? ", and earlier history was imported from Keepa" : ""}. Average is weighted by how long each price lasted.
-              {" "}<button className="pt-link" onClick={() => setShowTable((v) => !v)} aria-expanded={showTable}>{showTable ? "Hide readings" : "Show all readings"}</button>
-            </div>
-            {showTable && <ReadingsTable observations={product.observations} money={money} />}
-
-            {/* ── target price / alerts ── */}
-            <div className="pt-row" style={{ marginTop: 18 }}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="tprice">Target price</label>
-                <input id="tprice" type="number" min="1" inputMode="decimal"
-                  placeholder={product.currentPrice ? `e.g. ${Math.floor(product.currentPrice * 0.9)}` : ""} value={target} onChange={(e) => setTarget(e.target.value)} />
+              <div className="metrics pt-stats">
+                <StatCell label="Lowest" value={money(stats.lowest?.price)} sub={stats.lowest && fmtDay(stats.lowest.observedAt)} tone="good" />
+                <StatCell label="Highest" value={money(stats.highest?.price)} sub={stats.highest && fmtDay(stats.highest.observedAt)} tone="bad" />
+                <StatCell label="Average" value={stats.pointCount > 1 || multi ? money(stats.average) : "—"} sub="time-weighted" />
+                <StatCell label="Readings" value={readings} sub={`since ${fmtDay(stats.trackedSince)}`} />
               </div>
-              <button className="btn pri" onClick={() => setAlertOpen(true)} disabled={product.currentPrice == null}>
-                Alert me on a price drop
-              </button>
+
+              <PriceChart observations={product.observations} start={stats.window.start} end={stats.window.end}
+                fmtPrice={money} fmtWhen={fmtWhen} sourceLabel={sourceLabel} lowest={stats.lowest} highest={stats.highest} />
+
+              {stats.pointCount <= 1 && product.observations.length <= 1 && (
+                <Notice tone="i" title="Tracking started — history appears as readings are recorded.">
+                  {isToday(stats.trackedSince)
+                    ? "Price tracking started today. More history will appear as we continue monitoring this product."
+                    : `Tracking since ${fmtDay(stats.trackedSince)}. More history will appear as we continue monitoring this product.`}
+                </Notice>
+              )}
+
+              <div className="pt-histfoot">
+                <p className="pt-source">
+                  History is built only from real readings: ToolDeck checks this price every few hours{product.historyImported ? ", and earlier history was imported from Keepa" : ""}. Average is weighted by how long each price lasted.
+                </p>
+                <button type="button" className="btn gh sm" onClick={() => setShowTable((v) => !v)} aria-expanded={showTable} aria-controls="pt-readings">
+                  <Table2 size={14} aria-hidden="true" />{showTable ? "Hide readings" : "Show all readings"}
+                </button>
+              </div>
+              {showTable && <ReadingsTable observations={product.observations} money={money} />}
             </div>
-            <div className="hint">We check tracked products every hour while an alert is set and notify you when the price is at or below your target.</div>
-            <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <ShareLink notify={notify} />
-              <button className="pill" onClick={() => nav("/tool/price/alerts")}>My alerts →</button>
+          </section>
+        )}
+
+        {product && stats && (
+          <section className="panel rise d4 pt-alert" aria-labelledby="pt-alert-h">
+            <div className="pb">
+              <div className="pt-alert-head">
+                <div>
+                  <h2 id="pt-alert-h">Price-drop alert</h2>
+                  <p>We check tracked products every hour while an alert is set and notify you when the price is at or below your target.</p>
+                </div>
+                <button type="button" className="btn qt sm" onClick={() => nav("/tool/price/alerts")}>My alerts<ArrowRight size={14} aria-hidden="true" /></button>
+              </div>
+              <div className="field pt-target">
+                <label htmlFor="tprice">Target price ({product.currency || "INR"})</label>
+                <div className="inrow stack">
+                  <input id="tprice" className="mono" type="number" min="1" inputMode="decimal"
+                    placeholder={product.currentPrice ? `e.g. ${Math.floor(product.currentPrice * 0.9)}` : ""} value={target} onChange={(e) => setTarget(e.target.value)} />
+                  <button type="button" className="btn" onClick={() => setAlertOpen(true)} disabled={product.currentPrice == null}>
+                    <Bell size={15} aria-hidden="true" />Create alert
+                  </button>
+                </div>
+                {product.currentPrice == null && <div className="hint">Alerts need a live price — {UNAVAILABLE.charAt(0).toLowerCase() + UNAVAILABLE.slice(1)}</div>}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
+      </div>
 
       {alertOpen && product && (
         <Suspense fallback={null}>
@@ -271,25 +312,74 @@ export default function PriceTool({ notify, nav }) {
   );
 }
 
-function Insight({ stats, money, range }) {
+function StatCell({ label, value, sub, tone }) {
+  return (
+    <div className="metric">
+      <div className="k">{label}</div>
+      <div className={`v${tone ? ` pt-${tone}` : ""}`}>{value}</div>
+      {sub && <div className="pt-msub">{sub}</div>}
+    </div>
+  );
+}
+
+/* Change of the live price against the first reading in the selected range, and against the recorded high.
+   Direction is always spelled out in words next to the arrow — never colour alone. */
+function PriceChange({ stats, money, current, multi }) {
+  const ch = stats.change;
+  const offHigh = stats.highest && stats.highest.price > current ? stats.highest.price - current : 0;
+  return (
+    <div className="pt-change">
+      {ch && ch.amount !== 0 ? (
+        <span className={`pt-delta ${ch.amount < 0 ? "down" : "up"}`}>
+          {ch.amount < 0 ? <TrendingDown size={15} aria-hidden="true" /> : <TrendingUp size={15} aria-hidden="true" />}
+          {ch.amount < 0 ? "Down" : "Up"} {Math.abs(ch.percent).toFixed(1)}% ({money(Math.abs(ch.amount))}) since {fmtDay(ch.since)}
+        </span>
+      ) : (
+        <span className="pt-delta flat">
+          <Minus size={15} aria-hidden="true" />{multi ? `No change since ${fmtDay(ch?.since || stats.trackedSince)}` : "One reading so far"}
+        </span>
+      )}
+      {offHigh > 0 && <span className="pt-offhigh">{money(offHigh)} below the highest recorded ({money(stats.highest.price)})</span>}
+    </div>
+  );
+}
+
+/* One-line buy-or-wait verdict — only from the real-data insight in priceStats. */
+function Verdict({ stats, money, range }) {
+  if (!stats.insight) {
+    // no live price, or enough history but no opinion — say nothing rather than guess
+    if (!stats.current || stats.enoughHistory) return null;
+    return (
+      <p className="pt-verdict none">
+        <LineChart size={16} aria-hidden="true" />
+        <span><b>No verdict yet.</b> We need about two weeks of recorded readings before comparing today's price with its usual range.</span>
+      </p>
+    );
+  }
   const pct = Math.abs(stats.insight.vsAverage).toFixed(0);
   const span = range ? `${range}-day` : "recorded";
-  const text = {
-    lowest: <>Lowest price we've recorded since {new Date(stats.trackedSince).toLocaleDateString(undefined, { month: "short", year: "numeric" })}.</>,
-    low: <>Lower than usual — {pct}% below the {span} average of {money(stats.average)}.</>,
-    high: <>Higher than usual — {pct}% above the {span} average of {money(stats.average)}. Consider setting an alert.</>,
-    typical: <>Typical price — within {pct}% of the {span} average of {money(stats.average)}.</>,
+  const [lead, Icon, text] = {
+    lowest: ["Looks like a good time to buy.", TrendingDown, <>Lowest price we've recorded since {new Date(stats.trackedSince).toLocaleDateString(undefined, { month: "short", year: "numeric" })}.</>],
+    low: ["Looks like a good time to buy.", TrendingDown, <>Lower than usual — {pct}% below the {span} average of {money(stats.average)}.</>],
+    high: ["You may want to wait.", TrendingUp, <>Higher than usual — {pct}% above the {span} average of {money(stats.average)}. Consider setting an alert.</>],
+    typical: ["Fair price.", Minus, <>Typical price — within {pct}% of the {span} average of {money(stats.average)}.</>],
   }[stats.insight.kind];
-  return <div className={`pt-insight pt-insight-${stats.insight.kind}`}>{text}</div>;
+  return (
+    <p className={`pt-verdict ${stats.insight.kind}`}>
+      <Icon size={16} aria-hidden="true" />
+      <span><b>{lead}</b> {text}</span>
+    </p>
+  );
 }
 
 function ReadingsTable({ observations, money }) {
   const rows = [...observations].reverse();
   const MAX = 300;
   return (
-    <div className="pt-table-wrap">
+    <div className="pt-table-wrap" id="pt-readings" tabIndex={0} role="region" aria-label="All price readings">
       <table className="rt pt-table">
-        <thead><tr><th>Observed</th><th>Price</th><th>Availability</th><th>Source</th></tr></thead>
+        <caption className="sr-only">Every recorded price reading, newest first</caption>
+        <thead><tr><th scope="col">Observed</th><th scope="col">Price</th><th scope="col">Availability</th><th scope="col">Source</th></tr></thead>
         <tbody>
           {rows.slice(0, MAX).map((o) => (
             <tr key={`${o.observedAt}|${o.source}`}>
@@ -301,7 +391,7 @@ function ReadingsTable({ observations, money }) {
           ))}
         </tbody>
       </table>
-      {rows.length > MAX && <div className="hint">Showing the latest {MAX} of {rows.length} readings.</div>}
+      {rows.length > MAX && <div className="hint pt-table-more">Showing the latest {MAX} of {rows.length} readings.</div>}
     </div>
   );
 }

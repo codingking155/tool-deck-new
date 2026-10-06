@@ -92,6 +92,7 @@ export default function PriceChart({ observations, start, end, fmtPrice, fmtWhen
     <div className="pt-chart" ref={wrap}>
       <svg width={w} height={H} role="img" tabIndex={0}
         aria-label={`Price history: ${points.length} real reading${points.length === 1 ? "" : "s"}. Use left and right arrow keys to step through them.`}
+        aria-describedby={hp ? "pt-tip" : undefined}
         onPointerMove={(e) => setHover(nearest(e.clientX))}
         onPointerLeave={() => setHover(null)}
         onPointerDown={(e) => setHover(nearest(e.clientX))}
@@ -99,6 +100,8 @@ export default function PriceChart({ observations, start, end, fmtPrice, fmtWhen
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft" && points.length) { e.preventDefault(); setHover((h) => Math.max(0, (h ?? points.length) - 1)); }
           if (e.key === "ArrowRight" && points.length) { e.preventDefault(); setHover((h) => Math.min(points.length - 1, (h ?? -1) + 1)); }
+          if (e.key === "Home" && points.length) { e.preventDefault(); setHover(0); }
+          if (e.key === "End" && points.length) { e.preventDefault(); setHover(points.length - 1); }
           if (e.key === "Escape") setHover(null);
         }}>
         {yTicks.map((t, i) => (
@@ -110,23 +113,30 @@ export default function PriceChart({ observations, start, end, fmtPrice, fmtWhen
         {xTicks.map((t, i) => (
           <text key={i} x={t.x} y={H - 7} textAnchor={t.mid ? "middle" : i === 0 ? "start" : i === xTicks.length - 1 ? "end" : "middle"} className="pt-axis">{t.label}</text>
         ))}
-        <path d={d} className="pt-line" fill="none" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {model.lo && !model.single && <circle cx={model.lo.x} cy={model.lo.y} r="4.5" className="pt-lo" />}
-        {model.hi && <circle cx={model.hi.x} cy={model.hi.y} r="4.5" className="pt-hi" />}
-        {model.last && !model.single && <circle cx={model.endX} cy={model.last.y} r="5" className="pt-now" />}
+        <path d={d} className="pt-line" fill="none" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
+        {model.lo && !model.single && <circle cx={model.lo.x} cy={model.lo.y} r="4" className="pt-lo" />}
+        {model.hi && <circle cx={model.hi.x} cy={model.hi.y} r="4" className="pt-hi" />}
+        {model.last && !model.single && <circle cx={model.endX} cy={model.last.y} r="4.5" className="pt-now" />}
         {model.single && points[0]?.y != null && <circle cx={points[0].x} cy={points[0].y} r="6" className="pt-now" />}
         {hp && (
           <g pointerEvents="none">
             <line x1={hp.x} x2={hp.x} y1={padT - 6} y2={H - padB} className="pt-cross" />
-            {hp.y != null && <circle cx={hp.x} cy={hp.y} r="5" className="pt-dot" />}
+            {hp.y != null && <circle cx={hp.x} cy={hp.y} r="4.5" className="pt-dot" />}
           </g>
         )}
       </svg>
       {hp && (
-        <div className="pt-tip" style={{ left: tipLeft }} role="status">
+        <div className="pt-tip" id="pt-tip" style={{ "--tip-x": `${tipLeft}px` }} role="status">
           <b>{hp.price != null ? fmtPrice(hp.price) : "Unavailable"}</b>
           <span>{fmtWhen(hp.observedAt)}</span>
           <span className="pt-tip-src">{hp.price == null ? hp.availability || "Out of stock" : sourceLabel(hp.source)}</span>
+        </div>
+      )}
+      {!model.single && (model.lo || model.hi || model.last) && (
+        <div className="pt-legend" aria-hidden="true">
+          {model.lo && <span><i className="lo" />Lowest</span>}
+          {model.hi && <span><i className="hi" />Highest</span>}
+          {model.last && <span><i className="now" />Latest</span>}
         </div>
       )}
     </div>

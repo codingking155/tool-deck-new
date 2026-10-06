@@ -1,35 +1,120 @@
+/* ═══ My IP & IPv6 Test — Archetype E + network diagnostics. Prefixes: ipt-, dns- ═════════
+   (ip- is taken by the install prompt in styles.css) */
+
+.ipt{display:grid;gap:var(--s5);min-width:0}
+.ipt-na{color:var(--tx3);font-family:var(--body)}
+.ipt-p{font-size:13px;color:var(--tx2);line-height:1.55;margin-bottom:var(--s3)}
+.ipt-h3{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin:var(--s4) 0 var(--s1)}
+
+/* ── hero: the public IP ── */
+.ipt-hero-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--s6);padding:var(--s5) var(--s6) var(--s4)}
+.ipt-hero-main{min-width:0}
+.ipt-hero-main .eyebrow{display:block}
+.ipt-ipblock{margin-top:var(--s2);min-height:104px}
+.ipt-iprow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
+.ipt-ip{font:600 clamp(26px,4vw,40px)/1.1 var(--mono);letter-spacing:-.02em;color:var(--tx);overflow-wrap:anywhere;min-width:0;font-variant-numeric:tabular-nums}
+.ipt-ip.is-na{font:600 var(--fs-2xl) var(--body);color:var(--tx2)}
+.ipt-ver{font:600 10.5px var(--mono);letter-spacing:.08em;color:var(--tx3);border:1px solid var(--line);border-radius:var(--r-xs);padding:2px 6px;flex:none}
+.ipt-iprow.alt{margin-top:var(--s2);align-items:center}
+.ipt-alt{font:500 13.5px var(--mono);color:var(--tx2);overflow-wrap:anywhere;min-width:0}
+.ipt-alt-none{font-size:13px;color:var(--tx3)}
+.ipt-copy{margin-top:var(--s3)}
+.ipt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s4);min-height:22px}
+.ipt-facts{min-width:0;align-self:center}
+.ipt-facts .notice{margin:0}
+.ipt-facts .kv.ipt-fact{align-items:center;min-height:44px;padding-left:0;padding-right:0}
+.ipt-fact .k{display:flex;align-items:center;gap:7px}
+.ipt-fact .k svg{color:var(--tx3);flex:none}
+.ipt-fact .v{font-family:var(--body);font-size:13px}
+.ipt-hero-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap;padding:var(--s3) var(--s6);border-top:1px solid var(--line2);background:var(--bg-secondary)}
+.ipt-hero-foot .hint{margin:0;flex:1 1 280px}
+
+/* skeletons sit in the exact slots the results will fill — no layout shift */
+.ipt-sk-ip{display:block;height:40px;width:min(320px,80%);border-radius:var(--r-sm)}
+.ipt-sk-alt{display:block;height:16px;width:min(220px,60%);margin-top:var(--s3);border-radius:var(--r-xs)}
+.ipt-sk-badge{display:inline-block;height:22px;width:104px;border-radius:var(--r-pill)}
+.ipt-sk-v{display:inline-block;height:12px;width:120px;border-radius:var(--r-xs);vertical-align:middle}
+.ipt-skblock{display:grid;gap:8px;margin-bottom:var(--s3)}
+.ipt-skblock .skel{height:44px}
+.ipt-skblock .skel+.skel{height:14px;width:70%}
+
+/* ── diagnostics sections ── */
+.ipt-diag{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:var(--s5);align-items:start}
+.ipt-sechead{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap;padding:var(--s4) var(--s5) 0}
+.ipt-sechead h2,.ipt-sechead h3{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--tx)}
+.ipt-sechead h3 svg{color:var(--tx3)}
+.ipt-status .badge{height:24px}
+.ipt-status.busy svg{animation:ipt-spin 1s linear infinite}
+@keyframes ipt-spin{to{transform:rotate(360deg)}}
+.ipt-local{display:inline-flex;align-items:center;gap:5px;font:500 11.5px var(--body);color:var(--tx3)}
+.ipt-sec .notice{margin-bottom:var(--s3)}
+
+/* per-platform guidance: progressive disclosure */
+.ipt-tips{list-style:none;margin:0;padding:0;border-top:1px solid var(--line2)}
+.ipt-tips li{border-bottom:1px solid var(--line2)}
+.ipt-tip{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 4px;background:none;border:0;color:var(--tx);font:600 13.5px var(--body);text-align:left;cursor:pointer;border-radius:var(--r-xs)}
+.ipt-tip:hover{background:var(--surface-interactive)}
+.ipt-tip .tn{min-width:0}
+.ipt-tip .chev{margin-left:auto;color:var(--tx3);flex:none;transition:transform var(--dur-2) var(--ease)}
+.ipt-tips li.open .chev{transform:rotate(180deg)}
+.ipt-tipbody{font-size:13px;color:var(--tx2);line-height:1.55;padding:0 4px 12px}
+
+/* ── leak checks ── */
+.ipt-leaks .secbar{margin-top:var(--s2)}
+.ipt-secsub{font-size:12.5px;color:var(--tx3);margin-top:2px}
+.ipt-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s5);align-items:start}
+.ipt-check .btn{margin-top:var(--s1)}
+.ipt-check .hint{margin-top:var(--s3)}
+.ipt-result{margin-bottom:var(--s3)}
+.ipt-kvs .kv .k{flex:1 1 auto}
+.kv.is-flag .k{display:flex;align-items:center;gap:6px;color:var(--tx)}
+.kv.is-flag .k svg{color:var(--warn);flex:none}
+
 /* DNS leak check */
-.dns-card{padding:16px;min-width:0}
-.dns-steps{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px;font-size:13px;color:var(--tx3)}
+.dns-card{min-width:0}
+.dns-steps{list-style:none;margin:0 0 var(--s3);padding:0;display:grid;gap:8px;font-size:13px;color:var(--tx3)}
 .dns-steps li{display:flex;align-items:center;gap:10px}
 .dns-steps li::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid var(--line-strong);flex:none}
 .dns-steps li.done{color:var(--tx2)}
 .dns-steps li.done::before{background:var(--good);border-color:var(--good)}
 .dns-steps li.now{color:var(--tx);font-weight:600}
-.dns-steps li.now::before{border-color:var(--pri2);border-top-color:transparent;animation:dnsspin .8s linear infinite}
-@keyframes dnsspin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.dns-steps li.now::before{animation:none;background:var(--pri2)}}
-.dns-result{margin-top:14px}
-.dns-verdict{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;font-size:13px}
-.dns-verdict b{display:block;font-size:14px;margin-bottom:2px}
-.dns-badge{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--panel);font-weight:800;font-size:13px;margin-top:1px}
-.dns-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
-.dns-stats div{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
-.dns-stats b{display:block;font-family:var(--disp);font-size:20px;color:var(--tx);font-variant-numeric:tabular-nums}
-.dns-stats span{font-size:11px;color:var(--tx3);letter-spacing:.06em;text-transform:uppercase}
-.kv.dns-you{padding:8px 2px;margin-bottom:10px;flex-wrap:wrap}
-.kv.dns-you .v{font-size:12.5px;word-break:normal;overflow-wrap:anywhere;text-align:left}
+.dns-steps li.now::before{border-color:var(--pri2);border-top-color:transparent;animation:ipt-spin .8s linear infinite}
+.dns-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden;margin-bottom:var(--s3)}
+.dns-stats div{background:var(--surface);padding:10px;text-align:center}
+.dns-stats b{display:block;font:600 20px var(--disp);color:var(--tx);font-variant-numeric:tabular-nums}
+.dns-stats span{font:600 10.5px var(--mono);color:var(--tx3);letter-spacing:.06em;text-transform:uppercase}
+.kv.dns-you{margin-bottom:var(--s3);flex-wrap:wrap}
+.kv.dns-you .v{text-align:left}
 .dns-nets{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.dns-net{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.dns-net{border:1px solid var(--line2);border-radius:var(--r);padding:12px 14px;background:var(--bg-secondary)}
 .dns-net-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .dns-net-name{min-width:0}
 .dns-net-name b{display:block;color:var(--tx);font-size:14px}
 .dns-net-name span{font-size:12px;color:var(--tx3)}
-.dns-ips{margin-top:8px}
-.dns-ips summary,.dns-how summary{cursor:pointer;font-size:12px;color:var(--tx3)}
-.dns-ips summary:hover,.dns-how summary:hover{color:var(--pri2)}
-.dns-ips ul{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px}
-.dns-ips li{font-family:var(--mono);font-size:12px;color:var(--tx2);background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:4px 8px;overflow-wrap:anywhere}
-.dns-how{margin-top:12px;font-size:12.5px;color:var(--tx2);line-height:1.55}
-.dns-how p{margin:8px 0 0}
-.dns-how code{font-family:var(--mono);font-size:11.5px}
+.dns-ips{margin-top:6px}
+.dns-ips summary{cursor:pointer;font-size:12px;color:var(--tx2);min-height:32px;display:flex;align-items:center}
+.dns-ips summary:hover{color:var(--tx)}
+.dns-ips ul{list-style:none;margin:4px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px}
+.dns-ips li{font:500 12px var(--mono);color:var(--tx2);background:var(--surface);border:1px solid var(--line2);border-radius:var(--r-sm);padding:4px 8px;overflow-wrap:anywhere}
+.dns-how{font-size:12.5px;color:var(--tx2);line-height:1.55}
+.dns-how p{margin:0 0 var(--s2)}
+.dns-how code{font-family:var(--mono);font-size:11.5px;overflow-wrap:anywhere}
+
+/* ── responsive ── */
+@media(max-width:920px){
+  .ipt-hero-grid{grid-template-columns:1fr;gap:var(--s4)}
+  .ipt-diag,.ipt-pair{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .ipt-hero-grid{padding:var(--s4)}
+  .ipt-hero-foot{padding:var(--s3) var(--s4)}
+  .ipt-sechead{padding:var(--s4) var(--s4) 0}
+  .ipt-ipblock{min-height:0}
+  .ipt-copy .btn.sm,.ipt-hero-foot .btn.sm,.ipt-facts .btn.sm{min-height:44px}
+  .dns-ips summary{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){
+  .ipt-status.busy svg,.dns-steps li.now::before{animation:none}
+  .dns-steps li.now::before{background:var(--pri2)}
+  .ipt-tip .chev{transition:none}
+}

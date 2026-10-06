@@ -1,11 +1,16 @@
 import { useState, useMemo, useRef, useDeferredValue } from "react";
 import {
+  Braces, Minimize2, ListTree, TextSearch, GitCompareArrows, ArrowRightLeft, Wand2, Undo2, FolderOpen,
+  FileJson, Eraser, Download, ArrowLeftRight, CircleCheck, CircleAlert, CircleDashed, Crosshair, LoaderCircle,
+} from "lucide-react";
+import {
   parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, toTypeScript, toJSONSchema,
   queryPath, stats, innerJSON,
 } from "../lib/jsonCore.js";
 import { formatBytes } from "../lib/pageRanges.js";
 import { saveBlob } from "../lib/zip.js";
 import CodeEditor from "../components/CodeEditor.jsx";
+import { CopyButton, Notice, EmptyState } from "../components/ui.jsx";
 import { JsonTree, JsonDiff } from "./JsonParts.jsx";
 import "./css/json.css";
 
@@ -31,40 +36,38 @@ const SAMPLE_B = `{
 }`;
 
 const MODES = [
-  ["format", "Beautify"],
-  ["minify", "Minify"],
-  ["tree", "Tree"],
-  ["path", "Query"],
-  ["diff", "Compare"],
-  ["convert", "Convert"],
+  ["format", "Beautify", Braces],
+  ["minify", "Minify", Minimize2],
+  ["tree", "Tree", ListTree],
+  ["path", "Query", TextSearch],
+  ["diff", "Compare", GitCompareArrows],
+  ["convert", "Convert", ArrowRightLeft],
 ];
 const CONVERTERS = {
-  yaml: ["YAML", "yaml", "text/yaml"],
-  csv: ["CSV (array of objects)", "csv", "text/csv"],
-  ts: ["TypeScript interfaces", "ts", "text/plain"],
-  schema: ["JSON Schema", "schema.json", "application/schema+json"],
-  string: ["Escaped string (for embedding)", "txt", "text/plain"],
+  yaml: ["YAML", "yaml", "text/yaml", "YAML"],
+  csv: ["CSV (array of objects)", "csv", "text/csv", "CSV"],
+  ts: ["TypeScript interfaces", "ts", "text/plain", "TypeScript"],
+  schema: ["JSON Schema", "schema.json", "application/schema+json", "JSON Schema"],
+  string: ["Escaped string (for embedding)", "txt", "text/plain", "Escaped string"],
 };
 const PATH_EXAMPLES = ["$.items[*].sku", "$..id", "$.items[-1]", "$.customer.*"];
+const OUT_LABEL = { format: "Beautified", minify: "Minified", path: "Query result", convert: "Converted", tree: "Tree" };
 const bytes = (s) => new TextEncoder().encode(s).length;
-
-async function copyText(text, notify, what = "Copied") {
-  try { await navigator.clipboard.writeText(text); notify(what); }
-  catch { notify("Copy failed — select the text and copy manually"); }
-}
+const countLines = (s) => { let n = 1; for (let i = s.indexOf("\n"); i !== -1; i = s.indexOf("\n", i + 1)) n++; return n; };
+const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
 
 function ErrorBox({ parsed, repair, onJump, onRepair }) {
   const e = parsed.error;
   return (
-    <div className="note w" style={{ marginBottom: 0 }}>
-      <b>Invalid JSON{e.line ? ` · line ${e.line}, column ${e.col}` : ""} · </b>{e.message}
-      <div className="pillrow" style={{ marginTop: 8 }}>
-        {e.pos != null && <button className="pill" onClick={onJump}>Jump to error</button>}
-        {repair?.ok && <button className="pill" onClick={onRepair} style={{ color: "var(--pri2)", borderColor: "var(--pri-line)" }}>✨ Auto-fix ({repair.fixes.length} fix{repair.fixes.length === 1 ? "" : "es"})</button>}
-      </div>
-      {repair?.ok && <div className="hint" style={{ marginTop: 6 }}>Will apply: {repair.fixes.join(" · ")}</div>}
-      {repair && !repair.ok && <div className="hint" style={{ marginTop: 6 }}>Auto-fix can't repair this one: {repair.error.message}{repair.error.line ? ` (line ${repair.error.line})` : ""}.</div>}
-    </div>
+    <Notice tone="w" title={`Invalid JSON${e.line ? ` · line ${e.line}, column ${e.col}` : ""}`}
+      actions={(e.pos != null || repair?.ok) && <>
+        {e.pos != null && <button type="button" className="btn gh sm" onClick={onJump}><Crosshair size={15} aria-hidden="true" />Jump to error</button>}
+        {repair?.ok && <button type="button" className="btn sm jx-fix" onClick={onRepair}><Wand2 size={15} aria-hidden="true" />Auto-fix ({repair.fixes.length} fix{repair.fixes.length === 1 ? "" : "es"})</button>}
+      </>}>
+      {e.message}
+      {repair?.ok && <div className="hint">Will apply: {repair.fixes.join(" · ")}</div>}
+      {repair && !repair.ok && <div className="hint">Auto-fix can't repair this one: {repair.error.message}{repair.error.line ? ` (line ${repair.error.line})` : ""}.</div>}
+    </Notice>
   );
 }
 
@@ -77,15 +80,23 @@ function previewOf(text) {
   return { text: `${text.slice(0, nl > PREVIEW_CHARS / 2 ? nl : PREVIEW_CHARS)}\n…`, cut: true };
 }
 
-function OutputActions({ text, file, notify }) {
+/* Status line under an editor: validity (icon + word, announced), then cheap counts. */
+function StatusBar({ id, text, parsed, info, pending }) {
+  const lines = useMemo(() => countLines(text), [text]);
+  const size = useMemo(() => (info ? info.bytes : bytes(text)), [info, text]);
+  const state = pending ? "busy" : parsed.ok ? "ok" : parsed.empty ? "empty" : "bad";
+  const Icon = { busy: LoaderCircle, ok: CircleCheck, empty: CircleDashed, bad: CircleAlert }[state];
+  const word = { busy: "Checking…", ok: "Valid JSON", empty: "Empty", bad: "Invalid JSON" }[state];
   return (
-    <>
-      <div className="hint" style={{ marginBottom: 12 }}>{formatBytes(bytes(text))}</div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <button className="btn pri" onClick={() => copyText(text, notify)}>Copy</button>
-        <button className="btn gh" style={{ whiteSpace: "nowrap" }} onClick={() => saveBlob(new Blob([text], { type: file[1] }), file[0])}>Download</button>
-      </div>
-    </>
+    <div className={`jx-status ${state}`} id={id}>
+      <span className="jx-st-v" aria-hidden="true"><Icon size={14} strokeWidth={2.4} />{word}</span>
+      <span className="sr-only" role="status">{parsed.ok ? "Valid JSON" : parsed.empty ? "" : "Invalid JSON"}</span>
+      {state === "bad" && parsed.error?.line ? <span>Ln {parsed.error.line}:{parsed.error.col}</span> : null}
+      <span>{plural(lines, "line")}</span>
+      <span>{plural(text.length, "char")}</span>
+      <span>{formatBytes(size)}</span>
+      {info && !pending && <><span>{plural(info.keys, "key")}</span><span>depth {info.depth}</span></>}
+    </div>
   );
 }
 
@@ -129,6 +140,7 @@ export default function JsonTool({ notify }) {
   const parsedB = useMemo(() => (mode === "diff" ? parseJSON(dInputB) : null), [dInputB, mode]);
   const repair = useMemo(() => (!parsed.ok && !parsed.empty ? repairJSON(dInput) : null), [parsed, dInput]);
   const info = useMemo(() => { try { return parsed.ok ? stats(parsed.value, dInput) : null; } catch { return null; } }, [parsed, dInput]);
+  const infoB = useMemo(() => { try { return parsedB?.ok ? stats(parsedB.value, dInputB) : null; } catch { return null; } }, [parsedB, dInputB]);
   const inner = useMemo(() => { try { return parsed.ok ? innerJSON(parsed.value) : null; } catch { return null; } }, [parsed]);
 
   const out = useMemo(() => {
@@ -138,6 +150,7 @@ export default function JsonTool({ notify }) {
   }, [parsed, mode, indent, sortKeys, path, conv, rootName]);
 
   const shownOut = useMemo(() => (out?.text != null ? previewOf(out.text) : null), [out]);
+  const outBytes = useMemo(() => (out?.text != null ? bytes(out.text) : 0), [out]);
 
   const replaceInput = (next, msg) => {
     setUndo(input);
@@ -179,157 +192,207 @@ export default function JsonTool({ notify }) {
   };
 
   const pending = dInput !== input;
+  const pendingB = dInputB !== inputB;
   /* Only take over drops that carry files; dropped text keeps the browser's default insert. */
   const dropTo = (setter) => (e) => { if (e.dataTransfer.files?.length) { e.preventDefault(); loadFile(e.dataTransfer.files[0], setter); } };
+  const openA = () => fileA.current?.click();
+  const loadExample = () => replaceInput(SAMPLE);
+  const isDiff = mode === "diff";
+  const hasOut = !!(parsed.ok && out && out.text != null);
+  const hasMsgs = (!parsed.ok && !parsed.empty) || applied || (parsed.ok && parsed.bigNumbers > 0) || inner;
 
   return (
-    <div>
-      <div className="modes" role="group" aria-label="Output">
-        {MODES.map(([k, label]) => (
-          <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>{label}</button>
-        ))}
-      </div>
-
-      <div className="grid2">
-        <div className="panel rise d1">
-          <div className="ph"><h2>{mode === "diff" ? "Original (A)" : "Input"}</h2><p>Paste, drop or open a file. <kbd>Ctrl/⌘ + Enter</kbd> beautifies in place.</p></div>
-          <div className="pb">
-            <CodeEditor id="json-in" label="JSON input" value={input} onChange={onType} taRef={inputRef} onKeyDown={onKeyDown}
-              errorLine={!parsed.ok && !pending ? parsed.error?.line : null} placeholder='{"paste": "JSON here"}'
-              onDrop={dropTo(setInput)} />
-            <div style={{ marginTop: 10 }}>
-              {parsed.ok ? (
-                <div className="hint" style={{ color: "var(--good)", marginTop: 0 }}>
-                  ✓ Valid JSON{info && <> · {info.keys.toLocaleString()} keys · {info.nodes.toLocaleString()} values · depth {info.depth} · {formatBytes(info.bytes)}</>}
-                </div>
-              ) : parsed.empty ? (
-                <div className="hint" style={{ marginTop: 0 }}>{parsed.error.message}</div>
-              ) : (
-                <ErrorBox parsed={parsed} repair={repair} onJump={jumpToError} onRepair={doRepair} />
-              )}
-              {applied && (
-                <div className="note i" style={{ marginTop: 10, marginBottom: 0 }}>
-                  <b>Repaired · </b>{applied.join(" · ")}. Check the result — fixes are best guesses.
-                </div>
-              )}
-              {parsed.ok && parsed.bigNumbers > 0 && (
-                <div className="note i" style={{ marginTop: 10, marginBottom: 0 }}>
-                  <b>{parsed.bigNumbers} large number{parsed.bigNumbers === 1 ? "" : "s"} kept exactly · </b>
-                  Values like IDs beyond 2⁵³ are rounded by JavaScript's JSON.parse. This tool preserves their original digits in every output.
-                </div>
-              )}
-              {inner && (
-                <div className="note i" style={{ marginTop: 10, marginBottom: 0 }}>
-                  <b>This is JSON inside a string · </b>
-                  <button className="pill" onClick={() => replaceInput(formatJSON(inner.value, indent), "Unwrapped")}>Unwrap it</button>
-                </div>
-              )}
-            </div>
-            <div className="pillrow" style={{ marginTop: 12 }}>
-              <button type="button" className="pill" onClick={() => fileA.current?.click()}>Open file</button>
-              <input ref={fileA} type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
-              <button className="pill" onClick={() => replaceInput(SAMPLE)}>Sample</button>
-              <button className="pill" onClick={() => replaceInput("")}>Clear</button>
-              {parsed.ok && <button className="pill" onClick={beautifyInPlace}>Beautify input</button>}
-              {parsed.ok && <button className="pill" onClick={() => replaceInput(minifyJSON(parsed.value), "Minified")}>Minify input</button>}
-              {parsed.ok && !sortKeys && <button className="pill" onClick={() => replaceInput(formatJSON(parsed.value, indent, true), "Keys sorted")}>Sort keys</button>}
-              {undo !== null && <button className="pill" onClick={() => { setInput(undo); setUndo(null); setApplied(null); }}>↶ Undo</button>}
-            </div>
-          </div>
+    <div className="jx">
+      <div className="jx-bar">
+        <div className="modes jx-modes" role="group" aria-label="Output">
+          {MODES.map(([k, label, Icon]) => (
+            <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>
+              <Icon size={15} aria-hidden="true" />{label}
+            </button>
+          ))}
         </div>
-
-        <div className="panel rise d2">
-          {mode === "diff" ? (
+        <div className="jx-acts">
+          {hasOut && (
             <>
-              <div className="ph"><h2>Changed (B)</h2><p>Paste the version to compare against A.</p></div>
-              <div className="pb">
-                <CodeEditor id="json-b" label="JSON to compare" value={inputB} onChange={(e) => setInputB(e.target.value)} height={240}
-                  errorLine={parsedB && !parsedB.ok ? parsedB.error?.line : null}
-                  onDrop={dropTo(setInputB)} />
-                <div className="pillrow" style={{ marginTop: 10 }}>
-                  <button type="button" className="pill" onClick={() => fileB.current?.click()}>Open file</button>
-                  <input ref={fileB} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
-                  <button className="pill" onClick={() => { const a = input; setInput(inputB); setInputB(a); }}>⇄ Swap A and B</button>
-                </div>
-                {!parsed.ok ? <div className="empty">Fix A to compare.</div>
-                  : parsedB && !parsedB.ok ? <div className="note w" style={{ marginTop: 12 }}><b>B is invalid{parsedB.error.line ? ` · line ${parsedB.error.line}` : ""} · </b>{parsedB.error.message}</div>
-                  : parsedB && <JsonDiff a={parsed.value} b={parsedB.value} notify={notify} />}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="ph">
-                <h2>{mode === "tree" ? "Tree" : "Output"}</h2>
-                <p>{mode === "path" ? "Pick values with JSONPath-style queries." : mode === "tree" ? "Browse, search and copy paths." : mode === "convert" ? "Generate types, schemas and other formats." : "Updates live."}</p>
-              </div>
-              <div className="pb">
-                {(mode === "format" || mode === "minify") && (
-                  <div className="two">
-                    {mode === "format" ? (
-                      <div className="field">
-                        <label htmlFor="json-ind">Indent</label>
-                        <select id="json-ind" value={indent} onChange={(e) => setIndent(e.target.value)}>
-                          <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tab</option>
-                        </select>
-                      </div>
-                    ) : <div />}
-                    <div className="field">
-                      <label htmlFor="json-sort">Keys</label>
-                      <select id="json-sort" value={sortKeys ? "sort" : "keep"} onChange={(e) => setSortKeys(e.target.value === "sort")}>
-                        <option value="keep">Original order</option><option value="sort">Sort A → Z (deep)</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-                {mode === "path" && (
-                  <div className="field">
-                    <label htmlFor="json-path">Path</label>
-                    <input id="json-path" value={path} onChange={(e) => setPath(e.target.value)} spellCheck={false} autoCapitalize="off" placeholder="$.users[0].name" />
-                    <div className="pillrow" style={{ marginTop: 8 }}>
-                      {PATH_EXAMPLES.map((p) => <button key={p} className="pill" onClick={() => setPath(p)}>{p}</button>)}
-                    </div>
-                    <div className="hint"><code>.key</code> child · <code>[0]</code> / <code>[-1]</code> index · <code>[*]</code> or <code>.*</code> every child · <code>..key</code> search all depths · <code>['a b']</code> keys with spaces</div>
-                  </div>
-                )}
-                {mode === "convert" && (
-                  <div className={conv === "ts" ? "two" : ""}>
-                    <div className="field">
-                      <label htmlFor="json-conv">Convert to</label>
-                      <select id="json-conv" value={conv} onChange={(e) => setConv(e.target.value)}>
-                        {Object.entries(CONVERTERS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}
-                      </select>
-                    </div>
-                    {conv === "ts" && (
-                      <div className="field">
-                        <label htmlFor="json-root">Root type name</label>
-                        <input id="json-root" value={rootName} onChange={(e) => setRootName(e.target.value)} spellCheck={false} autoCapitalize="off" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!parsed.ok ? (
-                  <div className="empty">{parsed.empty ? "Paste JSON on the left to start." : "Fix the input to see the output — or try ✨ Auto-fix."}</div>
-                ) : mode === "tree" ? (
-                  <JsonTree value={parsed.value} notify={notify} onQuery={(p) => { setPath(p); setMode("path"); }} />
-                ) : out.note ? (
-                  <div className="note i"><b>Note · </b>{out.note}</div>
-                ) : (
-                  <>
-                    {out.count > 1 && <div className="hint" style={{ margin: "0 0 8px" }}>{out.count.toLocaleString()} matches</div>}
-                    <CodeEditor id="json-out" label="Output" value={shownOut.text} readOnly height={mode === "format" || mode === "minify" ? 330 : 300} />
-                    {shownOut.cut && <div className="hint">Large result — showing a preview. Copy and Download include everything.</div>}
-                    {mode === "minify" && info && (
-                      <div className="hint">{Math.max(0, Math.round((1 - bytes(out.text) / info.bytes) * 100))}% smaller than the input</div>
-                    )}
-                    <div style={{ marginTop: 6 }}><OutputActions text={out.text} file={out.file} notify={notify} /></div>
-                  </>
-                )}
-              </div>
+              <CopyButton text={() => out.text} label="Copy" className="btn gh sm" notify={notify} toast="Copied" title="Copy the full output" />
+              <button type="button" className="btn gh sm" onClick={() => saveBlob(new Blob([out.text], { type: out.file[1] }), out.file[0])} title={`Download ${out.file[0]}`}>
+                <Download size={15} aria-hidden="true" />Download
+              </button>
             </>
           )}
+          <button type="button" className="btn gh sm" onClick={() => replaceInput("")} disabled={!input} title="Clear the input (Undo brings it back)">
+            <Eraser size={15} aria-hidden="true" />Clear
+          </button>
         </div>
       </div>
+
+      <div className="jx-work">
+        <section className="jx-pane" aria-labelledby="jx-in-h">
+          <header className="jx-ph">
+            <h2 id="jx-in-h">{isDiff ? "Original (A)" : "Input"}</h2>
+            <span className="jx-kbd">
+              <kbd className="kbd">Ctrl/⌘</kbd><kbd className="kbd">Enter</kbd> beautifies in place
+            </span>
+            <div className="jx-ph-a">
+              {undo !== null && <button type="button" className="btn qt sm" onClick={() => { setInput(undo); setUndo(null); setApplied(null); }}><Undo2 size={15} aria-hidden="true" />Undo</button>}
+              <button type="button" className="btn qt sm" onClick={openA}><FolderOpen size={15} aria-hidden="true" />Open file</button>
+              <input ref={fileA} type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
+              <button type="button" className="btn qt sm" onClick={loadExample}><FileJson size={15} aria-hidden="true" />Sample</button>
+            </div>
+          </header>
+          <CodeEditor id="json-in" label="JSON input" value={input} onChange={onType} taRef={inputRef} onKeyDown={onKeyDown} height={440}
+            errorLine={!parsed.ok && !pending ? parsed.error?.line : null} placeholder='{"paste": "JSON here"} — or drop a .json file'
+            invalid={!parsed.ok && !parsed.empty && !pending} describedBy="jx-st-a"
+            onDrop={dropTo(setInput)} />
+          <StatusBar id="jx-st-a" text={dInput} parsed={parsed} info={info} pending={pending} />
+          {parsed.ok && (
+            <div className="jx-inplace" role="group" aria-label="Rewrite the input in place">
+              <span className="jx-lab">In place</span>
+              <button type="button" className="btn gh sm" onClick={beautifyInPlace}><Braces size={15} aria-hidden="true" />Beautify input</button>
+              <button type="button" className="btn gh sm" onClick={() => replaceInput(minifyJSON(parsed.value), "Minified")}><Minimize2 size={15} aria-hidden="true" />Minify input</button>
+              {!sortKeys && <button type="button" className="btn gh sm" onClick={() => replaceInput(formatJSON(parsed.value, indent, true), "Keys sorted")}>Sort keys</button>}
+            </div>
+          )}
+          {hasMsgs && (
+            <div className="jx-msgs">
+              {!parsed.ok && !parsed.empty && <ErrorBox parsed={parsed} repair={repair} onJump={jumpToError} onRepair={doRepair} />}
+              {applied && (
+                <Notice tone="i" title="Repaired">
+                  Check the result — fixes are best guesses.
+                  <ul className="jx-fixes">{applied.map((f, i) => <li key={i}>{f}</li>)}</ul>
+                </Notice>
+              )}
+              {parsed.ok && parsed.bigNumbers > 0 && (
+                <Notice tone="i" title={`${parsed.bigNumbers} large number${parsed.bigNumbers === 1 ? "" : "s"} kept exactly`}>
+                  Values like IDs beyond 2⁵³ are rounded by JavaScript's JSON.parse. This tool preserves their original digits in every output.
+                </Notice>
+              )}
+              {inner && (
+                <Notice tone="i" title="This is JSON inside a string"
+                  actions={<button type="button" className="btn gh sm" onClick={() => replaceInput(formatJSON(inner.value, indent), "Unwrapped")}>Unwrap it</button>}>
+                  It was encoded as a string; unwrap it to work with the real structure.
+                </Notice>
+              )}
+            </div>
+          )}
+        </section>
+
+        {isDiff ? (
+          <section className="jx-pane" aria-labelledby="jx-b-h">
+            <header className="jx-ph">
+              <h2 id="jx-b-h">Changed (B)</h2>
+              <div className="jx-ph-a">
+                <button type="button" className="btn qt sm" onClick={() => { const a = input; setInput(inputB); setInputB(a); }}><ArrowLeftRight size={15} aria-hidden="true" />Swap A and B</button>
+                <button type="button" className="btn qt sm" onClick={() => fileB.current?.click()}><FolderOpen size={15} aria-hidden="true" />Open file</button>
+                <input ref={fileB} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
+              </div>
+            </header>
+            <CodeEditor id="json-b" label="JSON to compare" value={inputB} onChange={(e) => setInputB(e.target.value)} height={440}
+              errorLine={parsedB && !parsedB.ok && !pendingB ? parsedB.error?.line : null} placeholder="Paste the version to compare against A"
+              invalid={!!parsedB && !parsedB.ok && !parsedB.empty && !pendingB} describedBy="jx-st-b"
+              onDrop={dropTo(setInputB)} />
+            {parsedB && <StatusBar id="jx-st-b" text={dInputB} parsed={parsedB} info={infoB} pending={pendingB} />}
+          </section>
+        ) : (
+          <section className="jx-pane jx-out" aria-labelledby="jx-out-h">
+            <header className="jx-ph">
+              <h2 id="jx-out-h">{OUT_LABEL[mode]}</h2>
+              {mode === "convert" && <span className="jx-ph-sub">→ {CONVERTERS[conv][3]}</span>}
+              <div className="jx-ph-a jx-meta">
+                {hasOut && out.count > 1 && <span>{out.count.toLocaleString()} matches</span>}
+                {hasOut && <span>{formatBytes(outBytes)}</span>}
+                {hasOut && mode === "minify" && info && <span>{Math.max(0, Math.round((1 - outBytes / info.bytes) * 100))}% smaller than the input</span>}
+              </div>
+            </header>
+
+            {(mode === "format" || mode === "minify") && (
+              <div className="jx-opts">
+                {mode === "format" && (
+                  <div className="jx-opt">
+                    <label htmlFor="json-ind">Indent</label>
+                    <select id="json-ind" value={indent} onChange={(e) => setIndent(e.target.value)}>
+                      <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">Tab</option>
+                    </select>
+                  </div>
+                )}
+                <div className="jx-opt">
+                  <label htmlFor="json-sort">Keys</label>
+                  <select id="json-sort" value={sortKeys ? "sort" : "keep"} onChange={(e) => setSortKeys(e.target.value === "sort")}>
+                    <option value="keep">Original order</option><option value="sort">Sort A → Z (deep)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            {mode === "path" && (
+              <div className="jx-opts col">
+                <div className="jx-opt grow">
+                  <label htmlFor="json-path">Path</label>
+                  <input id="json-path" value={path} onChange={(e) => setPath(e.target.value)} spellCheck={false} autoCapitalize="off" placeholder="$.users[0].name" aria-describedby="json-path-h" />
+                </div>
+                <div className="jx-ex" role="group" aria-label="Example paths">
+                  {PATH_EXAMPLES.map((p) => <button key={p} type="button" className="pill" aria-pressed={path === p} onClick={() => setPath(p)}>{p}</button>)}
+                </div>
+                <div className="hint" id="json-path-h"><code>.key</code> child · <code>[0]</code> / <code>[-1]</code> index · <code>[*]</code> or <code>.*</code> every child · <code>..key</code> search all depths · <code>['a b']</code> keys with spaces</div>
+              </div>
+            )}
+            {mode === "convert" && (
+              <div className="jx-opts">
+                <div className="seg jx-conv" role="group" aria-label="Convert to">
+                  {Object.entries(CONVERTERS).map(([k, [l, , , short]]) => (
+                    <button key={k} type="button" aria-pressed={conv === k} title={l} onClick={() => setConv(k)}>{short}</button>
+                  ))}
+                </div>
+                {conv === "ts" && (
+                  <div className="jx-opt">
+                    <label htmlFor="json-root">Root type name</label>
+                    <input id="json-root" value={rootName} onChange={(e) => setRootName(e.target.value)} spellCheck={false} autoCapitalize="off" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="jx-body">
+              {!parsed.ok ? (
+                parsed.empty ? (
+                  <EmptyState icon={FileJson} title="Paste JSON to start"
+                    actions={<>
+                      <button type="button" className="btn gh sm" onClick={loadExample}><FileJson size={15} aria-hidden="true" />Load example</button>
+                      <button type="button" className="btn gh sm" onClick={openA}><FolderOpen size={15} aria-hidden="true" />Open file</button>
+                    </>}>
+                    Paste or drop JSON into the input. It's checked as you type and never leaves your device.
+                  </EmptyState>
+                ) : (
+                  <EmptyState icon={CircleAlert} title="Fix the input to see the output"
+                    actions={repair?.ok && <button type="button" className="btn gh sm" onClick={doRepair}><Wand2 size={15} aria-hidden="true" />Auto-fix</button>}>
+                    {repair?.ok ? "Fix it by hand, or let Auto-fix repair it." : "The error is marked in the input."}
+                  </EmptyState>
+                )
+              ) : mode === "tree" ? (
+                <JsonTree value={parsed.value} notify={notify} onQuery={(p) => { setPath(p); setMode("path"); }} />
+              ) : out.note ? (
+                <Notice tone="i" title="Note">{out.note}</Notice>
+              ) : (
+                <>
+                  <CodeEditor id="json-out" label="Output" value={shownOut.text} readOnly height={mode === "path" || mode === "convert" ? 340 : 390} />
+                  {shownOut.cut && <div className="hint jx-cut">Large result — showing a preview. Copy and Download include everything.</div>}
+                </>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {isDiff && (
+        <section className="jx-diff" aria-labelledby="jx-diff-h">
+          <h2 id="jx-diff-h" className="jx-diff-h">Differences</h2>
+          {!parsed.ok ? <EmptyState icon={CircleAlert} title="Fix A to compare.">The original (A) needs to be valid JSON first.</EmptyState>
+            : parsedB && !parsedB.ok ? (
+              parsedB.empty ? <EmptyState icon={GitCompareArrows} title="Paste B to compare">Add the changed version on the right.</EmptyState>
+                : <Notice tone="w" title={`B is invalid${parsedB.error.line ? ` · line ${parsedB.error.line}` : ""}`}>{parsedB.error.message}</Notice>
+            )
+              : parsedB && <JsonDiff a={parsed.value} b={parsedB.value} notify={notify} />}
+        </section>
+      )}
     </div>
   );
 }
