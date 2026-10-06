@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyzeShopify, buildReport, SHOPIFY_SIGNALS } from "../shared/shopifyCore/detect.mjs";
+import { analyzeShopify, applyProbeSignals, buildReport, SHOPIFY_SIGNALS } from "../shared/shopifyCore/detect.mjs";
 
 /* ── realistic fixtures ─────────────────────────────────────────────── */
 
@@ -92,6 +92,27 @@ test("infrastructure subdomains are never reported as the shop identity", () => 
 
 test("shop domain is lowercased and picked from URL or HTML", () => {
   assert.equal(analyzeShopify("", "https://ACME-BLR.myshopify.com").shopDomain, "acme-blr.myshopify.com");
+});
+
+test("an infrastructure reference first does not hide the real shop domain", () => {
+  const html = `<script src="https://checkout.myshopify.com/a.js"></script><a href="https://neels-online.myshopify.com/x">`;
+  assert.equal(analyzeShopify(html, "https://neelsonline.com").shopDomain, "neels-online.myshopify.com");
+});
+
+test("explicit Shopify.shop assignment beats incidental app references", () => {
+  const html = `<script src="https://app.example/a.js?shop=some-app.myshopify.com"></script>
+<script src="https://app.example/b.js?shop=some-app.myshopify.com"></script>
+<script>Shopify.shop = "real-store.myshopify.com";</script>`;
+  assert.equal(analyzeShopify(html, "https://real.in").shopDomain, "real-store.myshopify.com");
+});
+
+test("/meta.json fills in the shop domain when the page has none, without scoring", () => {
+  const base = analyzeShopify(`<link href="https://cdn.shopify.com/s.css" rel="stylesheet">`, "https://neelsonline.com");
+  assert.equal(base.shopDomain, null);
+  const r = applyProbeSignals(base, { meta: { domain: "Neels-Online.myshopify.com" } });
+  assert.equal(r.shopDomain, "neels-online.myshopify.com");
+  assert.equal(r.confidence, base.confidence);
+  assert.equal(applyProbeSignals(base, { meta: { domain: "evil.example.com" } }).shopDomain, null);
 });
 
 /* ── scoring properties ─────────────────────────────────────────────── */

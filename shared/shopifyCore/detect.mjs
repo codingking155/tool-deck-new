@@ -61,6 +61,41 @@ export function detectPlatform(html) {
   return null;
 }
 
+/* ── store-domain extraction ─────────────────────────────────────────
+      Every store has a permanent <name>.myshopify.com identity. Explicit
+      assignments (Shopify.shop = "…", "myshopify_domain") are authoritative;
+      otherwise the most-referenced non-infrastructure subdomain wins — the
+      first reference is often an app/CDN host, not the shop. ─────────────── */
+
+const INFRA_SUBDOMAINS = /^(?:cdn|checkout|admin|api|help|apps|accounts|www|partners|community|shopify|status)$/i;
+const AUTHORITATIVE_DOMAIN_RES = [
+  /Shopify\.shop\s*=\s*["']([a-z0-9][a-z0-9-]{0,60})\.myshopify\.com["']/i,
+  /["'](?:myshopify_domain|permanent_domain|shopDomain|shop)["']\s*:\s*["']([a-z0-9][a-z0-9-]{0,60})\.myshopify\.com["']/i,
+];
+
+/** Normalise a candidate to "<name>.myshopify.com", or null if it isn't a shop identity. */
+export function normalizeShopDomain(value) {
+  const m = String(value ?? "").trim().toLowerCase().match(/^(?:https?:\/\/)?([a-z0-9][a-z0-9-]{0,60})\.myshopify\.com\.?(?:[/:?#].*)?$/);
+  return m && !INFRA_SUBDOMAINS.test(m[1]) ? `${m[1]}.myshopify.com` : null;
+}
+
+export function extractShopDomain(html, host = "") {
+  const fromHost = normalizeShopDomain(host);
+  if (fromHost) return fromHost;
+  for (const re of AUTHORITATIVE_DOMAIN_RES) {
+    const d = normalizeShopDomain(`${html.match(re)?.[1] ?? ""}.myshopify.com`);
+    if (d) return d;
+  }
+  const counts = new Map();
+  for (const m of html.matchAll(/(?<![a-z0-9-])([a-z0-9][a-z0-9-]{0,60})\.myshopify\.com/gi)) {
+    const d = normalizeShopDomain(`${m[1]}.myshopify.com`);
+    if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
+  }
+  let best = null, n = 0;
+  for (const [d, c] of counts) if (c > n) { best = d; n = c; }
+  return best;
+}
+
 export function analyzeShopify(html, url = "") {
   const hits = [];
   let score = 0, plus = false, conclusiveHost = false;
@@ -94,9 +129,7 @@ export function analyzeShopify(html, url = "") {
   /* extraction */
   const themeMatch = html.match(/Shopify\.theme\s*=\s*{[^}]*"name"\s*:\s*"([^"]+)"/i) || html.match(/"theme_name"\s*:\s*"([^"]+)"/i);
   const themeStoreId = html.match(/"theme_store_id"\s*:\s*(\d+)/i)?.[1] ?? null;
-  const domMatch = (url + " " + html).match(/([a-z0-9][a-z0-9-]{1,60})\.myshopify\.com/i);
-  const shopDomain = domMatch && !/^(cdn|checkout|admin|api|help|apps|accounts)$/i.test(domMatch[1])
-    ? `${domMatch[1].toLowerCase()}.myshopify.com` : null;
+  const shopDomain = extractShopDomain(html, host);
   const currencyMatch = html.match(/Shopify\.currency\s*=\s*{[^}]*"active"\s*:\s*"([A-Z]{3})"/i);
   const locale = html.match(/Shopify\.locale\s*=\s*"([a-z]{2}(?:-[A-Z]{2})?)"/i)?.[1] ?? null;
   const country = html.match(/Shopify\.country\s*=\s*"([A-Z]{2})"/i)?.[1] ?? null;
@@ -156,10 +189,15 @@ export const PROBE_SIGNALS = [
       cart?:     { json: bool, token: bool, currency?: string },
       products?: { json: bool, count?: number },
       robots?:   { shopify: bool },
+      meta?:     { domain?: string },   // /meta.json "myshopify_domain"
     } — absence of an endpoint is NOT negative evidence (headless stores
     legitimately disable storefront routes), so probes only ever add. */
 export function applyProbeSignals(res, probes) {
   if (!probes) return res;
+  /* /meta.json names the store's permanent domain but isn't scored: it only
+     fills the identity in when the page didn't give it away */
+  const metaDomain = normalizeShopDomain(probes.meta?.domain);
+  if (metaDomain && !res.shopDomain) res = { ...res, shopDomain: metaDomain };
   let extra = 0;
   const hits = [...res.hits];
   const add = (sig) => { extra += sig.w; hits.push({ label: sig.label, w: sig.w }); };

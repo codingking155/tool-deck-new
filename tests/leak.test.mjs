@@ -97,3 +97,26 @@ test("runDnsLeakTest: hanging probes and a hanging result call time out instead 
   setTimeout(() => ctrl.abort(), 20);
   await assert.rejects(p, (e) => e.name === "AbortError");
 });
+
+test("dnsVerdict groups resolvers by network, sorts IPs numerically and compares with your network", async () => {
+  const { dnsVerdict, parseAsn, compareIp } = await import("../src/lib/leak.js");
+  assert.deepEqual(parseAsn("AS15169 Google LLC"), { number: 15169, name: "Google LLC" });
+  assert.deepEqual(["172.217.34.208", "74.125.178.144", "9.9.9.9", "2001:db8::1"].sort(compareIp), ["9.9.9.9", "74.125.178.144", "172.217.34.208", "2001:db8::1"]);
+  const g = (ip) => ({ ip, country: "United States of America", asn: "AS15169 Google LLC" });
+  const you = { ip: "203.0.113.9", country: "India", asn: "AS55836 Reliance Jio" };
+  const pub = dnsVerdict({ resolvers: [g("172.217.34.208"), g("74.125.178.144"), g("74.125.178.144")], you });
+  assert.equal(pub.level, "public"); assert.equal(pub.count, 2); assert.equal(pub.networks.length, 1);
+  assert.deepEqual(pub.networks[0].ips, ["74.125.178.144", "172.217.34.208"]);
+  assert.equal(pub.networks[0].publicResolver, "Google Public DNS");
+  const isp = { ip: "49.36.0.1", country: "India", asn: "AS55836 Reliance Jio" };
+  assert.equal(dnsVerdict({ resolvers: [isp], you }).level, "same");
+  assert.equal(dnsVerdict({ resolvers: [isp, g("8.8.8.8")], you }).level, "mixed");
+  assert.equal(dnsVerdict({ resolvers: [isp], you: { ip: "1.2.3.4", asn: "AS9009 M247" } }).level, "other");
+  assert.equal(dnsVerdict({ resolvers: [isp], you: null }).level, "unknown");
+  assert.equal(dnsVerdict({ resolvers: [], you }).level, "none");
+});
+
+test("parseDnsLeak reports the address the test came from", () => {
+  const p = parseDnsLeak([{ type: "ip", ip: "203.0.113.9", country_name: "India", asn: "AS1 X" }]);
+  assert.deepEqual(p.you, { ip: "203.0.113.9", country: "India", asn: "AS1 X" });
+});
