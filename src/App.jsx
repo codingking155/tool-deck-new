@@ -15,6 +15,7 @@ import CornerWebs from "./components/CornerWebs.jsx";
 import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 const Analytics = lazy(() => import("./pages/Analytics.jsx"));
 
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
@@ -215,6 +216,7 @@ export default function App() {
       <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />
       <InstallPrompt />
       <Toast msg={toast} />
+      <SpeedInsights />
     </div>
   );
 }
