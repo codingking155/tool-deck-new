@@ -4,7 +4,7 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
-  { id: "ytdownloader", beta: true, where: "server", cat: "Files & documents", icon: "🎬", c: "#EF4444", name: "YouTube Video Downloader", desc: "Save videos you own or have permission to use — any available quality up to 4K, or MP3/M4A audio.", pv: "film",
+  { id: "ytdownloader", kw: "youtube yt video mp4 mp3 m4a audio download save 4k", beta: true, where: "server", cat: "Files & documents", icon: "🎬", c: "#EF4444", name: "YouTube Video Downloader", desc: "Save videos you own or have permission to use — any available quality up to 4K, or MP3/M4A audio.", pv: "film",
     blurb: "Paste a YouTube link to see its thumbnail, title, channel and duration, then download it in any quality the video actually offers (up to 4K) or extract MP3/M4A audio, with live progress. Only for videos you own or have permission to download — private, members-only, paid and region-locked videos stay that way.",
     faqs: [
       ["What am I allowed to download?", "Only videos you own, have the rights holder's permission to download, or that are licensed for downloading (for example under Creative Commons). Respect copyright and YouTube's Terms of Service."],
@@ -12,7 +12,7 @@ export const TOOLS = [
       ["Why isn't 4K or 1080p listed?", "Only qualities YouTube actually reports for that video are shown. If it was uploaded in 720p, the highest option is 720p."],
       ["Are my files or links stored?", "No. Each download is processed in a temporary folder on ToolDeck's download service and deleted as soon as it has been sent to you; anything left behind is removed automatically within half an hour."],
     ] },
-  { id: "utc", where: "device", cat: "Time & network", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Wait time from an order to the next send time in any timezone — UTC timestamps, an hourly table, weekend skipping and calendar export.", pv: "utc",
+  { id: "utc", kw: "utc wait time timezone tz send schedule order notification dst calendar ics clock", where: "device", cat: "Time & network", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Wait time from an order to the next send time in any timezone — UTC timestamps, an hourly table, weekend skipping and calendar export.", pv: "utc",
     blurb: "Work out the wait between an order and the next target send time in any timezone, with both UTC timestamps, a live countdown, an hourly what-if table, optional weekend skipping and .ics or Google Calendar export. Runs entirely in your browser.",
     faqs: [
       ["How is the wait calculated?", "Pick the customer's timezone, the order date and time, and the target send time. The tool finds the next matching local send time after the order, or uses a fixed send date if you set one, and shows the wait with both UTC timestamps."],
@@ -20,28 +20,28 @@ export const TOOLS = [
       ["Can it skip weekends?", "Yes. Turn on Skip weekends and any send that would land on Saturday or Sunday moves to Monday. It is off by default."],
       ["Can I add the send time to my calendar?", "Yes — download an .ics file or open a pre-filled Google Calendar event. Nothing you enter is stored anywhere, and presets stay on your device."],
     ] },
-  { id: "phone", where: "device", cat: "Time & network", icon: "📞", c: "#06B6D4", name: "Phone → Country", desc: "Paste any number, instantly see its country, flag, formats and timezone.", pv: "globe",
+  { id: "phone", kw: "phone number country code dial calling prefix e164 flag whatsapp mobile", where: "device", cat: "Time & network", icon: "📞", c: "#06B6D4", name: "Phone → Country", desc: "Paste any number, instantly see its country, flag, formats and timezone.", pv: "globe",
     blurb: "Paste any phone number to instantly see its country, flag, international and E.164 formats, and local timezone. Detection is by dialing prefix and never reveals the owner or live location.",
     faqs: [
       ["How do you find the country of a phone number?", "The tool reads the international dialing prefix (like +91 or +44) and matches it against an indexed list of country codes."],
       ["Can this tool locate a person?", "No. It only shows the numbering country or region a number belongs to — never the owner, device, or live location."],
       ["Do I need the + prefix?", "Adding the international prefix gives the most accurate result. Without it, the tool marks the guess as assumed."],
     ] },
-  { id: "shopifydetector", where: "server", cat: "Shopping & web", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "lens",
+  { id: "shopifydetector", kw: "shopify store detector ecommerce platform website checker myshopify", where: "server", cat: "Shopping & web", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "lens",
     blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Runs on ToolDeck's own detection service.",
     faqs: [
       ["What does the Shopify detector do?", "Enter a website URL and the tool checks if it's a Shopify store, returning a confidence score, detected shop domain, and technical signals."],
       ["How accurate is the detection?", "ToolDeck's own detection service checks response headers, page markup and live Shopify endpoints (/cart.js, /products.json) to determine Shopify usage with a confidence percentage."],
       ["Can I check multiple stores at once?", "Currently the tool checks one URL at a time. Enter the domain and wait for the result, then check another if needed."],
     ] },
-  { id: "speed", where: "server", cat: "Time & network", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
+  { id: "speed", kw: "speed test internet bandwidth download upload ping latency jitter mbps wifi", where: "server", cat: "Time & network", icon: "⚡", c: "#EAB308", name: "Internet Speed Test", desc: "Download, upload, idle and loaded latency, jitter — with honest Unavailable for what browsers can't measure.", pv: "gauge",
     blurb: "Measure ping, jitter, download and upload speed from your browser against a global edge network — no redirects, no app. A full run transfers roughly 20–35 MB.",
     faqs: [
       ["How much data does a speed test use?", "A full run transfers roughly 20–35 MB."],
       ["What is a good ping and download speed?", "Under 60 ms ping suits gaming; 25 Mbps download handles 4K streaming; 20 Mbps down and 5 up covers most work-from-home needs."],
       ["Why did the test not run?", "Sandboxed previews block outside network calls. Deploy the site or open it directly and it runs against the live measurement endpoints."],
     ] },
-  { id: "ip", where: "server", cat: "Time & network", icon: "🌐", c: "#8B5CF6", name: "My IP & IPv6 Test", desc: "Public IPv4/IPv6, ISP, and honest IPv6 guidance with enable steps.", pv: "packets",
+  { id: "ip", kw: "ip address ipv4 ipv6 my ip isp vpn webrtc dns leak network", where: "server", cat: "Time & network", icon: "🌐", c: "#8B5CF6", name: "My IP & IPv6 Test", desc: "Public IPv4/IPv6, ISP, and honest IPv6 guidance with enable steps.", pv: "packets",
     blurb: "See your public IPv4 and IPv6 addresses, ISP, and browser details, with honest guidance for enabling IPv6 on Android, iPhone, Windows, macOS and routers — plus WebRTC and DNS leak checks to see whether a VPN is really hiding you.",
     faqs: [
       ["How do I check if IPv6 is enabled?", "Open this tool — it checks automatically. It asks an IPv6-only server for your address, so if one is detected, your connection is dual-stack. If not, the panel shows how to enable it per device."],
@@ -49,7 +49,7 @@ export const TOOLS = [
       ["What do the leak checks tell me?", "The WebRTC check shows whether your browser exposes a public or local address that differs from what websites see. The DNS check lists which DNS servers answer your lookups, so you can tell whether a VPN is handling them or your ISP still is."],
       ["Is my IP address stored?", "No. Addresses are read from the network and shown only to you; this page never logs them."],
     ] },
-  { id: "json", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "braces",
+  { id: "json", kw: "json formatter validator beautify minify repair tree diff compare jsonpath typescript schema yaml csv", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "braces",
     blurb: "Validate JSON as you type with the exact line of any error, and auto-fix broken JSON (trailing commas, single quotes, comments, unquoted keys). Beautify or minify, explore a searchable tree, compare two documents, query with JSONPath, and generate TypeScript interfaces, JSON Schema, YAML or CSV. Large IDs are kept exactly. Runs entirely in your browser.",
     faqs: [
       ["How do I fix invalid JSON?", "The validator shows the line and column of the first problem in plain words and marks the line. Auto-fix repairs common mistakes — trailing or missing commas, single or curly quotes, comments, unquoted keys, Python True/None, NaN and unclosed brackets — and lists every change it made."],
@@ -58,7 +58,7 @@ export const TOOLS = [
       ["Can I generate TypeScript types from JSON?", "Yes — Convert → TypeScript interfaces. All items in an array are merged, so fields missing from some items become optional and mixed types become unions. JSON Schema (draft 2020-12) works the same way."],
       ["Is my JSON stored or uploaded?", "No. Everything runs in your browser; nothing is sent anywhere or saved."],
     ] },
-  { id: "password", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "dots",
+  { id: "password", kw: "password strength entropy checker pwned hibp secure", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "dots",
     blurb: "Check password strength with client-side entropy calculation (charset and length). Verify against HaveIBeenPwned's 700+ million breached passwords using k-anonymity (your password is never sent to any API).",
     faqs: [
       ["How do you calculate password strength?", "By entropy: bits = log₂(charset size ^ password length). We check for lowercase, uppercase, digits, and special characters. 80+ bits resists brute force for years."],
@@ -66,14 +66,14 @@ export const TOOLS = [
       ["What does 'Not breached' mean?", "The password isn't in HIBP's public breach data (700+ million passwords from confirmed leaks). But always use a unique password per account."],
       ["What if HIBP is unavailable?", "The entropy check still works offline. If HIBP is down, try again later — the API has 99.9% uptime."],
     ] },
-  { id: "prompt", beta: true, where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "spark",
+  { id: "prompt", kw: "ai prompt generator chatgpt claude gemini llm template", beta: true, where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "spark",
     blurb: "Build clear, structured prompts for ChatGPT, Claude, Gemini and other AI assistants. Fill in the role, task, context, audience, tone, format and rules — or start from a template — and copy a ready-to-use prompt as plain text, Markdown or XML. Runs entirely in your browser.",
     faqs: [
       ["What makes a good AI prompt?", "A clear task plus the context the AI can't guess: who it's for, the tone, the output format and any rules. An example of a good answer helps most of all."],
       ["Which structure should I pick?", "Plain text works everywhere. Markdown sections and XML tags help with long prompts — Claude in particular follows XML-tagged sections well."],
       ["Is what I type sent anywhere?", "No. The prompt is assembled in your browser and nothing is stored or sent until you paste it into an assistant yourself."],
     ] },
-  { id: "image", where: "device", cat: "Files & documents", icon: "🖼️", c: "#14B8A6", name: "Image Compressor & Converter", desc: "Compress, resize, crop, convert, rotate, watermark, edit, meme and blur images — in your browser, nothing uploaded.", pv: "image",
+  { id: "image", kw: "image compress resize crop convert jpg png webp avif rotate watermark meme blur photo", where: "device", cat: "Files & documents", icon: "🖼️", c: "#14B8A6", name: "Image Compressor & Converter", desc: "Compress, resize, crop, convert, rotate, watermark, edit, meme and blur images — in your browser, nothing uploaded.", pv: "image",
     blurb: "Nine image tools in one: compress, resize, crop, convert (JPG, PNG, WebP, AVIF), rotate & flip, watermark, photo editor, meme maker and blur/redact. Batch up to 40 images and download them as a ZIP. Everything runs locally in your browser, so your photos never leave your device.",
     faqs: [
       ["Are my images uploaded anywhere?", "No. Every tool runs on your device using the browser's canvas — files are never sent to a server."],
@@ -81,7 +81,7 @@ export const TOOLS = [
       ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
       ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
     ] },
-  { id: "breach", beta: true, where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "shield",
+  { id: "breach", kw: "breach email leak pwned hacked exposure xposedornot", beta: true, where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "shield",
     blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
     faqs: [
       ["How does the email check work?", "Your address is sent to our server, which looks it up in the XposedOrNot breach database and returns the breaches it appears in. Nothing is stored or logged."],
@@ -89,7 +89,7 @@ export const TOOLS = [
       ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
-  { id: "pdf", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
+  { id: "pdf", kw: "pdf merge split compress rotate watermark convert word jpg sign protect unlock ocr page numbers", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
     blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
@@ -100,14 +100,14 @@ export const TOOLS = [
       ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel/PDF-A, redaction and PDF text editing."],
     ] },
   /* ── beta: depends on setup that isn't verified end-to-end yet; listed last ── */
-  { id: "price", beta: true, where: "server", cat: "Shopping & web", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
+  { id: "price", kw: "price tracker amazon history alert drop deal", beta: true, where: "server", cat: "Shopping & web", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
     blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
     faqs: [
       ["How do I track an Amazon price?", "Paste the product link — any format, including app share links. You get the live price, availability and the history recorded so far, and the product keeps being checked automatically."],
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
-  { id: "ssl", beta: true, where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "Check whether a site's HTTPS certificate is trusted right now, and when it expires.", pv: "lock",
+  { id: "ssl", kw: "ssl tls https certificate expiry checker domain", beta: true, where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "Check whether a site's HTTPS certificate is trusted right now, and when it expires.", pv: "lock",
     blurb: "Enter a domain to test a live TLS handshake (is the certificate trusted, unexpired and issued for that name?) and see the latest certificate logged for it in public Certificate Transparency logs: issuer, validity dates, covered names and days to expiry.",
     faqs: [
       ["How does the check work?", "Our server opens a real TLS connection to the domain on port 443. If the handshake succeeds, browsers will trust the certificate today. If it fails, you see why: expired, not yet valid, issued for a different name, untrusted issuer or unreachable."],

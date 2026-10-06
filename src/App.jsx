@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } f
 import ToolIcon from "./components/ToolIcon.jsx";
 import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
+import { readRecent, pushRecent, clearRecent } from "./lib/recentTools.js";
 import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
@@ -175,6 +176,10 @@ export default function App() {
   const isHome = route === "/" || route === "/index.html" || route === "";
   const notFound = !tool && !isAlertsPage && !isHome;
 
+  /* remember opened tools on this device (no account) for Home's "Jump back in" */
+  const [recent, setRecent] = useState(() => readRecent(TOOLS.map((t) => t.id)));
+  useEffect(() => { if (tool) setRecent(pushRecent(tool.id)); }, [tool]);
+
   useDocumentMeta(tool, notFound);
 
   return (
@@ -216,7 +221,7 @@ export default function App() {
         </header>
 
         <main id="main">
-          {isHome && <Home nav={nav} reduced={reduced} />}
+          {isHome && <Home nav={nav} reduced={reduced} recent={recent} onClearRecent={() => { clearRecent(); setRecent([]); }} />}
           {notFound && <NotFound nav={nav} />}
           {isAlertsPage && (
             <div className="tpage">
