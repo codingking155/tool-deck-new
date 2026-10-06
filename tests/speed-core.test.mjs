@@ -187,6 +187,24 @@ test("download: hitting the budget ends one stream, not all of them", async () =
   } finally { globalThis.fetch = realFetch; }
 });
 
+test("download: a stalled body is aborted at the hard deadline instead of hanging the test", async () => {
+  const { runDownload } = await import("../src/lib/speed.js");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => new Response(new ReadableStream({
+    start(c) {
+      if (+/bytes=(\d+)/.exec(url)[1] > 0) c.enqueue(new Uint8Array(1000));     // one chunk, then silence
+      else c.close();
+      init.signal?.addEventListener("abort", () => { try { c.error(Object.assign(new Error("aborted"), { name: "AbortError" })); } catch { /* closed */ } });
+    },
+  }), { status: 200 });
+  try {
+    const t0 = Date.now();
+    const r = await runDownload({ down: (b) => `https://example.test/__down?bytes=${b}` }, { minMs: 50, maxMs: 150, graceMs: 100, streams: 2 });
+    assert.ok(Date.now() - t0 < 3000, "runDownload must not wait on a stalled stream");
+    assert.equal(r.mbps, null);   // too little data to report honestly
+  } finally { globalThis.fetch = realFetch; }
+});
+
 /* ── Phase 1 diagnostics core ───────────────────────────────────────── */
 
 test("consistencyOf: steady line scores high, choppy line scores low", () => {

@@ -22,7 +22,7 @@ export default function PhoneTool({ notify }) {
   return (
     <div className="grid2" style={{ gridTemplateColumns: "1fr", maxWidth: 660, margin: "0 auto" }}>
       <div className="panel rise d1">
-        <div className="ph"><h3>Enter a phone number</h3><p>Detection uses the international dialing prefix — indexed for instant lookup.</p></div>
+        <div className="ph"><h2>Enter a phone number</h2><p>Detection uses the international dialing prefix — indexed for instant lookup.</p></div>
         <div className="pb">
           <input className="inp" style={{ height: 56, fontSize: 20 }} inputMode="tel" placeholder="+91 98765 43210" value={input}
             aria-label="Phone number" onChange={(e) => setInput(e.target.value)} />
@@ -39,7 +39,7 @@ export default function PhoneTool({ notify }) {
               <div className="phbox">
                 <div className="phflag">{det.flag}</div>
                 <div>
-                  <h4>{det.name}</h4>
+                  <h3>{det.name}</h3>
                   <div className="m">+{det.dial}{det.area ? ` (area ${det.area})` : ""} · {info ? validityText(info) : det.valid} · {info ? (info.typeLabel || "Type unknown") : det.type}{det.assumed ? " · prefix assumed" : ""}</div>
                 </div>
               </div>

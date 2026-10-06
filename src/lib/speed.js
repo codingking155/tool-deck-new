@@ -36,10 +36,17 @@ export function availableServers() {
 
 /* ── latency ──────────────────────────────────────────────────────────── */
 
-async function probeOnce(url, signal, timeoutMs = 4000) {
+/** Child controller: aborts with the parent signal; call release() to detach. */
+function linkedController(signal) {
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
-  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) ctrl.abort();
+  else signal?.addEventListener("abort", onAbort, { once: true });
+  return { ctrl, release: () => signal?.removeEventListener("abort", onAbort) };
+}
+
+async function probeOnce(url, signal, timeoutMs = 4000) {
+  const { ctrl, release } = linkedController(signal);
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const t0 = performance.now();
@@ -51,7 +58,7 @@ async function probeOnce(url, signal, timeoutMs = 4000) {
     return null;
   } finally {
     clearTimeout(timer);
-    signal?.removeEventListener("abort", onAbort);
+    release();
   }
 }
 
@@ -104,13 +111,19 @@ export async function pickServer(servers, { signal } = {}) {
 
 /* ── download ─────────────────────────────────────────────────────────── */
 
-export async function runDownload(server, { signal, onLive, budget, minMs = 4500, maxMs = 10000, streams = 6 } = {}) {
+const DOWN_GRACE_MS = 2500;  // a stalled read (no chunks → no shouldStop) is aborted at maxMs + this
+
+export async function runDownload(server, { signal, onLive, budget, minMs = 4500, maxMs = 10000, streams = 6, graceMs = DOWN_GRACE_MS } = {}) {
   const sizes = [10e6, 25e6, 50e6];
   const samples = [{ t: performance.now(), bytes: 0 }];
   const cfL4 = [];
   const stability = [];
   const t0 = performance.now();
   let sizeIdx = 0, done = false, lastStab = t0;
+
+  /* one controller for the whole phase: user cancel, or the hard deadline */
+  const { ctrl, release } = linkedController(signal);
+  const deadline = setTimeout(() => { done = true; ctrl.abort(); }, maxMs + graceMs);
 
   const shouldStop = () => {
     const now = performance.now();
@@ -125,7 +138,7 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
   };
 
   async function stream() {
-    while (!done && !signal?.aborted) {
+    while (!done && !ctrl.signal.aborted) {
       /* streams reserve budget concurrently; when the next size doesn't fit,
          fall back to a smaller one, and end only this stream if none fits.
          (Setting the shared `done` here used to stop all six streams the
@@ -137,7 +150,7 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
       if (!size) break;
       let read = 0;
       try {
-        const r = await fetch(server.down(size), { cache: "no-store", signal });
+        const r = await fetch(server.down(size), { cache: "no-store", signal: ctrl.signal });
         if (!r.ok) {                    // error bodies are not throughput; back off instead of hammering
           budget?.refund(size);
           try { await r.body?.cancel(); } catch { /* closed */ }
@@ -162,23 +175,31 @@ export async function runDownload(server, { signal, onLive, budget, minMs = 4500
         }
         budget?.refund(size - read);
         sizeIdx++;
-      } catch { budget?.refund(size - read); if (signal?.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
+      } catch { budget?.refund(size - read); if (ctrl.signal.aborted) break; await new Promise((r) => setTimeout(r, 150)); }
       if (shouldStop()) done = true;
     }
   }
 
-  await Promise.all(Array.from({ length: streams }, stream));
+  try {
+    await Promise.all(Array.from({ length: streams }, stream));
+  } finally {
+    clearTimeout(deadline);
+    release();
+  }
 
   /* trailing zero-byte probes reuse the warm connections, so their headers
      carry the final cumulative counters including the last big transfers */
   if (!signal?.aborted) {
     await Promise.all(Array.from({ length: Math.min(streams, 4) }, async () => {
+      const { ctrl: pc, release: pr } = linkedController(signal);
+      const t = setTimeout(() => pc.abort(), 3000);
       try {
-        const r = await fetch(server.down(0), { cache: "no-store", signal });
+        const r = await fetch(server.down(0), { cache: "no-store", signal: pc.signal });
         const l4 = parseCfL4(r.headers.get("server-timing"));
         if (l4) cfL4.push(l4);
         await r.arrayBuffer();
       } catch { /* counters just stay at the last snapshot */ }
+      finally { clearTimeout(t); pr(); }
     }));
   }
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
@@ -213,9 +234,7 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
   let done = false;
 
   /* one controller for the whole phase: user cancel, or the hard deadline */
-  const ctrl = new AbortController();
-  const onAbort = () => ctrl.abort();
-  signal?.addEventListener("abort", onAbort, { once: true });
+  const { ctrl, release } = linkedController(signal);
   const deadline = setTimeout(() => { done = true; ctrl.abort(); }, maxMs + UP_GRACE_MS);
 
   const shouldStop = () => {
@@ -250,7 +269,7 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
     await Promise.all(Array.from({ length: streams }, stream));
   } finally {
     clearTimeout(deadline);
-    signal?.removeEventListener("abort", onAbort);
+    release();
   }
   const bytes = samples.reduce((a, s) => a + s.bytes, 0);
   if (bytes < 200000) return { mbps: null, bytes };
@@ -260,14 +279,10 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
 /* ── metadata (connection panel) ──────────────────────────────────────── */
 
 export async function fetchMeta(server, { signal } = {}) {
+  const { ctrl, release } = linkedController(signal);
+  const t = setTimeout(() => ctrl.abort(), 5000);   // covers the body read too
   try {
-    const ctrl = new AbortController();
-    const onAbort = () => ctrl.abort();
-    signal?.addEventListener("abort", onAbort, { once: true });
-    const t = setTimeout(() => ctrl.abort(), 5000);
     const r = await fetch(server.meta, { cache: "no-store", signal: ctrl.signal });
-    clearTimeout(t);
-    signal?.removeEventListener("abort", onAbort);
     if (!r.ok) return null;
     const j = await r.json();
     /* Cloudflare /meta shape → normalized; ToolDeck ?op=meta is already normalized */
@@ -284,6 +299,7 @@ export async function fetchMeta(server, { signal } = {}) {
       approximate: true,
     };
   } catch { return null; }
+  finally { clearTimeout(t); release(); }
 }
 
 /* ── orchestration ────────────────────────────────────────────────────── */

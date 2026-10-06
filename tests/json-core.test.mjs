@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep } from "../src/lib/jsonCore.js";
+import { parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep, stats, formatPath, toJSONSchema, diffJSON, MAX_DEPTH } from "../src/lib/jsonCore.js";
 import { parsePageRanges, formatBytes } from "../src/lib/pageRanges.js";
 
 test("parseJSON reports line and column of the error", () => {
@@ -159,4 +159,57 @@ test("innerJSON detects stringified JSON", async () => {
   const { innerJSON, parseJSON } = await import("../src/lib/jsonCore.js");
   assert.ok(innerJSON(parseJSON('"{\\"a\\":1}"').value));
   assert.equal(innerJSON("hello"), null);
+});
+
+test("deep nesting returns an error instead of overflowing the stack", () => {
+  const n = 100000, deep = "[".repeat(n) + "]".repeat(n);
+  const r = parseJSON(deep);
+  assert.equal(r.ok, false);
+  assert.match(r.error.message, /levels deep/);
+  assert.match(parseJSON(deep + "x").error.message, /levels deep/); // locateError path
+  assert.equal(repairJSON(deep.slice(0, -5)).ok, false);
+  const ok = "[".repeat(MAX_DEPTH) + "]".repeat(MAX_DEPTH);
+  assert.equal(parseJSON(ok).ok, true);
+  assert.equal(stats(parseJSON(ok).value, ok).depth, MAX_DEPTH - 1);
+  let v = []; for (let i = 0; i < n; i++) v = [v]; // stats itself is iterative
+  assert.equal(stats(v, "").depth, n);
+});
+
+test("queryPath wildcard over a very large array (no spread overflow)", () => {
+  const a = Array.from({ length: 200000 }, (_, i) => i);
+  assert.equal(queryPath({ a }, "$.a[*]").matches.length, 200000);
+});
+
+test("formatPath round-trips through queryPath for awkward keys", () => {
+  for (const k of ["it's", 'a"b', "a b", "back\\slash", "x-y", "", "0", "it\\'s"]) {
+    const p = formatPath(["root", k]);
+    assert.deepEqual(queryPath({ root: { [k]: 7 } }, p).matches, [7], p);
+  }
+});
+
+test("JSON Schema keeps a __proto__ key as a property", () => {
+  const v = parseJSON('{"__proto__": {"x": 1}, "a": 2}').value;
+  const s = toJSONSchema(v);
+  assert.ok(Object.prototype.hasOwnProperty.call(s.properties, "__proto__"));
+  assert.match(JSON.stringify(s), /"__proto__":\{"type":"object"/);
+});
+
+test("non-finite and underflowing numbers are kept verbatim", () => {
+  const r = parseJSON('[1e400, -1E+999, 1e-400, 1.5]');
+  assert.equal(r.bigNumbers, 3);
+  assert.equal(minifyJSON(r.value), "[1e400,-1E+999,1e-400,1.5]");
+});
+
+test("YAML quotes keys with trailing spaces", () => {
+  assert.equal(toYAML({ "a ": 1, b: 2 }), '"a ": 1\nb: 2');
+});
+
+test("diff limit is enforced inside add/remove loops", () => {
+  const b = Array.from({ length: 5000 }, (_, i) => i);
+  const r = diffJSON([], b, 100);
+  assert.equal(r.changes.length, 100);
+  assert.equal(r.truncated, true);
+  const o = Object.fromEntries(b.map((i) => [`k${i}`, i]));
+  assert.equal(diffJSON({}, o, 50).changes.length, 50);
+  assert.equal(diffJSON(o, {}, 50).changes.length, 50);
 });

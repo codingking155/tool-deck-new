@@ -69,26 +69,43 @@ export default function SignPdf({ notify, onBack }) {
   const [places, setPlaces] = useState([]);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState([]);
+  const doc = useRef(null);
+  const sigUrls = useRef([]);
+  useEffect(() => () => sigUrls.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
+  /* One pdf.js document per chosen file, reused for every page preview. */
   useEffect(() => {
     if (!bytes) return;
+    const p = import("../../lib/pdfRender.js").then((m) => m.pdfSession(bytes));
+    doc.current = p;
+    return () => { if (doc.current === p) doc.current = null; p.then((d) => d.close(), () => {}); };
+  }, [bytes]);
+
+  useEffect(() => {
+    const d = doc.current;
+    if (!bytes || !d) return;
     let live = true;
-    import("../../lib/pdfRender.js").then((m) => m.pdfPageImage(bytes, pageNum)).then((p) => live && setPrev(p)).catch(() => live && notify("Couldn't preview this PDF."));
+    d.then((s) => s.image(pageNum)).then((p) => live && setPrev(p)).catch(() => live && notify("Couldn't preview this PDF."));
     return () => { live = false; };
   }, [bytes, pageNum, notify]);
 
-  const choose = async (f) => { setFile(f); setBytes(await readFile(f)); setPageNum(1); setPlaces([]); setOut([]); };
-  const place = (e) => {
+  const choose = async (f) => { setFile(f); setPrev(null); setBytes(await readFile(f)); setPageNum(1); setPlaces([]); setOut([]); };
+  const placeAt = (x, y) => {
     if (!sig) return notify("Create a signature first.");
-    const r = e.currentTarget.getBoundingClientRect();
-    setPlaces((p) => [...p, { page: pageNum - 1, x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, w: width / 100, sig }]);
+    setPlaces((p) => [...p, { page: pageNum - 1, x, y, w: width / 100, sig }]);
     setOut([]);
+  };
+  const place = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    placeAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
   };
   const upload = async (f) => {
     const type = f.type === "image/png" ? "png" : f.type === "image/jpeg" ? "jpg" : null;
     if (!type) return notify("Use a PNG or JPG image.");
     const b = await readFile(f);
-    setSig({ url: URL.createObjectURL(f), type, bytes: b });
+    const url = URL.createObjectURL(f);
+    sigUrls.current.push(url);
+    setSig({ url, type, bytes: b });
   };
 
   const apply = async () => {
@@ -110,9 +127,9 @@ export default function SignPdf({ notify, onBack }) {
 
       {bytes && (
         <>
-          <div className="modes" role="tablist">
+          <div className="modes" role="group" aria-label="Signature source">
             {[["draw", "Draw"], ["type", "Type"], ["upload", "Upload image"]].map(([k, l]) =>
-              <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}
+              <button key={k} aria-pressed={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}
           </div>
           {tab !== "upload" && (
             <div className="pillrow" style={{ marginBottom: 8 }}>
@@ -120,7 +137,7 @@ export default function SignPdf({ notify, onBack }) {
                 <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 99, background: INK[k], marginRight: 6 }} />{k}</button>)}
             </div>
           )}
-          {tab === "draw" && <DrawPad key={ink} ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Draw something first."))} />}
+          {tab === "draw" && <DrawPad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Draw something first."))} />}
           {tab === "type" && <TypePad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Type your name first."))} />}
           {tab === "upload" && <FilePick label="Signature image (PNG with transparent background works best)" accept="image/png,image/jpeg" file={null} onFile={upload} />}
 
@@ -143,7 +160,8 @@ export default function SignPdf({ notify, onBack }) {
 
           {prev && (
             <div style={{ position: "relative", maxWidth: 560, margin: "0 auto", cursor: sig ? "crosshair" : "not-allowed", border: "1px solid var(--line)", borderRadius: 6, overflow: "hidden" }}
-              onClick={place}>
+              role="button" tabIndex={0} aria-label={`Page ${pageNum}: click to place the signature, or press Enter to place it in the centre`}
+              onClick={place} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); placeAt(0.5, 0.5); } }}>
               <img src={prev.url} alt={`Page ${pageNum}`} draggable={false} style={{ width: "100%", display: "block" }} />
               {here.map((p) => (
                 <img key={p.i} src={p.sig.url} alt="" draggable={false}

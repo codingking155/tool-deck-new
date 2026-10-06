@@ -28,5 +28,7 @@ export async function checkEmail(email, signal) {
   }
   const body = await r.json().catch(() => null);
   if (!r.ok) throw new Error(body?.error?.message || "Unable to check right now.");
+  // A 200 from a proxy/captive portal can be HTML or the wrong shape — never render that as "no breaches".
+  if (!Array.isArray(body?.breaches)) throw new Error("Unable to check right now.");
   return body;
 }

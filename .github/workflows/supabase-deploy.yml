@@ -72,7 +72,7 @@ jobs:
       - name: Deploy functions
         run: |
           # Called with a Supabase JWT (anon key or user session) by the frontend.
-          for fn in price-alerts price-tracker shopify-check; do
+          for fn in price-alerts price-tracker shopify-check ssl-check; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
           done
           # Called without a JWT, so gateway JWT checks must be off:

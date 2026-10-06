@@ -127,7 +127,9 @@ export function getNextValidSendUtc(orderUtc, sendTime, tz, options = {}) {
     maxDays = 60,
   } = options;
   const dayOpts = { skipWeekends, weekendBasis, timeZone: tz, nonWorkingDays };
-  let candidateDate = sendDate || localDateOf(orderUtc, tz);
+  // A fixed send date before the order's local date can never be valid — start from the later one.
+  const orderLocal = localDateOf(orderUtc, tz);
+  let candidateDate = sendDate && sendDate > orderLocal ? sendDate : orderLocal;
   const skippedDays = [];
 
   for (let i = 0; i < maxDays; i++) {
@@ -147,9 +149,11 @@ export function getNextValidSendUtc(orderUtc, sendTime, tz, options = {}) {
 
 export function getDateTimeWarning(dateStr, timeStr, tz, label) {
   if (!dateStr || !timeStr || !tz) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{2}:\d{2}$/.test(timeStr)) return null; // malformed (e.g. from a URL)
   const [year, month, day] = dateStr.split("-").map(Number);
   const [hour, minute] = timeStr.split(":").map(Number);
   const utcDate = zonedToUtc(dateStr, timeStr, tz);
+  if (Number.isNaN(utcDate.getTime())) return null;
   const p = zoneParts(utcDate, tz);
   const matches = p.year === year && p.month === month && p.day === day && p.hour === hour && p.minute === minute;
   if (!matches) {
@@ -190,17 +194,14 @@ export const fmt12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h >= 12 ? "PM" 
 
 /* ─── order → target-send wait (no weekend rules) ───────────────────────── */
 
-/** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day if it is not after the order. */
+/** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day (DST-safe) if it is not after the order. A sendDate before the order date starts from the order date. */
 export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "", opts = {}) {
   if (opts.skipWeekends) {
     return getNextValidSendUtc(orderUtc, sendTime, tz, { sendDate: sendDate || null, skipWeekends: true, weekendBasis: "local" }).sendUtc;
   }
-  let date = sendDate || orderDate;
+  let date = sendDate && sendDate > orderDate ? sendDate : orderDate;
   let send = zonedToUtc(date, sendTime, tz);
-  for (let i = 0; i < 30 && send <= orderUtc; i++) {
-    if (sendDate) send = new Date(send.getTime() + 86400000);
-    else { date = nextLocalDate(date, tz); send = zonedToUtc(date, sendTime, tz); }
-  }
+  for (let i = 0; i < 30 && send <= orderUtc; i++) { date = nextLocalDate(date, tz); send = zonedToUtc(date, sendTime, tz); }
   return send;
 }
 

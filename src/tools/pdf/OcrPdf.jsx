@@ -39,7 +39,8 @@ export default function OcrPdf({ notify, onBack }) {
       <button className="btn" style={{ width: "100%" }} disabled={!file || !!busy} onClick={run}>{busy || "Run OCR"}</button>
       <Results items={out} />
       <div className="note i" style={{ marginTop: 16 }}>
-        <b>How it works · </b>your PDF is read on your device. The first run downloads the language model (a few MB) from the OCR engine's CDN.
+        <b>How it works · </b>your PDF is read on your device and never uploaded. The OCR engine (tesseract.js) and its language model — several MB —
+        are downloaded from a public CDN (jsDelivr) on first use, so the first run needs a connection.
         Output pages are image-based, so file size grows, and recognition quality depends on scan quality.
       </div>
     </Shell>

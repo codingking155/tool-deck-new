@@ -3,6 +3,7 @@ import { BigNum, isContainer, formatPath, stringify, diffJSON } from "../lib/jso
 
 const CHUNK = 100;
 const SEARCH_NODE_CAP = 2000000;
+const ROW_CAP = 5000; // "Expand all" on a big document would otherwise mount ~1M rows
 
 async function copyText(text, notify, what) {
   try { await navigator.clipboard.writeText(text); notify(`${what} copied`); }
@@ -42,7 +43,9 @@ function findMatches(root, q) {
 
 function buildRows(root, { depthOpen, over, shown, match }) {
   const rows = [];
+  let capped = false;
   const visit = (k, v, segs, depth) => {
+    if (rows.length >= ROW_CAP) { capped = true; return; }
     const p = formatPath(segs);
     if (!isContainer(v)) { rows.push({ k, v, p, depth, leaf: true }); return; }
     const kids = entriesOf(v);
@@ -55,11 +58,11 @@ function buildRows(root, { depthOpen, over, shown, match }) {
       return match.hits.has(cp) || match.anc.has(cp);
     }) : kids;
     const lim = shown.get(p) ?? CHUNK;
-    for (let i = 0; i < Math.min(lim, visible.length); i++) visit(visible[i][0], visible[i][1], segs.concat(visible[i][0]), depth + 1);
-    if (visible.length > lim) rows.push({ more: true, p, depth: depth + 1, left: visible.length - lim });
+    for (let i = 0; i < Math.min(lim, visible.length) && !capped; i++) visit(visible[i][0], visible[i][1], segs.concat(visible[i][0]), depth + 1);
+    if (visible.length > lim && !capped) rows.push({ more: true, p, depth: depth + 1, left: visible.length - lim });
   };
   visit(null, root, [], 0);
-  return rows;
+  return { rows, capped };
 }
 
 function Hl({ text, q }) {
@@ -91,7 +94,7 @@ export const JsonTree = memo(function JsonTree({ value, notify, onQuery }) {
   useEffect(() => { setShown(new Map()); setSel(null); }, [value]);
 
   const match = useMemo(() => (dq ? findMatches(value, dq) : null), [value, dq]);
-  const rows = useMemo(() => buildRows(value, { depthOpen, over, shown, match }), [value, depthOpen, over, shown, match]);
+  const { rows, capped } = useMemo(() => buildRows(value, { depthOpen, over, shown, match }), [value, depthOpen, over, shown, match]);
 
   const toggle = (p, open) => setOver((m) => new Map(m).set(p, open));
   const expandAll = () => { setOver(new Map()); setDepthOpen(Infinity); };
@@ -119,18 +122,18 @@ export const JsonTree = memo(function JsonTree({ value, notify, onQuery }) {
           {onQuery && <button className="pill" onClick={() => onQuery(sel.p)}>Query</button>}
         </div>
       )}
-      <div className="jt" role="tree" aria-label="JSON tree">
+      <div className="jt" role="list" aria-label="JSON tree">
         {rows.map((r) => (r.more ? (
-          <div key={`${r.p}#more`} className="jt-row" style={{ paddingLeft: 8 + r.depth * 16 + 22 }}>
+          <div key={`${r.p}#more`} className="jt-row" role="listitem" style={{ paddingLeft: 8 + r.depth * 16 + 22 }}>
             <button className="jt-more" onClick={() => setShown((m) => new Map(m).set(r.p, (m.get(r.p) ?? CHUNK) + CHUNK * 5))}>
               Show more · {r.left.toLocaleString()} hidden
             </button>
           </div>
         ) : (
           <div key={r.p} className={`jt-row${sel?.p === r.p ? " sel" : ""}`} style={{ paddingLeft: 8 + r.depth * 16 }}
-            role="treeitem" aria-level={r.depth + 1} aria-expanded={r.leaf ? undefined : r.open} aria-selected={sel?.p === r.p}>
+            role="listitem" aria-current={sel?.p === r.p || undefined}>
             {r.leaf ? <span className="jt-car" aria-hidden="true" /> : (
-              <button className="jt-car" onClick={() => toggle(r.p, !r.open)} aria-label={`${r.open ? "Collapse" : "Expand"} ${r.k ?? "root"}`}>{r.open ? "▾" : "▸"}</button>
+              <button className="jt-car" onClick={() => toggle(r.p, !r.open)} aria-expanded={r.open} aria-label={`${r.open ? "Collapse" : "Expand"} ${r.k ?? "root"}`}>{r.open ? "▾" : "▸"}</button>
             )}
             <button className="jt-sel" onClick={() => setSel(r)} title={r.p}>
               {r.k !== null && <><span className={`jt-k${typeof r.k === "number" ? " idx" : ""}`}><Hl text={String(r.k)} q={dq} /></span><span>:&nbsp;</span></>}
@@ -139,6 +142,7 @@ export const JsonTree = memo(function JsonTree({ value, notify, onQuery }) {
           </div>
         )))}
       </div>
+      {capped && <div className="hint">Showing the first {ROW_CAP.toLocaleString()} rows — collapse branches or search to see the rest.</div>}
       <div className="hint">Click a row to copy its path or value. Paths work in the Query tab.</div>
     </div>
   );

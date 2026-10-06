@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName, buildZip } from "../lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../lib/imageCore.mjs";
+import { makeZip } from "../lib/zip.js";
 
 /* Everything runs in the browser on <canvas>: files never leave the device. */
 
@@ -57,6 +58,11 @@ function mk(w, h) {
   c.width = w; c.height = h;
   return c;
 }
+function ctx2d(c) {
+  const ctx = c.getContext("2d");
+  if (!ctx) throw new Error(`Image is too large to render on this device (${c.width}×${c.height}).`);
+  return ctx;
+}
 const toBlob = (c, type, q) => new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("Encoding failed."))), type, q));
 
 function applyAdjust(ctx, w, h, o) {
@@ -64,7 +70,7 @@ function applyAdjust(ctx, w, h, o) {
     /* shrink + re-enlarge: a cheap blur that works in every browser (ctx.filter doesn't in Safari) */
     const f = 1 / (1 + o.blur * 0.6);
     const small = mk(Math.max(1, Math.round(w * f)), Math.max(1, Math.round(h * f)));
-    const sctx = small.getContext("2d");
+    const sctx = ctx2d(small);
     sctx.imageSmoothingQuality = "high";
     sctx.drawImage(ctx.canvas, 0, 0, small.width, small.height);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
@@ -115,7 +121,7 @@ function drawWatermark(ctx, w, h, o) {
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const stepX = ctx.measureText(text).width + size * 2, stepY = size * 3.2;
     ctx.save(); ctx.rotate(-Math.PI / 8);
-    for (let y = -h; y < h * 2; y += stepY) for (let x = -w; x < w * 2; x += stepX) ctx.fillText(text, x + ((y / stepY) % 2 ? stepX / 2 : 0), y);
+    for (let y = -h, row = 0; y < h * 2; y += stepY, row++) for (let x = -w; x < w * 2; x += stepX) ctx.fillText(text, x + (row % 2 ? stepX / 2 : 0), y);
     ctx.restore();
   } else {
     const pad = size * 0.8;
@@ -137,37 +143,37 @@ async function runMode(mode, o, file, canAvif) {
   try {
     if (mode === "compress") {
       const { w, h } = fitMax(sw, sh, o.max);
-      canvas = mk(w, h); ctx = canvas.getContext("2d");
+      canvas = mk(w, h); ctx = ctx2d(canvas);
       mime = o.fmt === "auto" ? srcMime : o.fmt;
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, w, h);
       q = o.q / 100;
     } else if (mode === "resize") {
       const { w, h } = resizeDims(sw, sh, o);
-      canvas = mk(w, h); ctx = canvas.getContext("2d");
+      canvas = mk(w, h); ctx = ctx2d(canvas);
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, w, h);
     } else if (mode === "crop") {
       const r = cropRect(sw, sh, o);
-      canvas = mk(r.w, r.h); ctx = canvas.getContext("2d");
+      canvas = mk(r.w, r.h); ctx = ctx2d(canvas);
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.drawImage(bmp, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     } else if (mode === "convert") {
       mime = o.to;
       if (mime === "image/avif" && !canAvif) throw new Error("This browser can't encode AVIF — try Chrome or Edge.");
-      canvas = mk(sw, sh); ctx = canvas.getContext("2d");
+      canvas = mk(sw, sh); ctx = ctx2d(canvas);
       if (mime === "image/jpeg") fillBg(ctx, o.bg);
       ctx.drawImage(bmp, 0, 0);
     } else if (mode === "rotate") {
       const swap = o.angle === 90 || o.angle === 270;
-      canvas = mk(swap ? sh : sw, swap ? sw : sh); ctx = canvas.getContext("2d");
+      canvas = mk(swap ? sh : sw, swap ? sw : sh); ctx = ctx2d(canvas);
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate((o.angle * Math.PI) / 180);
       ctx.scale(o.flipH ? -1 : 1, o.flipV ? -1 : 1);
       ctx.drawImage(bmp, -sw / 2, -sh / 2);
     } else {
-      canvas = mk(sw, sh); ctx = canvas.getContext("2d");
+      canvas = mk(sw, sh); ctx = ctx2d(canvas);
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.drawImage(bmp, 0, 0);
       if (mode === "watermark") drawWatermark(ctx, sw, sh, o);
@@ -178,7 +184,7 @@ async function runMode(mode, o, file, canAvif) {
         const rw = Math.max(1, Math.min(sw - rx, Math.round((o.w / 100) * sw))), rh = Math.max(1, Math.min(sh - ry, Math.round((o.h / 100) * sh)));
         const f = 1 / Math.max(2, o.strength * (o.style === "pixelate" ? 1.5 : 1));
         const small = mk(Math.max(1, Math.round(rw * f)), Math.max(1, Math.round(rh * f)));
-        small.getContext("2d").drawImage(canvas, rx, ry, rw, rh, 0, 0, small.width, small.height);
+        ctx2d(small).drawImage(canvas, rx, ry, rw, rh, 0, 0, small.width, small.height);
         ctx.save(); ctx.imageSmoothingEnabled = o.style !== "pixelate"; ctx.imageSmoothingQuality = "high";
         ctx.drawImage(small, 0, 0, small.width, small.height, rx, ry, rw, rh);
         ctx.restore();
@@ -232,7 +238,7 @@ function Options({ mode, o, set, canAvif }) {
     <div className="field"><label htmlFor="orm">Resize by</label>
       <select id="orm" value={o.mode} onChange={(e) => set("mode", e.target.value)}><option value="px">Pixels</option><option value="pct">Percentage</option></select></div>
     <div className="field"><label htmlFor="orp">Preset</label>
-      <select id="orp" value="" onChange={(e) => { const p = RESIZE_PRESETS[Number(e.target.value)]; if (p) { set("mode", "px"); set("width", p[1]); set("height", p[2]); set("keep", p[1] !== "" && p[2] !== ""); } }}>
+      <select id="orp" value="" onChange={(e) => { const p = RESIZE_PRESETS[Number(e.target.value)]; if (p) { set("mode", "px"); set("width", p[1]); set("height", p[2]); set("keep", true); } }}>
         {RESIZE_PRESETS.map((p, i) => <option key={p[0]} value={i === 0 ? "" : i}>{i === 0 ? "Choose a preset…" : p[0]}</option>)}
       </select></div>
     {o.mode === "pct" ? <Range id="opct" label="Scale" value={o.pct} min={1} max={200} unit="%" onChange={(v) => set("pct", v)} /> : <>
@@ -262,9 +268,9 @@ function Options({ mode, o, set, canAvif }) {
     <div className="hint">Accepts anything your browser can open: JPG, PNG, WebP, GIF (first frame), BMP, SVG, AVIF. Also covers "JPG to PNG" and "PNG/GIF/SVG to JPG".</div>
   </>;
   if (mode === "rotate") return <>
-    <div className="field"><label>Rotate</label>
-      <div className="modes" style={{ marginBottom: 0 }}>
-        {[0, 90, 180, 270].map((a) => <button key={a} className={o.angle === a ? "on" : ""} onClick={() => set("angle", a)}>{a}°</button>)}
+    <div className="field"><label id="orot">Rotate</label>
+      <div className="modes" role="group" aria-labelledby="orot" style={{ marginBottom: 0 }}>
+        {[0, 90, 180, 270].map((a) => <button key={a} aria-pressed={o.angle === a} className={o.angle === a ? "on" : ""} onClick={() => set("angle", a)}>{a}°</button>)}
       </div></div>
     <Check id="ofh" label="Flip horizontally" checked={o.flipH} onChange={(v) => set("flipH", v)} />
     <Check id="ofv" label="Flip vertically" checked={o.flipV} onChange={(v) => set("flipV", v)} />
@@ -373,13 +379,14 @@ export default function ImageTool({ notify }) {
   const [drag, setDrag] = useState(false);
   const [stale, setStale] = useState(false);
   const idRef = useRef(0);
+  const runRef = useRef(0);
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const canAvif = useMemo(() => {
     try { return document.createElement("canvas").toDataURL("image/avif").startsWith("data:image/avif"); } catch { return false; }
   }, []);
 
-  useEffect(() => () => itemsRef.current.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }), []);
+  useEffect(() => () => { runRef.current++; itemsRef.current.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); }, []);
 
   const setOpt = useCallback((k, v) => { setStale(true); setOpts((p) => ({ ...p, [mode]: { ...p[mode], [k]: v } })); }, [mode]);
 
@@ -387,7 +394,7 @@ export default function ImageTool({ notify }) {
     if (i.res?.url) URL.revokeObjectURL(i.res.url);
     return { ...i, res: null, err: null };
   })), []);
-  const changeMode = (m) => { if (m !== mode) { setMode(m); clearResults(); setStale(false); } };
+  const changeMode = (m) => { if (m !== mode && !busy) { setMode(m); clearResults(); setStale(false); } };
 
   const addFiles = useCallback(async (list) => {
     const files = [...list].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(f.name));
@@ -412,15 +419,20 @@ export default function ImageTool({ notify }) {
     URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url);
     return false;
   })), []);
-  const clearAll = () => { items.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); setItems([]); };
+  const clearAll = () => { runRef.current++; items.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); setItems([]); setBusy(false); };
 
   const run = async () => {
+    const token = ++runRef.current;
+    const live = (id) => token === runRef.current && itemsRef.current.some((x) => x.id === id);
     setBusy(true); setStale(false);
     const o = opts[mode];
     for (const it of itemsRef.current) {
+      if (token !== runRef.current) return;
+      if (!live(it.id)) continue;
       setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: true, err: null } : x)));
       try {
         const res = await runMode(mode, o, it.file, canAvif);
+        if (!live(it.id)) continue;
         const url = URL.createObjectURL(res.blob);
         setItems((a) => a.map((x) => {
           if (x.id !== it.id) { return x; }
@@ -428,17 +440,17 @@ export default function ImageTool({ notify }) {
           return { ...x, busy: false, res: { ...res, url } };
         }));
       } catch (e) {
-        setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: false, res: null, err: e.message || "Failed." } : x)));
+        if (live(it.id)) setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: false, res: null, err: e.message || "Failed." } : x)));
       }
     }
-    setBusy(false);
+    if (token === runRef.current) setBusy(false);
   };
 
   const saveOne = (it) => download(it.res.blob, outName(it.file.name, SUFFIX[mode], it.res.mime));
   const done = items.filter((i) => i.res);
   const saveZip = async () => {
     const files = await Promise.all(done.map(async (i) => ({ name: outName(i.file.name, SUFFIX[mode], i.res.mime), data: new Uint8Array(await i.res.blob.arrayBuffer()) })));
-    download(new Blob([buildZip(files)], { type: "application/zip" }), "tooldeck-images.zip");
+    download(new Blob([makeZip(files)], { type: "application/zip" }), "tooldeck-images.zip");
     notify(`Zipped ${files.length} image${files.length > 1 ? "s" : ""}.`);
   };
 
@@ -448,14 +460,14 @@ export default function ImageTool({ notify }) {
 
   return (
     <div>
-      <div className="modes" role="tablist">
+      <div className="modes" role="group" aria-label="Image tool">
         {MODES.map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? "on" : ""} onClick={() => changeMode(id)}>{label}</button>
+          <button key={id} aria-pressed={mode === id} disabled={busy && mode !== id} className={mode === id ? "on" : ""} onClick={() => changeMode(id)}>{label}</button>
         ))}
       </div>
       <div className="grid2">
         <div className="panel rise d1">
-          <div className="ph"><h3>{MODES.find((m) => m[0] === mode)[1]} options</h3><p>Applied to every image in the list.</p></div>
+          <div className="ph"><h2>{MODES.find((m) => m[0] === mode)[1]} options</h2><p>Applied to every image in the list.</p></div>
           <div className="pb">
             <Options mode={mode} o={opts[mode]} set={setOpt} canAvif={canAvif} />
             <RegionPreview item={items[0]} mode={mode} o={opts[mode]} set={setOpt} />
@@ -468,7 +480,7 @@ export default function ImageTool({ notify }) {
           </div>
         </div>
         <div className="panel rise d2">
-          <div className="ph"><h3>Images</h3><p>Processed locally in your browser — nothing is uploaded.</p></div>
+          <div className="ph"><h2>Images</h2><p>Processed locally in your browser — nothing is uploaded.</p></div>
           <div className="pb">
             <label className={`imgdrop ${drag ? "on" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}

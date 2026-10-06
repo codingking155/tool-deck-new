@@ -6,7 +6,10 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 ## Commands
 - `npm run check` — quiet tests + build (prints only failures). Run before every commit. Use this, not `npm test`,
   unless you need per-test names (`npm test`).
-- `npx vite preview --port 4173` to browse a build.
+- `npx vite preview --port 4173` to browse a build; `npm run preview:csp` serves it with vercel.json's CSP/security
+  headers (run e2e against that after touching anything that loads/fetches a new origin, then update the CSP).
+- e2e: `CHROMIUM_PATH=/opt/pw-browsers/chromium npm run test:e2e`; build with `VITE_SUPABASE_URL=https://e2e.supabase.co
+  VITE_SUPABASE_ANON_KEY=e2e-placeholder` like CI or the Breach scenario fails.
 - Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
 
@@ -16,7 +19,10 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 - Price Tracker shows REAL data only. No sample/seeded/fallback prices; if no live price, show
   "Unable to retrieve the latest price right now."
 - Never put secrets in frontend code. Provider keys live in Supabase secrets.
-- Define React components at module scope (the app re-renders every second; inner components remount).
+- Define React components at module scope (the UTC/Phone tools and header clocks re-render every second; inner
+  components remount). Keep per-second state in small leaf components, never in `App`.
+- Accent tokens are contrast-checked (light `--pri2/--good/--bad/--warn` >=4.5:1 on panels and their 12% tints;
+  `--line-strong` >=3:1 for form-control borders). Tints: `color-mix(in srgb,var(--good) 12%,transparent)`, not rgba.
 - The old 18-signal `shopify` tool was removed; `shopifydetector` is the only Shopify tool. Its detection engine (`shared/shopifyCore`) and the `shopify-check` edge function remain as an API.
 - Bottom of the page: spiders yes, cobwebs no.
 - Git: develop on the branch named in the session; commit messages end with the Co-Authored-By /

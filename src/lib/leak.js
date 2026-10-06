@@ -32,7 +32,8 @@ export function parseCandidate(line) {
 /**
  * known: { v4, v6 } public addresses already detected (either may be null).
  * level: "blocked" (no candidates at all), "leak" (a public IP that is not the one the site sees),
- *        "local" (private LAN address exposed), "ok".
+ *        "local" (private LAN address exposed), "unknown" (public addresses seen, but the
+ *        site-visible address of that family isn't known, so a leak can't be ruled out), "ok".
  */
 export function webrtcVerdict(candidates, known = {}) {
   const seen = new Map();
@@ -44,18 +45,20 @@ export function webrtcVerdict(candidates, known = {}) {
 
   const norm = (s) => (s ? String(s).toLowerCase() : null);
   const k4 = norm(known.v4), k6 = norm(known.v6);
-  const mismatched = pub.filter((c) => {
-    const v6 = c.address.includes(":"), a = c.address.toLowerCase();
-    if (v6) return k6 ? a !== k6 : false;
-    return k4 ? a !== k4 : false;
-  });
+  const knownFor = (c) => (c.address.includes(":") ? k6 : k4);
+  const mismatched = pub.filter((c) => knownFor(c) && c.address.toLowerCase() !== knownFor(c));
+  const unverified = pub.filter((c) => !knownFor(c));
 
   let level = "ok";
   if (!all.length) level = "blocked";
   else if (mismatched.length) level = "leak";
   else if (local.length) level = "local";
+  else if (unverified.length) level = "unknown";
 
-  return { level, publicIps: pub.map((c) => c.address), localIps: local.map((c) => c.address), mdnsCount: mdns.length, mismatched: mismatched.map((c) => c.address) };
+  return {
+    level, publicIps: pub.map((c) => c.address), localIps: local.map((c) => c.address), mdnsCount: mdns.length,
+    mismatched: mismatched.map((c) => c.address), unverified: unverified.map((c) => c.address),
+  };
 }
 
 /* ── DNS ───────────────────────────────────────────────────────────────── */
@@ -83,17 +86,42 @@ export function dnsSummary(resolvers) {
   return { count: resolvers.length, networks: asns.size, countries: countries.size };
 }
 
+/** fetch with its own deadline (covering the body read in `read`), still honouring the caller's signal. */
+async function timedFetch(fetchFn, url, init, ms, read = (r) => r) {
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  init.signal?.addEventListener("abort", onAbort, { once: true });
+  if (init.signal?.aborted) ctrl.abort();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await read(await fetchFn(url, { ...init, signal: ctrl.signal }));
+  } catch (e) {
+    if (init.signal?.aborted) throw e;                      // the caller cancelled: let AbortError through
+    if (ctrl.signal.aborted) throw new Error("The DNS test service is unavailable (it timed out).");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
 /** Runs the provider flow. `fetchFn` is injectable for tests. */
-export async function runDnsLeakTest(fetchFn = fetch, { probes = 8, settleMs = 1200, signal } = {}) {
-  const idRes = await fetchFn(DNS_PROVIDER.idUrl, { cache: "no-store", signal });
-  if (!idRes.ok) throw new Error("The DNS test service is unavailable.");
-  const id = (await idRes.text()).trim();
+export async function runDnsLeakTest(fetchFn = fetch, { probes = 8, settleMs = 1200, signal, timeoutMs = 8000, probeTimeoutMs = 5000 } = {}) {
+  const id = await timedFetch(fetchFn, DNS_PROVIDER.idUrl, { cache: "no-store", signal }, timeoutMs, async (idRes) => {
+    if (!idRes.ok) throw new Error("The DNS test service is unavailable.");
+    return (await idRes.text()).trim();
+  });
   if (!/^[a-z0-9]{8,64}$/i.test(id)) throw new Error("The DNS test service returned an unexpected response.");
-  await Promise.allSettled(Array.from({ length: probes }, (_, i) => fetchFn(DNS_PROVIDER.probeUrl(i + 1, id), { mode: "no-cors", cache: "no-store", signal })));
+  /* a probe that hangs must not hold the whole test: each one gets its own deadline */
+  await Promise.allSettled(Array.from({ length: probes }, (_, i) =>
+    timedFetch(fetchFn, DNS_PROVIDER.probeUrl(i + 1, id), { mode: "no-cors", cache: "no-store", signal }, probeTimeoutMs)));
+  if (signal?.aborted) throw Object.assign(new Error("Aborted"), { name: "AbortError" });
   if (settleMs) await new Promise((r) => setTimeout(r, settleMs));
-  const res = await fetchFn(DNS_PROVIDER.resultUrl(id), { cache: "no-store", signal });
-  if (!res.ok) throw new Error("The DNS test service is unavailable.");
-  const parsed = parseDnsLeak(await res.json());
+  const payload = await timedFetch(fetchFn, DNS_PROVIDER.resultUrl(id), { cache: "no-store", signal }, timeoutMs, async (res) => {
+    if (!res.ok) throw new Error("The DNS test service is unavailable.");
+    return res.json();
+  });
+  const parsed = parseDnsLeak(payload);
   if (!parsed) throw new Error("The DNS test service returned an unexpected response.");
   return parsed;
 }

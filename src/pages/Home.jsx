@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
-import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
+import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL, BETA_HINT } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
 import ToolIcon from "../components/ToolIcon.jsx";
@@ -42,53 +42,70 @@ function Preview({ kind }) {
   return <div className="preview" aria-hidden="true"><svg viewBox="0 0 112 58" width="112" height="58">{art}</svg></div>;
 }
 
+/* Owns its own per-frame count-up so the animation re-renders one number, not the whole grid. */
+function Stat({ target, reduced, suffix = "", label }) {
+  const v = useCountUp(target, reduced);
+  return <div className="stat"><b>{v}{suffix}</b><span>{label}</span></div>;
+}
+
+const ON_DEVICE = TOOLS.filter((t) => t.where === "device").length;
+
 export default function Home({ nav, reduced }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [ri, setRi] = useState(0);
-  useEffect(() => { const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, []);
-  const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(TOOLS.filter((t) => t.where === "device").length);
-  const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
+  useEffect(() => { if (reduced) return; const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, [reduced]);
+  const needle = q.trim().toLowerCase();
+  const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (!needle || `${t.name} ${t.desc} ${t.cat}`.toLowerCase().includes(needle)));
   const th = tiltHandlers(reduced);
   return (
     <>
-      <section className="hero rise">
-        <h2>All the everyday tools you need, in one <em>intelligent workspace</em>.</h2>
-        <div className="rotator" aria-live="polite"><span key={ri}>{ROTATE[ri]}</span></div>
+      <section className="hero">
+        <h1>All the everyday tools you need, in one <em>intelligent workspace</em>.</h1>
+        <div className="rotator"><span key={ri}>{ROTATE[ri]}</span></div>
         <div className="stats rise d3">
-          <div className="stat"><b>{c1}</b><span>tools inside</span></div>
-          <div className="stat"><b>{c2}+</b><span>dial codes indexed</span></div>
-          <div className="stat"><b>{c3}</b><span>fully on-device</span></div>
+          <Stat target={TOOLS.length} reduced={reduced} label="tools inside" />
+          <Stat target={240} reduced={reduced} suffix="+" label="dial codes indexed" />
+          <Stat target={ON_DEVICE} reduced={reduced} label="fully on-device" />
         </div>
       </section>
       <div className="finder">
           <div className="searchbar rise d2">
             <span className="ic" aria-hidden="true"><Search size={18} strokeWidth={2.2} /></span>
-            <input placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Search tools"
-              onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); }} />
+            <input type="search" placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Search tools" aria-describedby="tool-count" enterKeyHint="go"
+              onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); else if (e.key === "Escape") setQ(""); }} />
             <kbd>Ctrl K</kbd>
           </div>
       <div className="pillrow catrow" role="group" aria-label="Filter tools by category">
         {CATEGORIES.map((c) => (
-          <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}
-            style={cat === c ? { borderColor: "var(--pri2)", color: "var(--pri2)" } : undefined}>{c}</button>
+          <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}>{c}</button>
         ))}
       </div>
       </div>
-      <section className="bento">
+      <p id="tool-count" className="sr-only" role="status">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools shown`}</p>
+      <section className="bento" aria-label="Tools">
         {list.map((t, i) => (
-          <button key={t.id} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th} onClick={() => nav(`/tool/${t.id}`)}
+          <a key={t.id} href={`/tool/${t.id}`} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th}
+            onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(`/tool/${t.id}`); }}
             style={{ borderTop: `2px solid ${tint(t.c, "66")}`, "--cc": t.c }}>
             <Preview kind={t.pv} />
             <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}><ToolIcon tool={t} /></div>
-            <h3>{t.name}</h3>
-            {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
+            <h2>{t.name}</h2>
+            <span className="badges">
+              {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
+              {t.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}
+            </span>
             <p>{t.desc}</p>
             <span className="open" aria-hidden="true">Open tool <i>→</i></span>
-          </button>
+          </a>
         ))}
-        {list.length === 0 && <div className="empty" style={{ gridColumn: "1/-1" }}>No tool matches “{q}”.</div>}
+        {list.length === 0 && (
+          <div className="empty" style={{ gridColumn: "1/-1" }}>
+            No tool matches “{q.trim() || cat}”{cat !== "All" ? ` in ${cat}` : ""}.
+            <div><button type="button" className="linkbtn" onClick={() => { setQ(""); setCat("All"); }}>Clear search and filters</button></div>
+          </div>
+        )}
       </section>
     </>
   );

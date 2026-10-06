@@ -1,18 +1,20 @@
-import { preflight, json, fail, log } from "../_shared/http.ts";
+import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { serviceClient, userFromRequest, env, requireEnv } from "../_shared/supabase.ts";
-import { rateLimit, clientIp } from "../_shared/ratelimit.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
+import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
 import { validateAlertInput } from "../../../shared/priceAlertsCore/validation.mjs";
 import { makeManageToken, verifyManageToken } from "../../../shared/priceAlertsCore/tokens.mjs";
 
 const TOKEN_SECRET = () => requireEnv("ALERT_TOKEN_SECRET");
 
-Deno.serve(async (req) => {
+Deno.serve(withCors(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   try {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     const action = url.searchParams.get("action");
-    const token = url.searchParams.get("token") ?? req.headers.get("x-manage-token") ?? "";
+    // Header only: a token in the query string ends up in gateway/proxy logs and browser history.
+    const token = req.headers.get("x-manage-token") ?? "";
 
     const user = await userFromRequest(req);
     const db = serviceClient();
@@ -31,10 +33,11 @@ Deno.serve(async (req) => {
     log("price_alerts_error", { message: String((e as Error).message ?? e) });
     return fail(500, "server_error", "Something went wrong. Please try again.");
   }
-});
+}));
 
 async function create(req: Request, db: any, user: { id: string; email?: string } | null) {
-  const rl = rateLimit(`create:${clientIp(req)}`);
+  const max = Number(Deno.env.get("ALERT_RATE_LIMIT_MAX") ?? 20);
+  const rl = await sharedRateLimit("alert-create", clientIp(req), Number.isFinite(max) && max > 0 ? max : 20, 60);
   if (!rl.ok) return fail(429, "rate_limited", "Too many requests. Please wait and try again.");
 
   const body = await req.json().catch(() => null);

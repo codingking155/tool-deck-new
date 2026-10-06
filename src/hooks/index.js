@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { USER_TZ, partsFormatter } from "../lib/time.js";
 import { SITE, setMeta, setLink, setJsonLd } from "../lib/seo.js";
 
@@ -13,10 +13,10 @@ export function useNow(ms = 1000) {
 /* ─── accessibility ─────────────────────────────────────────────────────── */
 
 export function useReducedMotion() {
-  const [rm, setRm] = useState(false);
+  /* read synchronously so animation loops never start for users who opted out */
+  const [rm, setRm] = useState(() => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setRm(mq.matches);
     const f = (e) => setRm(e.matches);
     mq.addEventListener ? mq.addEventListener("change", f) : mq.addListener(f);
     return () => { mq.removeEventListener ? mq.removeEventListener("change", f) : mq.removeListener(f); };
@@ -43,7 +43,7 @@ export function useRoute() {
   const nav = useCallback((r) => {
     try { window.history.pushState(null, "", r); } catch { window.location.hash = r; }
     setRoute(r.split("?")[0]);
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
   return [route, nav];
 }
@@ -63,8 +63,9 @@ export function writeParams(obj) {
 
 /* ─── per-tool document meta (title/OG/JSON-LD) ─────────────────────────── */
 
-export function useDocumentMeta(tool) {
+export function useDocumentMeta(tool, notFound = false) {
   useEffect(() => {
+    if (notFound) { document.title = "Page not found · ToolDeck BLR"; setMeta("robots", "noindex"); return () => setMeta("robots", "index,follow"); }
     const title = tool ? `${tool.name} · ToolDeck BLR` : "ToolDeck BLR — fast, private browser utilities";
     const desc = tool ? tool.blurb
       : "Fast, private everyday tools: UTC wait times, phone → country, Shopify detectors, speed test, IP & IPv6 leak checks, price tracker, PDF and image tools, JSON, passwords and breach checks. Nothing you type is stored.";
@@ -87,14 +88,15 @@ export function useDocumentMeta(tool) {
       "@context": "https://schema.org", "@type": "FAQPage",
       mainEntity: tool.faqs.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
     } : null);
-  }, [tool]);
+  }, [tool, notFound]);
 }
 
 /* ─── animated count-up ─────────────────────────────────────────────────── */
 
-export function useCountUp(target, dur = 1400) {
-  const [v, setV] = useState(0);
+export function useCountUp(target, reduced = false, dur = 1400) {
+  const [v, setV] = useState(reduced ? target : 0);
   useEffect(() => {
+    if (reduced) { setV(target); return; }
     let raf, t0;
     const step = (t) => {
       if (!t0) t0 = t;
@@ -104,7 +106,7 @@ export function useCountUp(target, dur = 1400) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [target, dur]);
+  }, [target, reduced, dur]);
   return v;
 }
 
@@ -116,7 +118,13 @@ export function useIpLocale() {
     let alive = true;
     (async () => {
       try {
-        const j = await (await fetch("https://ipapi.co/json/")).json();
+        /* one lookup per browser session — ipapi.co's free tier is rate-limited */
+        let j = null;
+        try { j = JSON.parse(sessionStorage.getItem("toolDeck.ipLocale") || "null"); } catch { /* storage blocked */ }
+        if (!j) {
+          j = await (await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(6000) })).json();
+          try { if (j && !j.error) sessionStorage.setItem("toolDeck.ipLocale", JSON.stringify({ timezone: j.timezone, city: j.city, region: j.region, country_name: j.country_name })); } catch { /* storage blocked */ }
+        }
         if (!alive || !j || j.error) return;
         const next = {};
         if (j.timezone) { try { partsFormatter(j.timezone); next.tz = j.timezone; next.src = "ip"; } catch { /* invalid zone */ } }
@@ -185,37 +193,45 @@ export function useVisitCount() {
 
 /* ─── swipe gesture detection (mobile tool navigation) ──────────────────── */
 
+/* Horizontal swipes anywhere that isn't itself interactive or scrollable — a
+   swipe on a signature pad, slider, editor or wide table must never navigate
+   away and lose the user's work. */
+const NO_SWIPE = "input, textarea, select, canvas, button, a, [contenteditable], [role=slider], [data-noswipe], pre, table, [role=dialog]";
+
+function inScrollableX(el) {
+  for (; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollWidth > el.clientWidth + 1) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === "auto" || ox === "scroll") return true;
+    }
+  }
+  return false;
+}
+
 export function useSwipe(onSwipe) {
+  const cb = useRef(onSwipe);
+  cb.current = onSwipe;
   useEffect(() => {
-    let startX = 0;
-    let startTime = 0;
-    const minDistance = 60;
-    const maxTime = 500;
-
-    const handleTouchStart = (e) => {
-      startX = e.touches[0]?.clientX || 0;
-      startTime = Date.now();
+    let start = null;
+    const onStart = (e) => {
+      const t = e.touches[0];
+      if (e.touches.length !== 1 || !t || e.target.closest?.(NO_SWIPE) || inScrollableX(e.target) || window.getSelection?.()?.toString()) { start = null; return; }
+      start = { x: t.clientX, y: t.clientY, at: Date.now() };
     };
-
-    const handleTouchEnd = (e) => {
-      if (!startX) return;
-      const endX = e.changedTouches[0]?.clientX || 0;
-      const distance = startX - endX;
-      const time = Date.now() - startTime;
-
-      // Swipe threshold: 60px in 500ms
-      if (Math.abs(distance) >= minDistance && time <= maxTime) {
-        const direction = distance > 0 ? "left" : "right";
-        onSwipe?.(direction);
-      }
-      startX = 0;
+    const onEnd = (e) => {
+      if (!start) return;
+      const t = e.changedTouches[0];
+      const dx = start.x - (t?.clientX ?? start.x), dy = start.y - (t?.clientY ?? start.y);
+      const quick = Date.now() - start.at <= 500;
+      start = null;
+      /* clearly horizontal: ≥80px across and at least 2× the vertical travel */
+      if (quick && Math.abs(dx) >= 80 && Math.abs(dx) > 2 * Math.abs(dy)) cb.current?.(dx > 0 ? "left" : "right");
     };
-
-    document.addEventListener("touchstart", handleTouchStart, false);
-    document.addEventListener("touchend", handleTouchEnd, false);
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
     return () => {
-      document.removeEventListener("touchstart", handleTouchStart);
-      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
     };
-  }, [onSwipe]);
+  }, []);
 }

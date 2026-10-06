@@ -55,7 +55,7 @@ export default function InstallPrompt() {
       </p>
       {kind === "native" ? (
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button type="button" className="btn" onClick={install} style={{ flex: 1 }}>Install</button>
+          <button type="button" className="btn pri" onClick={install} style={{ flex: 1 }}>Install</button>
           <button type="button" className="btn gh" onClick={() => setKind(null)} style={{ flex: 1 }}>Not now</button>
         </div>
       ) : (

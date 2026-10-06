@@ -97,7 +97,7 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
       const dark = theme
         ? theme === "dark"
         : html.classList.contains("dark") || html.getAttribute("data-theme") === "dark";
-      html.style.backgroundColor = dark ? "#0d1220" : "#faf6f2";
+      html.style.backgroundColor = dark ? "#07090F" : "#FBF7F1";
       rootRef.current?.classList.toggle("osp-dark", dark);
     };
     paint();
@@ -134,7 +134,7 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
           --osp-sheen: rgba(255, 255, 255, 0.16);
           --osp-mark: #EA6A15;
           --osp-eye: #ffb02e;
-          background: #faf6f2;
+          background: #FBF7F1;
         }
         .osp-dark .osp-strip {
           --osp-ink: #A9B6CC;
@@ -143,7 +143,7 @@ export default function OverscrollSpider({ height = 150, zIndex = 4, theme }) {
           --osp-sheen: rgba(195, 206, 224, 0.22);
           --osp-mark: #FF8A2A;
           --osp-eye: #7ef0c2;
-          background: #0d1220;
+          background: #07090F;
         }
 
         .osp-bot { transform: scaleY(-1); }

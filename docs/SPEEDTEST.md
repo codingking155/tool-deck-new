@@ -70,8 +70,9 @@ code (the ToolDeck lookup happens server-side).
 
 - [x] Download responses capped (50 MB/request), `no-store, no-transform`, `Content-Encoding: identity`
 - [x] Upload bodies capped (50 MB), **counted then discarded** — never written to storage
-- [x] Per-IP token bucket (60 req/min) on the ToolDeck endpoint
-- [x] CORS restricted via `ALLOWED_ORIGIN`
+- [x] Per-IP token bucket (240 req/min) on the ToolDeck endpoint
+- [x] Per-IP download byte budget (`SPEEDTEST_DOWN_BUDGET_MB`, default 1000 MB per 10 min, per instance)
+- [x] CORS fail-closed allowlist (`ALLOWED_ORIGIN`, see PRICE_TRACKER.md → CORS)
 - [x] All query input validated/clamped server-side
 - [x] Server logs contain **truncated** IPs only (`a.b.x.x` / first hextets)
 - [x] Results stored **only** in the browser (localStorage), exported only by user action
