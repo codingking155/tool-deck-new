@@ -1,5 +1,6 @@
 /* Pure PDF operations (pdf-lib). Everything runs in the browser; no network. */
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 
 import { parseRanges } from "./pdfRanges.js";
 export { parseRanges };
@@ -74,11 +75,20 @@ export async function addPageNumbers(bytes, { position = "bottom-center", start 
   return doc.save();
 }
 
-export async function addWatermark(bytes, { text, size = 60, opacity = 0.25, angle = 45 } = {}) {
+export async function addWatermark(bytes, { text, size = 60, opacity = 0.25, angle = 45, fontBytes = null } = {}) {
   if (!text?.trim()) throw new Error("Enter the watermark text.");
   const doc = await load(bytes);
-  const font = await doc.embedFont(StandardFonts.HelveticaBold);
-  const w = font.widthOfTextAtSize(text, size);
+  let font;
+  if (fontBytes) {
+    doc.registerFontkit(fontkit);
+    try { font = await doc.embedFont(fontBytes, { subset: true }); }
+    catch { throw new Error("That font file couldn't be read. Use a .ttf, .otf or .woff file."); }
+  } else {
+    font = await doc.embedFont(StandardFonts.HelveticaBold);
+  }
+  let w;
+  try { w = font.widthOfTextAtSize(text, size); }
+  catch { throw new Error("This text has characters the default font can't draw. Choose a font file that supports them (for example a Noto Sans .ttf)."); }
   for (const page of doc.getPages()) {
     const { width, height } = page.getSize();
     const r = (angle * Math.PI) / 180;

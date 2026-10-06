@@ -83,8 +83,10 @@ const TOOLS = [
     run: async ([f], o) => [pdf(await (await pdfOps()).addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: Number(o.start) || 1 }), `${base(f)}-numbered.pdf`)] },
   { id: "watermark", g: 4, icon: "💧", name: "Watermark", desc: "Diagonal text watermark on every page.",
     opts: [{ key: "text", label: "Watermark text", type: "text", ph: "CONFIDENTIAL" },
-      { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" }],
-    run: async ([f], o) => [pdf(await (await pdfOps()).addWatermark(f.bytes, { text: o.text, opacity: Number(o.opacity) || 0.25 }), `${base(f)}-watermarked.pdf`)] },
+      { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" },
+      { key: "font", label: "Font file for non-Latin text (optional: .ttf, .otf, .woff)", type: "file", accept: ".ttf,.otf,.woff" }],
+    run: async ([f], o) => [pdf(await (await pdfOps()).addWatermark(f.bytes, { text: o.text, opacity: Number(o.opacity) || 0.25,
+      fontBytes: o.font ? new Uint8Array(await o.font.arrayBuffer()) : null }), `${base(f)}-watermarked.pdf`)] },
   { id: "compare", g: 4, icon: "🆚", name: "Compare PDF", desc: "Spot text and visual differences between two versions.", Custom: ComparePdf },
   { id: "crop", g: 4, icon: "✂", name: "Crop PDF", desc: "Trim margins off every page (points; 72 pt = 1 inch).",
     opts: ["top", "right", "bottom", "left"].map((k) => ({ key: k, label: `${k[0].toUpperCase() + k.slice(1)} (pt)`, type: "number", def: 0 })),
@@ -111,7 +113,10 @@ function Field({ f, value, onChange }) {
   return (
     <label style={{ display: "block", marginTop: 12, fontSize: 13 }}>
       <span style={{ color: "var(--tx3)" }}>{f.label}</span>
-      {f.type === "select" ? (
+      {f.type === "file" ? (
+        <input className="inp" type="file" accept={f.accept} style={{ marginTop: 4, paddingTop: 9 }}
+          onChange={(e) => onChange(f.key, e.target.files?.[0] || null)} />
+      ) : f.type === "select" ? (
         <select className="inp" value={v} onChange={(e) => onChange(f.key, e.target.value)} style={{ marginTop: 4 }}>
           {f.options.map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
         </select>
@@ -264,7 +269,17 @@ function Workspace({ tool, notify, onBack }) {
                 <button className="pill" onClick={() => download(r)}>⬇ Download</button>
               </div>
             ))}
-            {results.length > 1 && <button className="btn" style={{ marginTop: 12 }} onClick={() => results.forEach(download)}>⬇ Download all</button>}
+            {results.length > 1 && (
+              <button className="btn" style={{ marginTop: 12 }} onClick={async () => {
+                try {
+                  const { zipFiles } = await import("../lib/zip.js");
+                  const blob = await zipFiles(results);
+                  const url = URL.createObjectURL(blob);
+                  download({ url, name: `${base(files[0] || { name: tool.id })}-${tool.id}.zip` });
+                  setTimeout(() => URL.revokeObjectURL(url), 10000);
+                } catch { notify("Couldn't create the ZIP."); }
+              }}>⬇ Download all as ZIP</button>
+            )}
           </div>
         )}
       </div>
