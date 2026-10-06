@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import IpLeakPanel from "./IpLeakPanel.jsx";
 
 function parseUA() {
   const ua = navigator.userAgent;
@@ -53,6 +54,7 @@ export default function IpTool() {
   };
   const v6on = !!v6;
   return (
+    <>
     <div className="grid2">
       <div className="panel rise d1">
         <div className="ph"><h3>Your connection</h3><p>Public addresses are read from the network — nothing is stored.</p></div>
@@ -98,5 +100,7 @@ export default function IpTool() {
         </div>
       </div>
     </div>
+    <IpLeakPanel v4={demo ? null : v4} v6={demo ? null : v6} />
+    </>
   );
 }

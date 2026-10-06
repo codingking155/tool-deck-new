@@ -225,7 +225,10 @@ export const fmt12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h >= 12 ? "PM" 
 /* ─── order → target-send wait (no weekend rules) ───────────────────────── */
 
 /** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day if it is not after the order. */
-export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "") {
+export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "", opts = {}) {
+  if (opts.skipWeekends) {
+    return getNextValidSendUtc(orderUtc, sendTime, tz, { sendDate: sendDate || null, skipWeekends: true, weekendBasis: "local" }).sendUtc;
+  }
   let date = sendDate || orderDate;
   let send = zonedToUtc(date, sendTime, tz);
   for (let i = 0; i < 30 && send <= orderUtc; i++) {
@@ -233,6 +236,11 @@ export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "") {
     else { date = nextLocalDate(date, tz); send = zonedToUtc(date, sendTime, tz); }
   }
   return send;
+}
+
+/** Weekend days skipped for a given order (empty unless skipWeekends). */
+export function skippedWeekendDays(orderUtc, sendTime, tz, sendDate = "") {
+  return getNextValidSendUtc(orderUtc, sendTime, tz, { sendDate: sendDate || null, skipWeekends: true, weekendBasis: "local" }).skippedDays;
 }
 
 export function fmtDurDays(ms) {
@@ -244,7 +252,7 @@ export function fmtDurDays(ms) {
 export const fmt12Str = (t) => { const [h, m] = t.split(":").map(Number); return fmt12(h, m); };
 
 /** 24 hourly what-if rows starting at the order time (local wall-clock steps). */
-export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = "") {
+export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = "", opts = {}) {
   if (!orderDate || !orderTime || !sendTime || !tz) return [];
   const [y, mo, d] = orderDate.split("-").map(Number);
   const [sh, sm] = orderTime.split(":").map(Number);
@@ -256,7 +264,7 @@ export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = ""
       const localDate = `${w.getUTCFullYear()}-${pad(w.getUTCMonth() + 1)}-${pad(w.getUTCDate())}`;
       const local24 = `${pad(w.getUTCHours())}:${pad(w.getUTCMinutes())}`;
       const orderUtc = zonedToUtc(localDate, local24, tz);
-      const sendUtc = nextSendUtc(orderUtc, localDate, sendTime, tz, sendDate);
+      const sendUtc = nextSendUtc(orderUtc, localDate, sendTime, tz, sendDate, opts);
       const waitMs = sendUtc - orderUtc;
       if (!(waitMs > 0)) continue;
       rows.push({
@@ -267,26 +275,4 @@ export function buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate = ""
     } catch { /* skip an unresolvable hour */ }
   }
   return rows;
-}
-
-/** Bulk orders: one per line, "YYYY-MM-DD HH:MM[, timezone]" (comma/tab/semicolon separated; "T" allowed). */
-export function bulkSendTimes({ text, defaultTz, sendTime, sendDate = "" }) {
-  const out = [];
-  for (const [i, raw] of String(text).split(/\r?\n/).entries()) {
-    const line = raw.trim();
-    if (!line || /^(order|date)/i.test(line)) continue;
-    const [dt, zoneRaw] = line.split(/[,;\t]/).map((s) => s.trim());
-    const m = dt.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/);
-    const tz = zoneRaw || defaultTz;
-    const row = { line: i + 1, input: line, tz };
-    if (!m) { out.push({ ...row, error: "Use YYYY-MM-DD HH:MM" }); continue; }
-    if (!isValidZone(tz)) { out.push({ ...row, error: `Unknown timezone "${tz}"` }); continue; }
-    const date = m[1], time = `${pad(+m[2])}:${m[3]}`;
-    if (+m[2] > 23 || +m[3] > 59) { out.push({ ...row, error: "Invalid time" }); continue; }
-    const orderUtc = zonedToUtc(date, time, tz);
-    const sendUtc = nextSendUtc(orderUtc, date, sendTime, tz, sendDate);
-    out.push({ ...row, date, time, orderUtc, sendUtc, wait: fmtDurDays(sendUtc - orderUtc),
-      orderUtcText: `${fmtUtcDate(orderUtc)} ${fmtUtc(orderUtc)}`, sendUtcText: `${fmtUtcDate(sendUtc)} ${fmtUtc(sendUtc)}`, iso: sendUtc.toISOString() });
-  }
-  return out;
 }

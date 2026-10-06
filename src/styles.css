@@ -603,3 +603,7 @@ table.rt.pt-table{min-width:520px}
 .zitem .zz{font-size:11px;color:var(--tx3);font-family:var(--mono)}
 @media (max-width:560px){.ocard .or{text-align:left}}
 .zitem[data-active="true"]{background:var(--panel2)}
+.wbadge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px;margin:2px 0 6px;border:1px solid var(--line)}
+.wbadge.device{color:var(--good);border-color:rgba(91,214,138,.4);background:rgba(91,214,138,.1)}
+.wbadge.server{color:var(--warn);border-color:rgba(245,193,92,.4);background:rgba(245,193,92,.1)}
+.wbadge.mixed{color:var(--pri2);border-color:var(--pri-line);background:var(--pri-soft)}

@@ -63,19 +63,40 @@ test("hourly table stays 24 rows with positive waits across a DST change", () =>
   assert.ok(rows.some((r) => r.offset === "GMT+1") && rows.some((r) => r.offset === "GMT+2"));
 });
 
-import { bulkSendTimes } from "../src/lib/time.js";
+import { skippedWeekendDays } from "../src/lib/time.js";
+import { buildIcs, googleCalendarUrl } from "../src/lib/ics.js";
 
-test("bulk: parses lines, per-line zones, headers and errors", () => {
-  const rows = bulkSendTimes({
-    text: "order,zone\n2026-07-11 18:00\n2026-07-11T18:00, Europe/Amsterdam\nnope\n2026-07-11 25:00\n2026-07-11 10:00, Mars/Base",
-    defaultTz: TZ, sendTime: "08:00",
-  });
-  assert.equal(rows.length, 5);
-  assert.equal(rows[0].wait, "14 hr 0 min");
-  assert.equal(rows[0].sendUtcText, "12 Jul 2026 14:00");
-  assert.equal(rows[1].tz, "Europe/Amsterdam");
-  assert.equal(rows[1].wait, "14 hr 0 min");
-  assert.match(rows[2].error, /YYYY-MM-DD/);
-  assert.match(rows[3].error, /Invalid time/);
-  assert.match(rows[4].error, /Unknown timezone/);
+test("skip weekends: Friday 18:00 order, 08:00 send -> Monday 08:00 (Sat+Sun skipped); default still Saturday", () => {
+  const z = "Europe/Amsterdam";
+  const order = zonedToUtc("2026-07-10", "18:00", z); // a Friday
+  const sat = nextSendUtc(order, "2026-07-10", "08:00", z);
+  assert.equal(fmtDurDays(sat - order), "14 hr 0 min");
+  const mon = nextSendUtc(order, "2026-07-10", "08:00", z, "", { skipWeekends: true });
+  assert.equal(fmtDurDays(mon - order), "2 days 14 hr 0 min");
+  assert.deepEqual(skippedWeekendDays(order, "08:00", z).map((d) => d.date), ["2026-07-11", "2026-07-12"]);
+});
+
+test("skip weekends also moves a fixed weekend send date to Monday; hourly rows honour it", () => {
+  const z = "Europe/Amsterdam";
+  const order = zonedToUtc("2026-07-08", "10:00", z);
+  const s = nextSendUtc(order, "2026-07-08", "08:00", z, "2026-07-11", { skipWeekends: true });
+  assert.equal(fmtUtcDate(s), "13 Jul 2026");
+  const rows = buildOrderRows("2026-07-10", "18:00", "08:00", z, "", { skipWeekends: true });
+  assert.ok(rows.every((r) => r.targetUtcDate !== "11 Jul 2026" && r.targetUtcDate !== "12 Jul 2026"));
+});
+
+test("buildIcs: valid CRLF structure, UTC times, escaping and folding", () => {
+  const ics = buildIcs({ title: "Send; offer, now", startUtc: new Date("2026-07-13T14:00:00Z"), durationMin: 30,
+    description: "x".repeat(200), uid: "u1@t", now: new Date("2026-07-01T00:00:00Z") });
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/); assert.match(ics, /END:VCALENDAR\r\n$/);
+  assert.ok(ics.includes("DTSTART:20260713T140000Z\r\n") && ics.includes("DTEND:20260713T143000Z\r\n"));
+  assert.ok(ics.includes("SUMMARY:Send\; offer\\, now\r\n"));
+  for (const line of ics.split("\r\n")) assert.ok(new TextEncoder().encode(line).length <= 75, `line too long: ${line.length}`);
+  assert.ok(ics.includes("\r\n x"), "long description is folded");
+});
+
+test("googleCalendarUrl", () => {
+  const u = new URL(googleCalendarUrl({ title: "Send", startUtc: new Date("2026-07-13T14:00:00Z"), durationMin: 15 }));
+  assert.equal(u.searchParams.get("dates"), "20260713T140000Z/20260713T141500Z");
+  assert.equal(u.hostname, "calendar.google.com");
 });

@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "ToolDeck BLR — six fast, private browser utilities",
+  "description": "ToolDeck BLR — nine fast, private utilities",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

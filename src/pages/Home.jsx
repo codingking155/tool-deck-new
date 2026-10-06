@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { TOOLS, tint, ROTATE, CATEGORIES } from "../toolsMeta.js";
+import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
 
@@ -22,7 +22,7 @@ export default function Home({ nav, reduced }) {
   const [cat, setCat] = useState("All");
   const [ri, setRi] = useState(0);
   useEffect(() => { const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, []);
-  const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(100);
+  const c1 = useCountUp(TOOLS.length), c2 = useCountUp(240), c3 = useCountUp(TOOLS.filter((t) => t.where === "device").length);
   const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (t.name + t.desc).toLowerCase().includes(q.toLowerCase()));
   const th = tiltHandlers(reduced);
   return (
@@ -40,7 +40,7 @@ export default function Home({ nav, reduced }) {
         <div className="stats rise d3">
           <div className="stat"><b>{c1}</b><span>tools inside</span></div>
           <div className="stat"><b>{c2}+</b><span>dial codes indexed</span></div>
-          <div className="stat"><b>{c3}%</b><span>runs in your browser</span></div>
+          <div className="stat"><b>{c3}</b><span>fully on-device</span></div>
         </div>
       </section>
       <div className="pillrow" role="group" aria-label="Filter tools by category" style={{ justifyContent: "center", margin: "0 0 14px" }}>
@@ -56,6 +56,7 @@ export default function Home({ nav, reduced }) {
             <Preview kind={t.pv} />
             <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}>{t.icon}</div>
             <h3>{t.name}</h3>
+            {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
             <p>{t.desc}</p>
             <span className="open" aria-hidden="true">Open tool <i>→</i></span>
           </button>
