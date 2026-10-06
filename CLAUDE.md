@@ -8,8 +8,10 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
   unless you need per-test names (`npm test`).
 - `npx vite preview --port 4173` to browse a build; `npm run preview:csp` serves it with vercel.json's CSP/security
   headers (run e2e against that after touching anything that loads/fetches a new origin, then update the CSP).
-- e2e: `CHROMIUM_PATH=/opt/pw-browsers/chromium npm run test:e2e`; build with `VITE_SUPABASE_URL=https://e2e.supabase.co
-  VITE_SUPABASE_ANON_KEY=e2e-placeholder` like CI or the Breach scenario fails.
+- e2e: `npm run e2e -- <filter…>` (e.g. `npm run e2e -- pdf ip`) builds like CI, serves with the CSP, runs only the
+  matching scenarios, prints just failures + summary, and stops the server. No args = whole suite (~5 min); run
+  it only before merging or when a change is app-wide. Raw `p.mouse` drawing must emulate reduced motion
+  (decorative spiders swallow pointerdown).
 - Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
 
@@ -34,3 +36,6 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 - Delegate wide searches or reviews to a subagent so only the conclusion returns.
 - Don't schedule recurring check-ins or PR subscriptions unless asked; stop them once the PR is green.
 - Keep final replies short; put detail in commit messages / PR descriptions.
+- Long jobs: run in the background and wait for the completion notice once; don't poll, `sleep`-loop or stream
+  logs with Monitor. Read outputs through `tail`/`grep`, never whole logs.
+- Debug flaky tests by capturing the failing locator + a screenshot on the first failure, not by re-running blindly.

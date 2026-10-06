@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "node tests/e2e/run.mjs",
+    "e2e": "node tests/e2e/local.mjs",
     "test:q": "node --test --test-reporter=dot tests/*.test.mjs",
     "check": "npm run -s test:q && vite build --logLevel error",
     "preview:csp": "vite build --config vite.csp-preview.config.js --logLevel error && vite preview --config vite.csp-preview.config.js --port 4173"
