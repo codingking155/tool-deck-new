@@ -304,6 +304,7 @@ function Workspace({ tool, notify, onBack }) {
 export default function PdfTool({ notify }) {
   const [id, setId] = useState(() => readParams().get("t") || "");
   useEffect(() => { writeParams({ t: id || null }); }, [id]);
+  const [query, setQuery] = useState("");
   const tool = useMemo(() => TOOLS.find((t) => t.id === id), [id]);
 
   if (tool?.Custom) return (
@@ -313,23 +314,37 @@ export default function PdfTool({ notify }) {
   );
   if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} />;
 
+  const q = query.trim().toLowerCase();
+  const match = (t) => !q || (t.name + " " + t.desc).toLowerCase().includes(q);
+  const shown = TOOLS.filter(match);
+
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      {GROUPS.map((g, gi) => (
-        <section key={g} style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 14, color: "var(--tx3)", margin: "0 0 8px" }}>{g}</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 10 }}>
-            {TOOLS.filter((t) => t.g === gi).map((t) => (
-              <button key={t.id} className="panel" onClick={() => setId(t.id)}
-                style={{ textAlign: "left", padding: 14, cursor: "pointer", color: "var(--tx)", border: "1px solid var(--line)" }}>
-                <div style={{ fontSize: 22 }}>{t.icon}</div>
-                <b>{t.name}</b>
-                <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 2 }}>{t.desc}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+    <div className="pdfh">
+      <div className="pdfh-search">
+        <span aria-hidden="true">🔍</span>
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${TOOLS.length} PDF tools…`} aria-label="Search PDF tools" />
+      </div>
+      {GROUPS.map((g, gi) => {
+        const items = shown.filter((t) => t.g === gi);
+        if (!items.length) return null;
+        return (
+          <section key={g}>
+            <h3 className="pdfh-gh">{g}<i>{items.length}</i></h3>
+            <div className="pdfh-grid">
+              {items.map((t) => (
+                <button key={t.id} className="pdfh-card" onClick={() => setId(t.id)}>
+                  <span className="pdfh-ico" aria-hidden="true">{t.icon}</span>
+                  <b>{t.name}</b>
+                  <small>{t.desc}</small>
+                  <span className="pdfh-go" aria-hidden="true">→</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {!shown.length && <div className="pdfh-empty">No tools match “{query}”.</div>}
       <div className="note i"><b>Privacy · </b>every tool here runs locally in your browser — files are never uploaded.</div>
       <div className="note w" style={{ marginTop: 10 }}><b>Not available (need a server) · </b>{NOT_AVAILABLE.join(" · ")}</div>
     </div>

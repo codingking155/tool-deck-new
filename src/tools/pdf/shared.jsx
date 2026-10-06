@@ -9,7 +9,8 @@ export function FilePick({ label, accept = "application/pdf", file, onFile, hint
   return (
     <div className="field">
       <label>{label}</label>
-      <button type="button" className="btn gh" style={{ width: "100%", justifyContent: "center" }} onClick={() => ref.current?.click()}>
+      <button type="button" className="btn gh" style={{ width: "100%", justifyContent: "center" }} onClick={() => ref.current?.click()}
+        aria-label={file ? `${label}: ${file.name} selected — choose a different file` : `${label}: choose a file`}>
         {file ? `${file.name} · ${kb(file.size)} — change` : "Choose a file"}
       </button>
       <input ref={ref} type="file" accept={accept} hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
@@ -46,7 +47,7 @@ export function Shell({ title, desc, onBack, children }) {
     <div className="panel rise d1" style={{ maxWidth: 860, margin: "0 auto" }}>
       <div className="ph">
         <button className="btn gh" onClick={onBack} style={{ float: "right" }}>← All PDF tools</button>
-        <h3>{title}</h3><p>{desc}</p>
+        <h2>{title}</h2><p>{desc}</p>
       </div>
       <div className="pb">{children}</div>
     </div>

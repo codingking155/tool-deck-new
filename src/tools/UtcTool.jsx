@@ -4,13 +4,17 @@ import {
   fmtUtc, fmtUtcDate, fmtLocal, fmt12Str, fmtDurDays, nextSendUtc, skippedWeekendDays, buildOrderRows, getDateTimeWarning,
 } from "../lib/time.js";
 import ZonePicker from "../components/ZonePicker.jsx";
-import { Switch, ShareLink } from "../components/chrome.jsx";
+import { Switch, ShareLink, copyText } from "../components/chrome.jsx";
 import { readParams, writeParams, useNow } from "../hooks/index.js";
 import { buildIcs, googleCalendarUrl } from "../lib/ics.js";
 
 const CLOCK_KEY = "toolDeck.clock12";
 const PRESET_KEY = "toolDeck.utcPresets";
 const DEFAULTS = { date: "", order: "21:30", send: "07:30", senddate: "" };
+const isDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+const isTime = (v) => typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+const isPreset = (p) => p && typeof p.name === "string" && isTime(p.order) && isTime(p.send) && (!p.senddate || isDate(p.senddate));
+const safeWarning = (...a) => { try { return getDateTimeWarning(...a); } catch { return null; } };
 
 function unusualWait(ms) {
   const m = Math.round(ms / 60000);
@@ -41,15 +45,17 @@ export default function UtcTool({ notify }) {
   const P = readParams();
   const today = useMemo(() => { const n = new Date(); return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`; }, []);
   const [tz, setTz] = useState(() => (isValidZone(P.get("zone")) ? P.get("zone") : USER_TZ));
-  const [orderDate, setOrderDate] = useState(() => P.get("date") || today);
-  const [orderTime, setOrderTime] = useState(() => P.get("order") || DEFAULTS.order);
-  const [sendTime, setSendTime] = useState(() => P.get("send") || DEFAULTS.send);
-  const [sendDate, setSendDate] = useState(() => P.get("senddate") || "");
+  const [orderDate, setOrderDate] = useState(() => (isDate(P.get("date")) ? P.get("date") : today));
+  const [orderTime, setOrderTime] = useState(() => (isTime(P.get("order")) ? P.get("order") : DEFAULTS.order));
+  const [sendTime, setSendTime] = useState(() => (isTime(P.get("send")) ? P.get("send") : DEFAULTS.send));
+  const [sendDate, setSendDate] = useState(() => (isDate(P.get("senddate")) ? P.get("senddate") : ""));
   const [is12, setIs12] = useState(() => { try { return localStorage.getItem(CLOCK_KEY) !== "24"; } catch { return true; } });
   const [skipWk, setSkipWk] = useState(() => P.get("wk") === "1");
   const [showTable, setShowTable] = useState(false);
   const now = useNow(1000);
-  const [presets, setPresets] = useState(() => { try { return JSON.parse(localStorage.getItem(PRESET_KEY) || "[]").slice(0, 12); } catch { return []; } });
+  const [presets, setPresets] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem(PRESET_KEY) || "[]"); return Array.isArray(v) ? v.filter(isPreset).slice(0, 12) : []; } catch { return []; }
+  });
   const [presetName, setPresetName] = useState("");
   const savePresets = (next) => { setPresets(next); try { localStorage.setItem(PRESET_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ } };
   const addPreset = () => {
@@ -86,9 +92,10 @@ export default function UtcTool({ notify }) {
     if (!orderTime) w.push("Please enter the order created time.");
     if (!sendTime) w.push("Please enter the target send time.");
     if (orderDate && orderDate < today) w.push("Order date is in the past. The calculator will still find the next valid target send time.");
-    const a = orderDate && orderTime && getDateTimeWarning(orderDate, orderTime, tz, "Order created time");
+    if (sendDate && orderDate && sendDate < orderDate) w.push("Target send date is before the order date. The next valid send time after the order is used instead.");
+    const a = orderDate && orderTime && safeWarning(orderDate, orderTime, tz, "Order created time");
     if (a) w.push(a);
-    const b = sendTime && getDateTimeWarning(sendDate || orderDate, sendTime, tz, "Target send time");
+    const b = sendTime && safeWarning(sendDate || orderDate, sendTime, tz, "Target send time");
     if (b) w.push(b);
     return w;
   }, [orderDate, orderTime, sendTime, sendDate, tz, today]);
@@ -111,7 +118,7 @@ export default function UtcTool({ notify }) {
     const head = ["Local Date", "Local (12h)", "Local (24h)", "GMT Offset", "UTC Order", "UTC Order Date", "Target UTC", "Target UTC Date", "Wait Time"];
     const text = [head, ...rows.map((r) => [r.localDate, r.local12, r.local24, r.offset, r.utcOrder, r.utcOrderDate, r.targetUtc, r.targetUtcDate, r.wait])]
       .map((r) => r.join("\t")).join("\n");
-    navigator.clipboard.writeText(text).then(() => notify("Table copied — ready to paste.")).catch(() => notify("Copy blocked."));
+    copyText(text, notify, "Table copied — ready to paste.");
   };
 
   return (
@@ -119,7 +126,7 @@ export default function UtcTool({ notify }) {
       <div className="grid2">
         <div className="panel rise d1">
           <div className="ph" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-            <div><h3>Parameters</h3><p>Set the origin and target local times</p></div>
+            <div><h2>Parameters</h2><p>Set the origin and target local times</p></div>
             <button type="button" className="rowcopy" style={{ width: "auto", padding: "0 10px" }} onClick={reset}>Reset defaults</button>
           </div>
           <div className="pb">
@@ -130,8 +137,8 @@ export default function UtcTool({ notify }) {
               </div>
             )}
             <div className="field">
-              <label>🌍 Country / Time Zone</label>
-              <ZonePicker value={tz} onChange={setTz} />
+              <label id="tzl">🌍 Country / Time Zone</label>
+              <ZonePicker value={tz} onChange={setTz} labelledBy="tzl" />
               {userZoneDiffers && (
                 <button type="button" className="linkbtn" onClick={() => setTz(USER_TZ)}>📍 Use my timezone ({USER_TZ.split("/").pop().replace(/_/g, " ")})</button>
               )}
@@ -173,10 +180,10 @@ export default function UtcTool({ notify }) {
             </div>
 
             <div className="field">
-              <label htmlFor="sd" style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Target Send Date (optional)</span>
-                <button type="button" className="linkbtn" style={{ margin: 0 }} onClick={() => setSendDate("")}>Clear</button>
-              </label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <label htmlFor="sd">Target Send Date (optional)</label>
+                <button type="button" className="linkbtn" style={{ margin: 0 }} onClick={() => setSendDate("")} aria-label="Clear target send date">Clear</button>
+              </div>
               <input id="sd" type="date" value={sendDate} onChange={(e) => setSendDate(e.target.value)} />
               <div className="hint">Leave blank to automatically pick the next valid day after the order date.</div>
             </div>
@@ -217,7 +224,7 @@ export default function UtcTool({ notify }) {
       </div>
 
       <div className="secbar rise d3">
-        <h3 />
+        <span />
         <div className="r">
           {showTable && <button className="btn gh" onClick={copyTable} disabled={!rows.length}>⧉ Copy Table</button>}
           <button className="btn gh" onClick={() => setShowTable((s) => !s)} aria-expanded={showTable}>

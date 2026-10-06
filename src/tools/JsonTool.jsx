@@ -88,6 +88,26 @@ function OutputActions({ text, file, notify }) {
   );
 }
 
+function buildOutput(v, { mode, indent, sortKeys, path, conv, rootName }) {
+  if (mode === "format") return { text: formatJSON(v, indent, sortKeys), file: ["data.json", "application/json"] };
+  if (mode === "minify") return { text: minifyJSON(v, sortKeys), file: ["data.min.json", "application/json"] };
+  if (mode === "path") {
+    const q = queryPath(v, path);
+    if (!q.ok) return { note: q.error };
+    if (!q.matches.length) return { note: "No match for this path." };
+    return { text: formatJSON(q.matches.length === 1 ? q.matches[0] : q.matches, 2), count: q.matches.length, file: ["query.json", "application/json"] };
+  }
+  const [, ext, type] = CONVERTERS[conv];
+  if (conv === "yaml") return { text: toYAML(v), file: [`data.${ext}`, type] };
+  if (conv === "csv") {
+    const csv = toCSV(v);
+    return csv == null ? { note: "CSV needs a top-level array of objects, e.g. [{\"a\":1},{\"a\":2}]. Tip: use Query to pick one out, e.g. $.items." } : { text: csv, file: [`data.${ext}`, type] };
+  }
+  if (conv === "ts") return { text: toTypeScript(v, /^[A-Za-z_$][\w$]*$/.test(rootName) ? rootName : "Root"), file: [`types.${ext}`, type] };
+  if (conv === "schema") return { text: JSON.stringify(toJSONSchema(v), null, 2), file: [ext, type] };
+  return { text: JSON.stringify(minifyJSON(v)), file: [`escaped.${ext}`, type] };
+}
+
 export default function JsonTool({ notify }) {
   const [input, setInput] = useState(SAMPLE);
   const [inputB, setInputB] = useState(SAMPLE_B);
@@ -100,35 +120,20 @@ export default function JsonTool({ notify }) {
   const [undo, setUndo] = useState(null);
   const [applied, setApplied] = useState(null);
   const inputRef = useRef(null);
+  const fileA = useRef(null), fileB = useRef(null);
 
   const dInput = useDeferredValue(input);
   const dInputB = useDeferredValue(inputB);
   const parsed = useMemo(() => parseJSON(dInput), [dInput]);
   const parsedB = useMemo(() => (mode === "diff" ? parseJSON(dInputB) : null), [dInputB, mode]);
   const repair = useMemo(() => (!parsed.ok && !parsed.empty ? repairJSON(dInput) : null), [parsed, dInput]);
-  const info = useMemo(() => (parsed.ok ? stats(parsed.value, dInput) : null), [parsed, dInput]);
-  const inner = useMemo(() => (parsed.ok ? innerJSON(parsed.value) : null), [parsed]);
+  const info = useMemo(() => { try { return parsed.ok ? stats(parsed.value, dInput) : null; } catch { return null; } }, [parsed, dInput]);
+  const inner = useMemo(() => { try { return parsed.ok ? innerJSON(parsed.value) : null; } catch { return null; } }, [parsed]);
 
   const out = useMemo(() => {
     if (!parsed.ok || mode === "tree" || mode === "diff") return null;
-    const v = parsed.value;
-    if (mode === "format") return { text: formatJSON(v, indent, sortKeys), file: ["data.json", "application/json"] };
-    if (mode === "minify") return { text: minifyJSON(v, sortKeys), file: ["data.min.json", "application/json"] };
-    if (mode === "path") {
-      const q = queryPath(v, path);
-      if (!q.ok) return { note: q.error };
-      if (!q.matches.length) return { note: "No match for this path." };
-      return { text: formatJSON(q.matches.length === 1 ? q.matches[0] : q.matches, 2), count: q.matches.length, file: ["query.json", "application/json"] };
-    }
-    const [, ext, type] = CONVERTERS[conv];
-    if (conv === "yaml") return { text: toYAML(v), file: [`data.${ext}`, type] };
-    if (conv === "csv") {
-      const csv = toCSV(v);
-      return csv == null ? { note: "CSV needs a top-level array of objects, e.g. [{\"a\":1},{\"a\":2}]. Tip: use Query to pick one out, e.g. $.items." } : { text: csv, file: [`data.${ext}`, type] };
-    }
-    if (conv === "ts") return { text: toTypeScript(v, /^[A-Za-z_$][\w$]*$/.test(rootName) ? rootName : "Root"), file: [`types.${ext}`, type] };
-    if (conv === "schema") return { text: JSON.stringify(toJSONSchema(v), null, 2), file: [ext, type] };
-    return { text: JSON.stringify(minifyJSON(v)), file: [`escaped.${ext}`, type] };
+    try { return buildOutput(parsed.value, { mode, indent, sortKeys, path, conv, rootName }); }
+    catch (e) { return { note: `Couldn't produce this output: ${e?.message || e}` }; }
   }, [parsed, mode, indent, sortKeys, path, conv, rootName]);
 
   const shownOut = useMemo(() => (out?.text != null ? previewOf(out.text) : null), [out]);
@@ -169,30 +174,32 @@ export default function JsonTool({ notify }) {
   const loadFile = (file, setter) => {
     if (!file) return;
     if (file.size > 25 * 1024 * 1024) { notify("That file is over 25 MB — too large to edit in the browser"); return; }
-    file.text().then((t) => { setter(t); setUndo(null); setApplied(null); });
+    file.text().then((t) => { setter(t); setUndo(null); setApplied(null); }).catch(() => notify("Couldn't read that file — is it a text file?"));
   };
 
   const pending = dInput !== input;
+  /* Only take over drops that carry files; dropped text keeps the browser's default insert. */
+  const dropTo = (setter) => (e) => { if (e.dataTransfer.files?.length) { e.preventDefault(); loadFile(e.dataTransfer.files[0], setter); } };
 
   return (
     <div>
-      <div className="modes" role="tablist" aria-label="Output">
+      <div className="modes" role="group" aria-label="Output">
         {MODES.map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>{label}</button>
+          <button key={k} type="button" aria-pressed={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>{label}</button>
         ))}
       </div>
 
       <div className="grid2">
         <div className="panel rise d1">
-          <div className="ph"><h3>{mode === "diff" ? "Original (A)" : "Input"}</h3><p>Paste, drop or open a file. <kbd>Ctrl/⌘ + Enter</kbd> beautifies in place.</p></div>
+          <div className="ph"><h2>{mode === "diff" ? "Original (A)" : "Input"}</h2><p>Paste, drop or open a file. <kbd>Ctrl/⌘ + Enter</kbd> beautifies in place.</p></div>
           <div className="pb">
             <CodeEditor id="json-in" label="JSON input" value={input} onChange={onType} taRef={inputRef} onKeyDown={onKeyDown}
               errorLine={!parsed.ok && !pending ? parsed.error?.line : null} placeholder='{"paste": "JSON here"}'
-              onDrop={(e) => { e.preventDefault(); loadFile(e.dataTransfer.files[0], setInput); }} />
+              onDrop={dropTo(setInput)} />
             <div style={{ marginTop: 10 }}>
               {parsed.ok ? (
                 <div className="hint" style={{ color: "var(--good)", marginTop: 0 }}>
-                  ✓ Valid JSON · {info.keys.toLocaleString()} keys · {info.nodes.toLocaleString()} values · depth {info.depth} · {formatBytes(info.bytes)}
+                  ✓ Valid JSON{info && <> · {info.keys.toLocaleString()} keys · {info.nodes.toLocaleString()} values · depth {info.depth} · {formatBytes(info.bytes)}</>}
                 </div>
               ) : parsed.empty ? (
                 <div className="hint" style={{ marginTop: 0 }}>{parsed.error.message}</div>
@@ -218,10 +225,8 @@ export default function JsonTool({ notify }) {
               )}
             </div>
             <div className="pillrow" style={{ marginTop: 12 }}>
-              <label className="pill" style={{ cursor: "pointer" }}>
-                Open file
-                <input type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
-              </label>
+              <button type="button" className="pill" onClick={() => fileA.current?.click()}>Open file</button>
+              <input ref={fileA} type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
               <button className="pill" onClick={() => replaceInput(SAMPLE)}>Sample</button>
               <button className="pill" onClick={() => replaceInput("")}>Clear</button>
               {parsed.ok && <button className="pill" onClick={beautifyInPlace}>Beautify input</button>}
@@ -235,16 +240,14 @@ export default function JsonTool({ notify }) {
         <div className="panel rise d2">
           {mode === "diff" ? (
             <>
-              <div className="ph"><h3>Changed (B)</h3><p>Paste the version to compare against A.</p></div>
+              <div className="ph"><h2>Changed (B)</h2><p>Paste the version to compare against A.</p></div>
               <div className="pb">
                 <CodeEditor id="json-b" label="JSON to compare" value={inputB} onChange={(e) => setInputB(e.target.value)} height={240}
                   errorLine={parsedB && !parsedB.ok ? parsedB.error?.line : null}
-                  onDrop={(e) => { e.preventDefault(); loadFile(e.dataTransfer.files[0], setInputB); }} />
+                  onDrop={dropTo(setInputB)} />
                 <div className="pillrow" style={{ marginTop: 10 }}>
-                  <label className="pill" style={{ cursor: "pointer" }}>
-                    Open file
-                    <input type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
-                  </label>
+                  <button type="button" className="pill" onClick={() => fileB.current?.click()}>Open file</button>
+                  <input ref={fileB} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
                   <button className="pill" onClick={() => { const a = input; setInput(inputB); setInputB(a); }}>⇄ Swap A and B</button>
                 </div>
                 {!parsed.ok ? <div className="empty">Fix A to compare.</div>
@@ -255,7 +258,7 @@ export default function JsonTool({ notify }) {
           ) : (
             <>
               <div className="ph">
-                <h3>{mode === "tree" ? "Tree" : "Output"}</h3>
+                <h2>{mode === "tree" ? "Tree" : "Output"}</h2>
                 <p>{mode === "path" ? "Pick values with JSONPath-style queries." : mode === "tree" ? "Browse, search and copy paths." : mode === "convert" ? "Generate types, schemas and other formats." : "Updates live."}</p>
               </div>
               <div className="pb">

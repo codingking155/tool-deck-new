@@ -20,7 +20,7 @@ export default function CommandPalette({ open, onClose, nav, toggleTheme }) {
   }, [open]);
   const items = useMemo(() => {
     const base = [
-      ...TOOLS.map((t) => ({ label: `${t.icon}  ${t.name}`, d: "Open tool", run: () => nav(`/tool/${t.id}`) })),
+      ...TOOLS.map((t) => ({ label: `${t.icon}  ${t.name}`, d: t.beta ? "Beta · Open tool" : "Open tool", run: () => nav(`/tool/${t.id}`) })),
       { label: "🏠  Home", d: "Go home", run: () => nav("/") },
       { label: "🌓  Toggle theme", d: "Light / dark", run: toggleTheme },
     ];

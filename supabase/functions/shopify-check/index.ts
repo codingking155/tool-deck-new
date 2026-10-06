@@ -1,5 +1,6 @@
-import { preflight, json, fail, log } from "../_shared/http.ts";
-import { rateLimit, clientIp } from "../_shared/ratelimit.ts";
+import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
+import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
 import { analyzeShopify, applyHeaderSignals, applyProbeSignals, looksBlockedPage } from "../../../shared/shopifyCore/detect.mjs";
 import { safeFetch, assertFetchable, BlockedUrlError } from "../../../shared/net/safeFetch.mjs";
 
@@ -76,10 +77,11 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
   return { probes, probeHeaders };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withCors(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   if (req.method !== "GET") return fail(405, "method_not_allowed", "Use GET with ?url=");
-  const rl = rateLimit(`shopify:${clientIp(req)}`, Number(Deno.env.get("SHOPIFY_RATE_LIMIT_MAX") ?? 30));
+  const max = Number(Deno.env.get("SHOPIFY_RATE_LIMIT_MAX") ?? 30);
+  const rl = await sharedRateLimit("shopify", clientIp(req), Number.isFinite(max) && max > 0 ? max : 30, 60);
   if (!rl.ok) return json({ error: { code: "rate_limited", message: "Too many checks — try again in a minute." } }, 429, { "Retry-After": String(rl.retryAfter ?? 60) });
 
   const raw = new URL(req.url).searchParams.get("url")?.trim() ?? "";
@@ -173,8 +175,13 @@ Deno.serve(async (req) => {
     headers_sample: headers,
     elapsed_ms: elapsed,
   };
-  cache.set(key, { at: Date.now(), body });
-  if (cache.size > 500) { const oldest = cache.keys().next().value; if (oldest) cache.delete(oldest); }
-  log("shopify_check", { host: target.hostname, verdict: res.verdict, conf: res.confidence, ms: elapsed });
-  return json(body, 200, { "x-tooldeck-cache": "miss", "Cache-Control": "public, max-age=300" });
-});
+  // Only a page we actually saw is worth reusing: an unreachable or bot-walled
+  // fetch is transient, and caching it would repeat a wrong answer for 10 min.
+  const cacheable = fetchStatus != null && !blocked;
+  if (cacheable) {
+    cache.set(key, { at: Date.now(), body });
+    if (cache.size > 500) { const oldest = cache.keys().next().value; if (oldest) cache.delete(oldest); }
+  }
+  log("shopify_check", { host: target.hostname, verdict: res.verdict, conf: res.confidence, ms: elapsed, cached: cacheable });
+  return json(body, 200, { "x-tooldeck-cache": "miss", "Cache-Control": cacheable ? "public, max-age=300" : "no-store" });
+}));

@@ -9,7 +9,7 @@ function Overlay({ diff }) {
   useEffect(() => {
     const c = ref.current; if (!c || !diff) return;
     c.width = diff.width; c.height = diff.height;
-    c.getContext("2d").putImageData(new ImageData(diff.overlay, diff.width, diff.height), 0, 0);
+    c.getContext("2d")?.putImageData(new ImageData(diff.overlay, diff.width, diff.height), 0, 0);
   }, [diff]);
   return <canvas ref={ref} style={{ width: "100%", display: "block", borderRadius: 6, border: "1px solid var(--line)" }} />;
 }
@@ -21,16 +21,22 @@ export default function ComparePdf({ notify, onBack }) {
   const [sel, setSel] = useState(0);
   const [view, setView] = useState("text");
   const [imgs, setImgs] = useState(null);
-  const bytes = useRef({});
+  /* Both documents stay open (one pdf.js copy each) for the visual view; closed on re-run / unmount. */
+  const docs = useRef(null);
+  const mounted = useRef(true);
+  const closeDocs = () => { const d = docs.current; docs.current = null; d?.a.close(); d?.b.close(); };
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; closeDocs(); }; }, []);
 
   const run = async () => {
     if (!a || !b) return notify("Choose both PDFs.");
+    closeDocs();
     setRes(null); setImgs(null); setSel(0); setBusy("Reading text…");
+    let sa, sb;
     try {
       const r = await import("../../lib/pdfRender.js");
-      const [ba, bb] = [await readFile(a), await readFile(b)];
-      bytes.current = { a: ba, b: bb };
-      const [ta, tb] = [await r.pdfTextPages(ba), await r.pdfTextPages(bb)];
+      sa = await r.pdfSession(await readFile(a));
+      sb = await r.pdfSession(await readFile(b));
+      const [ta, tb] = [await sa.text(), await sb.text()];
       const n = Math.max(ta.length, tb.length);
       const pages = [];
       for (let i = 0; i < n; i++) {
@@ -41,26 +47,31 @@ export default function ComparePdf({ notify, onBack }) {
       for (let i = 0; i < vis; i++) {
         setBusy(`Comparing page ${i + 1} of ${vis}…`);
         if (i < ta.length && i < tb.length) {
-          const [ia, ib] = [await r.pdfPageRgba(ba, i + 1), await r.pdfPageRgba(bb, i + 1)];
+          const [ia, ib] = [await sa.rgba(i + 1), await sb.rgba(i + 1)];
           const d = pixelDiff(ia, ib);
           pages[i].pct = d.percent; pages[i].diff = d;
         }
       }
+      if (!mounted.current) throw new Error("closed");
+      docs.current = { a: sa, b: sb };
       setRes({ pages, pagesA: ta.length, pagesB: tb.length, visualCapped: n > vis });
-    } catch (e) { notify(`Compare failed: ${e?.message || "unknown error"}`); }
-    finally { setBusy(""); }
+    } catch (e) {
+      sa?.close(); sb?.close();
+      if (mounted.current) notify(`Compare failed: ${e?.message || "unknown error"}`);
+    } finally { if (mounted.current) setBusy(""); }
   };
 
   useEffect(() => {
-    if (!res || view !== "visual" || !bytes.current.a) return;
+    const d = docs.current;
+    if (!res || view !== "visual" || !d) return;
     let live = true;
     setImgs(null);
-    import("../../lib/pdfRender.js").then(async (r) => {
+    (async () => {
       const p = res.pages[sel];
-      const ia = sel < res.pagesA ? await r.pdfPageImage(bytes.current.a, sel + 1, 420) : null;
-      const ib = sel < res.pagesB ? await r.pdfPageImage(bytes.current.b, sel + 1, 420) : null;
+      const ia = sel < res.pagesA ? await d.a.image(sel + 1, 420) : null;
+      const ib = sel < res.pagesB ? await d.b.image(sel + 1, 420) : null;
       if (live) setImgs({ ia, ib, p });
-    });
+    })().catch(() => live && setImgs({ err: true }));
     return () => { live = false; };
   }, [res, sel, view]);
 
@@ -71,8 +82,8 @@ export default function ComparePdf({ notify, onBack }) {
   return (
     <Shell title="🆚 Compare PDF" desc="See what changed between two versions — text differences and a visual overlay." onBack={onBack}>
       <div className="two">
-        <FilePick label="Original (A)" file={a} onFile={(f) => { setA(f); setRes(null); }} />
-        <FilePick label="Revised (B)" file={b} onFile={(f) => { setB(f); setRes(null); }} />
+        <FilePick label="Original (A)" file={a} onFile={(f) => { setA(f); setRes(null); closeDocs(); }} />
+        <FilePick label="Revised (B)" file={b} onFile={(f) => { setB(f); setRes(null); closeDocs(); }} />
       </div>
       <button className="btn" style={{ width: "100%" }} disabled={!a || !b || !!busy} onClick={run}>{busy || "Compare"}</button>
 
@@ -89,14 +100,15 @@ export default function ComparePdf({ notify, onBack }) {
             {res.pages.map((p, i) => {
               const diff = p.changed || (p.pct ?? 0) > 0.05 || p.onlyIn;
               return <button key={i} className="pill" aria-pressed={sel === i} onClick={() => setSel(i)}
+                aria-label={`Page ${i + 1}, ${p.onlyIn ? `only in ${p.onlyIn}` : diff ? "changed" : "no changes"}${p.pct != null ? `, ${p.pct.toFixed(1)}% pixels differ` : ""}`}
                 style={{ borderColor: sel === i ? "var(--pri2)" : undefined, color: diff ? "var(--warn)" : undefined }}>
                 {i + 1}{p.pct != null ? ` · ${p.pct.toFixed(1)}%` : ""}</button>;
             })}
           </div>
 
-          <div className="modes" role="tablist" style={{ marginTop: 12 }}>
-            <button role="tab" aria-selected={view === "text"} className={view === "text" ? "on" : ""} onClick={() => setView("text")}>Text changes</button>
-            <button role="tab" aria-selected={view === "visual"} className={view === "visual" ? "on" : ""} onClick={() => setView("visual")}>Visual overlay</button>
+          <div className="modes" role="group" aria-label="View" style={{ marginTop: 12 }}>
+            <button aria-pressed={view === "text"} className={view === "text" ? "on" : ""} onClick={() => setView("text")}>Text changes</button>
+            <button aria-pressed={view === "visual"} className={view === "visual" ? "on" : ""} onClick={() => setView("visual")}>Visual overlay</button>
           </div>
 
           {view === "text" && page && (
@@ -104,13 +116,14 @@ export default function ComparePdf({ notify, onBack }) {
               {page.onlyIn && <div className="note w" style={{ marginBottom: 8 }}>This page exists only in {page.onlyIn}.</div>}
               {page.ops.length === 0 ? <span style={{ color: "var(--tx3)" }}>No selectable text on this page (scanned or image-only) — use the visual overlay.</span> :
                 page.ops.map((o, i) => o.t === "eq" ? <span key={i}>{o.w} </span>
-                  : o.t === "add" ? <span key={i} style={{ background: "rgba(91,214,138,.18)", color: "var(--good)", borderRadius: 3 }}>{o.w} </span>
-                  : <span key={i} style={{ background: "rgba(255,90,90,.15)", color: "var(--bad)", textDecoration: "line-through", borderRadius: 3 }}>{o.w} </span>)}
+                  : o.t === "add" ? <span key={i} style={{ background: "color-mix(in srgb, var(--good) 18%, transparent)", color: "var(--good)", borderRadius: 3 }}>{o.w} </span>
+                  : <span key={i} style={{ background: "color-mix(in srgb, var(--bad) 15%, transparent)", color: "var(--bad)", textDecoration: "line-through", borderRadius: 3 }}>{o.w} </span>)}
             </div>
           )}
 
           {view === "visual" && (
-            !imgs ? <div className="hint" style={{ marginTop: 12 }}>Rendering page {sel + 1}…</div> : (
+            !imgs ? <div className="hint" style={{ marginTop: 12 }}>Rendering page {sel + 1}…</div>
+            : imgs.err ? <div className="note w" style={{ marginTop: 12 }}>Couldn't render page {sel + 1} for the visual overlay. Try another page or run Compare again.</div> : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginTop: 4 }}>
                 {[["A", imgs.ia && <img src={imgs.ia.url} alt="" style={{ width: "100%", borderRadius: 6, border: "1px solid var(--line)" }} />],
                   ["B", imgs.ib && <img src={imgs.ib.url} alt="" style={{ width: "100%", borderRadius: 6, border: "1px solid var(--line)" }} />],

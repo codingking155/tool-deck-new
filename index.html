@@ -34,17 +34,8 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <!-- DNS prefetch for external services -->
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-
-  <!-- Fonts: async loading with fallback. Only essential fonts upfront, others deferred -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Essential display fonts only: fast render path -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" />
-  <!-- Non-essential fonts loaded async after page interactive -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=Raleway:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'" />
+  <!-- applies the saved theme before first paint (no dark flash for light-mode users) -->
+  <script src="/theme-boot.js"></script>
 
   <!-- Structured data so tools can earn rich results -->
   <script type="application/ld+json">

@@ -38,7 +38,7 @@ export function createAlertsApi({ functionsBase, getToken } = {}) {
   return {
     create: (input) => call("/price-alerts", { method: "POST", body: input }),
     list: () => call("/price-alerts"),
-    getByToken: (manageToken) => call(`/price-alerts?token=${encodeURIComponent(manageToken)}`),
+    getByToken: (manageToken) => call("/price-alerts", { manageToken }),
     get: (id) => call(`/price-alerts?id=${encodeURIComponent(id)}`),
     update: (id, input, manageToken) =>
       call(`/price-alerts?id=${encodeURIComponent(id)}`, { method: "PATCH", body: input, manageToken }),

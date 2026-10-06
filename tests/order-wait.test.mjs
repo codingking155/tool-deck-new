@@ -90,13 +90,34 @@ test("buildIcs: valid CRLF structure, UTC times, escaping and folding", () => {
     description: "x".repeat(200), uid: "u1@t", now: new Date("2026-07-01T00:00:00Z") });
   assert.match(ics, /^BEGIN:VCALENDAR\r\n/); assert.match(ics, /END:VCALENDAR\r\n$/);
   assert.ok(ics.includes("DTSTART:20260713T140000Z\r\n") && ics.includes("DTEND:20260713T143000Z\r\n"));
-  assert.ok(ics.includes("SUMMARY:Send\; offer\\, now\r\n"));
+  assert.ok(ics.includes("SUMMARY:Send\\; offer\\, now\r\n"));
   for (const line of ics.split("\r\n")) assert.ok(new TextEncoder().encode(line).length <= 75, `line too long: ${line.length}`);
   assert.ok(ics.includes("\r\n x"), "long description is folded");
+});
+
+test("buildIcs escapes TEXT per RFC 5545 (backslash, semicolon, comma, newlines)", () => {
+  const ics = buildIcs({ title: "a\\b;c,d\ne\r\nf\rg", startUtc: new Date("2026-07-13T14:00:00Z"), uid: "u", now: new Date(0) });
+  assert.ok(ics.includes("SUMMARY:a\\\\b\\;c\\,d\\ne\\nf\\ng\r\n"));
 });
 
 test("googleCalendarUrl", () => {
   const u = new URL(googleCalendarUrl({ title: "Send", startUtc: new Date("2026-07-13T14:00:00Z"), durationMin: 15 }));
   assert.equal(u.searchParams.get("dates"), "20260713T140000Z/20260713T141500Z");
   assert.equal(u.hostname, "calendar.google.com");
+});
+
+test("fixed send date days before the order keeps the local send time across DST (New York, 2026-03-05 → order 03-10)", () => {
+  const z = "America/New_York";
+  const order = zonedToUtc("2026-03-10", "21:30", z);
+  const send = nextSendUtc(order, "2026-03-10", "07:30", z, "2026-03-05");
+  assert.equal(send.toISOString(), "2026-03-11T11:30:00.000Z"); // 07:30 EDT, not 08:30
+});
+
+test("fixed send date months before the order never yields a send in the past", () => {
+  const order = zonedToUtc("2026-07-11", "18:00", TZ);
+  const send = nextSendUtc(order, "2026-07-11", "08:00", TZ, "2026-01-01");
+  assert.ok(send > order);
+  assert.equal(fmtUtc(send) + " " + fmtUtcDate(send), "14:00 12 Jul 2026");
+  const wk = nextSendUtc(order, "2026-07-11", "08:00", TZ, "2026-01-01", { skipWeekends: true });
+  assert.equal(fmtUtc(wk) + " " + fmtUtcDate(wk), "14:00 13 Jul 2026"); // Sun 12 Jul skipped → Mon
 });

@@ -1,10 +1,27 @@
 // CORS + JSON helpers + safe error shaping. Never leak internals to clients.
+import { originPolicy, allowedOrigin } from "../../../shared/net/cors.mjs";
 
+// Allow-Origin is set per request by withCors(): fail-closed against an allowlist
+// (ALLOWED_ORIGIN, comma-separated, or the defaults in shared/net/cors.mjs).
 export const CORS = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-manage-token",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
 };
+
+const ORIGINS = originPolicy(Deno.env.get("ALLOWED_ORIGIN"));
+
+/** Wrap a handler so every response carries the right Allow-Origin (or none). */
+export function withCors(handler: (req: Request) => Response | Promise<Response>) {
+  return async (req: Request): Promise<Response> => {
+    const res = await handler(req);
+    const allow = allowedOrigin(req.headers.get("origin"), ORIGINS);
+    const headers = new Headers(res.headers);
+    headers.delete("Access-Control-Allow-Origin");
+    if (allow) headers.set("Access-Control-Allow-Origin", allow);
+    if (allow !== "*") headers.append("Vary", "Origin");
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  };
+}
 
 export function preflight(req: Request): Response | null {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });

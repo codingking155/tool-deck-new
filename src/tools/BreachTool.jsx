@@ -34,8 +34,9 @@ function EmailPane({ notify }) {
     <div className="pb">
       <form onSubmit={run}>
         <input className="inp" style={{ height: 52, fontSize: 18 }} type="email" inputMode="email" autoComplete="off" spellCheck={false}
-          placeholder="you@example.com" aria-label="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn" style={{ width: "100%", marginTop: 12 }} disabled={phase === "loading"}>{phase === "loading" ? "Checking…" : "Check this email"}</button>
+          placeholder="you@example.com" aria-label="Email address" value={email}
+          onChange={(e) => { setEmail(e.target.value); if (phase === "loading") { ctrl.current?.abort(); setState({ phase: "idle" }); } }} />
+        <button className="btn pri" style={{ width: "100%", marginTop: 12 }} disabled={phase === "loading"}>{phase === "loading" ? "Checking…" : "Check this email"}</button>
       </form>
 
       {phase === "error" && <div className="note w" style={{ marginTop: 16 }}><b>Couldn't check · </b>{msg}</div>}
@@ -50,8 +51,8 @@ function EmailPane({ notify }) {
       {phase === "done" && res.breaches.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <div className="note w">
-            <b>Found in {res.summary.count} breach{res.summary.count > 1 ? "es" : ""}</b>
-            {res.summary.severe ? " — including sensitive data such as passwords or financial details." : "."}
+            <b>Found in {res.summary?.count ?? res.breaches.length} breach{(res.summary?.count ?? res.breaches.length) > 1 ? "es" : ""}</b>
+            {res.summary?.severe ? " — including sensitive data such as passwords or financial details." : "."}
           </div>
           {res.breaches.map((b) => (
             <div key={b.name + b.year} className="panel" style={{ marginTop: 10, padding: 14 }}>
@@ -61,7 +62,7 @@ function EmailPane({ notify }) {
                 {b.domain && <span style={{ color: "var(--tx3)", fontSize: 12 }}>{b.domain}</span>}
                 {b.severe && <span style={{ color: "var(--bad)", fontSize: 12, fontWeight: 600 }}>SENSITIVE</span>}
               </div>
-              {b.dataTypes.length > 0 && <div style={{ fontSize: 13, marginTop: 6 }}><span style={{ color: "var(--tx3)" }}>Exposed: </span>{b.dataTypes.join(", ")}</div>}
+              {b.dataTypes?.length > 0 && <div style={{ fontSize: 13, marginTop: 6 }}><span style={{ color: "var(--tx3)" }}>Exposed: </span>{b.dataTypes.join(", ")}</div>}
               {b.records != null && <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 2 }}>{b.records.toLocaleString()} accounts in this breach</div>}
               {b.description && <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 6 }}>{b.description}</div>}
             </div>
@@ -105,10 +106,10 @@ function PasswordPane({ notify }) {
       <form onSubmit={run}>
         <div style={{ display: "flex", gap: 8 }}>
           <input className="inp" style={{ height: 52, fontSize: 18, flex: 1 }} type={show ? "text" : "password"} autoComplete="off" spellCheck={false}
-            placeholder="Password to check" aria-label="Password" value={pw} onChange={(e) => { setPw(e.target.value); setState({ phase: "idle" }); }} />
+            placeholder="Password to check" aria-label="Password" value={pw} onChange={(e) => { ctrl.current?.abort(); setPw(e.target.value); setState({ phase: "idle" }); }} />
           <button type="button" className="btn gh" onClick={() => setShow((s) => !s)} aria-pressed={show}>{show ? "Hide" : "Show"}</button>
         </div>
-        <button className="btn" style={{ width: "100%", marginTop: 12 }} disabled={phase === "loading"}>{phase === "loading" ? "Checking…" : "Check this password"}</button>
+        <button className="btn pri" style={{ width: "100%", marginTop: 12 }} disabled={phase === "loading"}>{phase === "loading" ? "Checking…" : "Check this password"}</button>
       </form>
 
       {phase === "error" && <div className="note w" style={{ marginTop: 16 }}><b>Couldn't check · </b>{msg}</div>}
@@ -135,15 +136,15 @@ export default function BreachTool({ notify }) {
   useEffect(() => { writeParams({ m: tab === "password" ? "password" : null }); }, [tab]);
   return (
     <div style={{ maxWidth: 660, margin: "0 auto" }}>
-      <div className="modes" role="tablist">
-        <button role="tab" aria-selected={tab === "email"} className={tab === "email" ? "on" : ""} onClick={() => setTab("email")}>Email breach check</button>
-        <button role="tab" aria-selected={tab === "password"} className={tab === "password" ? "on" : ""} onClick={() => setTab("password")}>Password check</button>
+      <div className="modes" role="group" aria-label="Check type">
+        <button type="button" aria-pressed={tab === "email"} className={tab === "email" ? "on" : ""} onClick={() => setTab("email")}>Email breach check</button>
+        <button type="button" aria-pressed={tab === "password"} className={tab === "password" ? "on" : ""} onClick={() => setTab("password")}>Password check</button>
       </div>
       <div className="panel rise d1">
         <div className="ph">
           {tab === "email"
-            ? <><h3>Has your email been in a data breach?</h3><p>Checks the XposedOrNot database and shows what was exposed.</p></>
-            : <><h3>Has your password been leaked?</h3><p>Checks Have I Been Pwned's Pwned Passwords without sending your password.</p></>}
+            ? <><h2>Has your email been in a data breach?</h2><p>Checks the XposedOrNot database and shows what was exposed.</p></>
+            : <><h2>Has your password been leaked?</h2><p>Checks Have I Been Pwned's Pwned Passwords without sending your password.</p></>}
         </div>
         {tab === "email" ? <EmailPane notify={notify} /> : <PasswordPane notify={notify} />}
       </div>

@@ -1,4 +1,4 @@
-import { preflight, json, fail, log } from "../_shared/http.ts";
+import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { serviceClient, env, requireEnv } from "../_shared/supabase.ts";
 import { getEmailProvider, getWhatsappProvider } from "../_shared/providers.ts";
 import { supabaseRepo } from "../_shared/priceRepo.ts";
@@ -14,13 +14,13 @@ import {
 //   1. Refresh live prices for due tracked products (real provider readings only).
 //   2. Evaluate due alerts against those real readings. An alert with no fresh
 //      real price is left untouched — it is never evaluated against a guess.
-Deno.serve(async (req) => {
+Deno.serve(withCors(async (req) => {
   const pre = preflight(req); if (pre) return pre;
 
   // Fail CLOSED: with no CRON_SECRET configured nobody can trigger the job.
   const secret = env("CRON_SECRET");
   if (!secret) { log("check_misconfigured", { reason: "CRON_SECRET unset" }); return fail(503, "not_configured", "CRON_SECRET is not set."); }
-  if (req.headers.get("x-cron-secret") !== secret) {
+  if (!(await secretMatches(req.headers.get("x-cron-secret") ?? "", secret))) {
     return fail(401, "unauthorized", "Invalid cron secret.");
   }
 
@@ -129,7 +129,8 @@ Deno.serve(async (req) => {
       if (upErr) log("update_error", { id: alert.id, message: upErr.message });
 
       if (deliveries.length) {
-        await db.from("price_alert_deliveries").insert(deliveries.map((d: any) => ({ ...d, alert_id: alert.id })));
+        const { error: delErr } = await db.from("price_alert_deliveries").insert(deliveries.map((d: any) => ({ ...d, alert_id: alert.id })));
+        if (delErr) log("deliveries_insert_error", { id: alert.id, code: delErr.code, message: delErr.message });
         failedDeliveries += deliveries.filter((d: any) => d.status === "failed").length;
       }
       if (patch.status === "triggered") triggered++;
@@ -146,4 +147,15 @@ Deno.serve(async (req) => {
     log("check_error", { message: String((e as Error).message ?? e) });
     return fail(500, "server_error", "Check job failed.");
   }
-});
+}));
+
+// Constant-time compare: hash both sides first so neither the length nor the
+// position of the first differing byte leaks through response timing.
+async function secretMatches(given: string, expected: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([given, expected].map((v) => crypto.subtle.digest("SHA-256", enc.encode(v))));
+  const x = new Uint8Array(a), y = new Uint8Array(b);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}

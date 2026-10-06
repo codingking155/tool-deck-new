@@ -17,12 +17,14 @@ export function Switch({ on, onChange, label }) {
   );
 }
 
+/** Clipboard write that never throws (no clipboard API / insecure context / permission denied). */
+export async function copyText(text, notify, ok) {
+  try { await navigator.clipboard.writeText(text); notify && notify(ok); }
+  catch { notify && notify("Couldn't copy — select and copy manually."); }
+}
+
 export function ShareLink({ notify }) {
-  const copy = () => {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => notify && notify("Link copied — it reopens this exact result."))
-      .catch(() => notify && notify("Copy blocked."));
-  };
+  const copy = () => copyText(window.location.href, notify, "Link copied — it reopens this exact result.");
   return <button type="button" className="btn gh" onClick={copy} title="Copy a link that reproduces this result">🔗 Share link</button>;
 }
 
@@ -30,7 +32,7 @@ export function FaqSection({ tool }) {
   const [open, setOpen] = useState(0);
   return (
     <section className="faqwrap rise d4" aria-label="Frequently asked questions">
-      <h3 className="faqh">Frequently asked</h3>
+      <h2 className="faqh">Frequently asked</h2>
       {tool.faqs.map(([q, a], i) => (
         <div className="faqitem" key={q}>
           <button className="faqq" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}>

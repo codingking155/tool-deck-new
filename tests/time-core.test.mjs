@@ -49,3 +49,8 @@ test("offsetLabel formats whole and half-hour offsets", () => {
   assert.equal(offsetLabel("Asia/Kolkata", d), "GMT+5:30");
   assert.equal(offsetLabel("UTC", d), "GMT");
 });
+
+test("getDateTimeWarning tolerates malformed date/time strings", () => {
+  assert.equal(getDateTimeWarning("abc", "21:30", "UTC", "x"), null);
+  assert.equal(getDateTimeWarning("2026-01-01", "x", "UTC", "x"), null);
+});

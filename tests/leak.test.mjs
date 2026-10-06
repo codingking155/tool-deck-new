@@ -41,7 +41,11 @@ test("webrtcVerdict: leak when WebRTC reveals a public IP different from what si
 test("webrtcVerdict: IPv6 compared against IPv6; unknown known-address never flags; empty = blocked", () => {
   const six = webrtcVerdict(cs("candidate:2 1 udp 1 2405:201::1 9 typ srflx"), { v4: "203.0.113.9", v6: "2405:201::1" });
   assert.equal(six.level, "ok");
-  assert.equal(webrtcVerdict(cs("candidate:2 1 udp 1 198.51.100.7 9 typ srflx"), {}).level, "ok");
+  // without the site-visible address we can't rule a leak out, so we must not say "ok"
+  const unk = webrtcVerdict(cs("candidate:2 1 udp 1 198.51.100.7 9 typ srflx"), {});
+  assert.equal(unk.level, "unknown"); assert.deepEqual(unk.unverified, ["198.51.100.7"]);
+  assert.equal(webrtcVerdict(cs("candidate:2 1 udp 1 2405:201::1 9 typ srflx"), { v4: "203.0.113.9" }).level, "unknown");
+  assert.equal(webrtcVerdict(cs("candidate:1 1 udp 1 x-1.local 1 typ host"), {}).level, "ok");
   assert.equal(webrtcVerdict([], { v4: "1.1.1.1" }).level, "blocked");
 });
 
@@ -73,4 +77,23 @@ test("runDnsLeakTest follows id -> probes -> result and rejects bad ids", async 
   await assert.rejects(runDnsLeakTest(bad, { settleMs: 0 }), /unexpected response/);
   const down = async () => ({ ok: false });
   await assert.rejects(runDnsLeakTest(down, { settleMs: 0 }), /unavailable/);
+});
+
+test("runDnsLeakTest: hanging probes and a hanging result call time out instead of stalling", async () => {
+  const hang = (init) => new Promise((_, rej) => init.signal.addEventListener("abort", () => rej(Object.assign(new Error("aborted"), { name: "AbortError" }))));
+  const probesHang = async (url, init) => {
+    if (url.endsWith("/id")) return { ok: true, text: async () => "abcdef1234567890" };
+    if (url.includes("/dnsleak/test/")) return { ok: true, json: async () => [] };
+    return hang(init);
+  };
+  const t0 = Date.now();
+  const r = await runDnsLeakTest(probesHang, { probes: 2, settleMs: 0, probeTimeoutMs: 30 });
+  assert.deepEqual(r.resolvers, []);
+  assert.ok(Date.now() - t0 < 2000);
+  const resultHangs = async (url, init) => (url.endsWith("/id") ? { ok: true, text: async () => "abcdef1234567890" } : url.includes("/dnsleak/") ? hang(init) : { ok: true });
+  await assert.rejects(runDnsLeakTest(resultHangs, { probes: 1, settleMs: 0, timeoutMs: 30 }), /timed out/);
+  const ctrl = new AbortController();
+  const p = runDnsLeakTest(resultHangs, { probes: 1, settleMs: 0, signal: ctrl.signal });
+  setTimeout(() => ctrl.abort(), 20);
+  await assert.rejects(p, (e) => e.name === "AbortError");
 });

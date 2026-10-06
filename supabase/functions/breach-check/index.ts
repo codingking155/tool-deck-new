@@ -1,4 +1,4 @@
-import { preflight, json, fail, log } from "../_shared/http.ts";
+import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { clientIp } from "../_shared/ratelimit.ts";
 import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
 import { isValidEmail, parseXonAnalytics, isXonNotFound, summarize } from "../../../shared/breachCore/index.mjs";
@@ -9,7 +9,7 @@ import { isValidEmail, parseXonAnalytics, isXonNotFound, summarize } from "../..
 //   reported as unavailable — never as an all-clear.
 // - Per-IP limit (8/min, shared across instances via Postgres) so the endpoint can't be used to enumerate other people's exposure at scale.
 
-Deno.serve(async (req) => {
+Deno.serve(withCors(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   if (req.method !== "POST") return fail(405, "method_not_allowed", "POST only.");
 
@@ -42,4 +42,4 @@ Deno.serve(async (req) => {
   } finally {
     clearTimeout(timer);
   }
-});
+}));

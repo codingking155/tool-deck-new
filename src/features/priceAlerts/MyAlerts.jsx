@@ -39,18 +39,28 @@ export default function MyAlerts({ functionsBase, getToken, manageToken, signedI
 
   useEffect(() => { load(); }, [load]);
 
+  const [editErr, setEditErr] = useState("");
+
+  /* resolves true on success; on failure the error stays visible and callers keep their UI open */
   async function act(fn) {
-    try { await fn(); await load(); }
-    catch (e) { setError(e.message || "Action failed."); }
+    setError("");
+    try { await fn(); }
+    catch (e) { setError(e.message || "Action failed."); return false; }
+    await load();
+    return true;
   }
 
-  const saveEdit = (a) =>
-    act(() => api.update(a.id, { targetPrice: Number(editVal) }, manageToken)).then(() => setEditing(null));
+  const saveEdit = async (a) => {
+    const n = Number(editVal);
+    if (!editVal || !Number.isFinite(n) || n <= 0) { setEditErr("Enter a target price above 0."); return; }
+    setEditErr("");
+    if (await act(() => api.update(a.id, { targetPrice: n }, manageToken))) setEditing(null);
+  };
 
   if (state === "loading") return <div className="pa-empty">Loading your alerts…</div>;
   if (state === "error") return (
     <div className="panel"><div className="pb">
-      <div className="pa-formerr"><b>Couldn't load alerts.</b> {error}</div>
+      <div className="pa-formerr" role="alert"><b>Couldn't load alerts.</b> {error}</div>
       <button className="btn gh" onClick={load}>Try again</button>
     </div></div>
   );
@@ -58,13 +68,13 @@ export default function MyAlerts({ functionsBase, getToken, manageToken, signedI
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <h3 style={{ fontFamily: "var(--disp)", fontSize: 17, fontWeight: 700 }}>
+        <h1 style={{ fontFamily: "var(--disp)", fontSize: 20, fontWeight: 700 }}>
           {manageToken ? "Your price alert" : "My price alerts"}
-        </h3>
+        </h1>
         <span className="pa-beta">Beta</span>
       </div>
 
-      {error && <div className="pa-formerr" style={{ marginBottom: 12 }}>{error}</div>}
+      {error && <div className="pa-formerr" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
 
       {alerts.length === 0 ? (
         <div className="pa-empty">
@@ -98,15 +108,21 @@ export default function MyAlerts({ functionsBase, getToken, manageToken, signedI
           </div>
 
           {editing === a.id ? (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <input type="number" min="1" className="field" style={{ margin: 0, flex: 1 }}
-                value={editVal} onChange={(e) => setEditVal(e.target.value)} />
-              <button className="btn gh" onClick={() => saveEdit(a)}>Save</button>
-              <button className="btn gh" onClick={() => setEditing(null)}>Cancel</button>
+            <div style={{ marginTop: 12 }}>
+              <label htmlFor={`pa-edit-${a.id}`} className="hint" style={{ display: "block", marginBottom: 4 }}>New target price ({a.currency || "INR"})</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input id={`pa-edit-${a.id}`} type="number" min="1" inputMode="decimal" className="inp" style={{ margin: 0, flex: 1 }}
+                  value={editVal} onChange={(e) => { setEditVal(e.target.value); if (editErr) setEditErr(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveEdit(a); }}
+                  aria-invalid={!!editErr} aria-describedby={editErr ? `pa-edit-err-${a.id}` : undefined} />
+                <button className="btn gh" onClick={() => saveEdit(a)}>Save</button>
+                <button className="btn gh" onClick={() => { setEditing(null); setEditErr(""); }}>Cancel</button>
+              </div>
+              {editErr && <div id={`pa-edit-err-${a.id}`} className="pa-err" role="alert">{editErr}</div>}
             </div>
           ) : (
             <div className="pa-actions">
-              <button className="pill" onClick={() => { setEditing(a.id); setEditVal(String(a.targetPrice)); }}>Edit target</button>
+              <button className="pill" onClick={() => { setEditing(a.id); setEditVal(String(a.targetPrice)); setEditErr(""); }}>Edit target</button>
               {a.status === "active"
                 ? <button className="pill" onClick={() => act(() => api.pause(a.id, manageToken))}>Pause</button>
                 : (a.status === "paused" || a.status === "triggered" || a.status === "expired")

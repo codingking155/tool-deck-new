@@ -4,18 +4,20 @@
 //                  4xx/5xx { error: { code, message } }
 //
 // Provider keys (PA-API / Keepa) are server-side secrets; see docs/PRICE_TRACKER.md.
-import { preflight, json, fail, log } from "../_shared/http.ts";
+import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { serviceClient, env } from "../_shared/supabase.ts";
-import { rateLimit, clientIp } from "../_shared/ratelimit.ts";
+import { clientIp } from "../_shared/ratelimit.ts";
+import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
 import { supabaseRepo } from "../_shared/priceRepo.ts";
 import { providerConfig } from "../../../shared/priceTrackerCore/provider.mjs";
 import { lookupProduct, presentProduct, defaultIntervals, UNAVAILABLE_MESSAGE } from "../../../shared/priceTrackerCore/tracker.mjs";
 
-Deno.serve(async (req) => {
+Deno.serve(withCors(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   if (req.method !== "POST") return fail(405, "method_not_allowed", "Use POST.");
 
-  const rl = rateLimit(`price-lookup:${clientIp(req)}`, Number(env("PRICE_LOOKUP_RATE_LIMIT_MAX", "30")), 60_000);
+  const max = Number(env("PRICE_LOOKUP_RATE_LIMIT_MAX", "30"));
+  const rl = await sharedRateLimit("price-lookup", clientIp(req), Number.isFinite(max) && max > 0 ? max : 30, 60);
   if (!rl.ok) return fail(429, "rate_limited", "Too many lookups. Please wait a minute and try again.");
 
   const body = await req.json().catch(() => null);
@@ -36,4 +38,4 @@ Deno.serve(async (req) => {
     log("price_lookup_error", { message: String((e as Error).message ?? e) });
     return fail(502, "price_unavailable", UNAVAILABLE_MESSAGE);
   }
-});
+}));
