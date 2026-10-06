@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  pad, USER_TZ, isValidZone, zonedToUtc,
+  pad, USER_TZ, isValidZone, zonedToUtc, fmtDur,
   fmtUtc, fmtUtcDate, fmtLocal, fmt12Str, fmtDurDays, nextSendUtc, buildOrderRows, getDateTimeWarning,
 } from "../lib/time.js";
 import ZonePicker from "../components/ZonePicker.jsx";
 import { Switch, ShareLink } from "../components/chrome.jsx";
-import { readParams, writeParams } from "../hooks/index.js";
+import { readParams, writeParams, useNow } from "../hooks/index.js";
 
 const CLOCK_KEY = "toolDeck.clock12";
 const DEFAULTS = { date: "", order: "21:30", send: "07:30", senddate: "" };
@@ -43,6 +43,7 @@ export default function UtcOrderMode({ notify }) {
   const [sendDate, setSendDate] = useState(() => P.get("senddate") || "");
   const [is12, setIs12] = useState(() => { try { return localStorage.getItem(CLOCK_KEY) !== "24"; } catch { return true; } });
   const [showTable, setShowTable] = useState(false);
+  const now = useNow(1000);
 
   useEffect(() => { try { localStorage.setItem(CLOCK_KEY, is12 ? "12" : "24"); } catch { /* storage unavailable */ } }, [is12]);
   useEffect(() => {
@@ -144,6 +145,9 @@ export default function UtcOrderMode({ notify }) {
               <div className="bigres" style={{ marginBottom: 16 }}>
                 <div className="lab">⏱ Wait difference</div>
                 <div className="val">{fmtDurDays(result.waitMs)}</div>
+                <div className="sub">
+                  {result.sendUtc > now ? <>Sends in <b>{fmtDur(result.sendUtc - now)}</b></> : "This send time has already passed."}
+                </div>
               </div>
               <ResultCard icon="🕐" title="Order Created" local={fmtLocal(result.orderUtc, tz)} utc={fmtUtc(result.orderUtc)} date={fmtUtcDate(result.orderUtc)} />
               <ResultCard icon="⚡" title="Target Send" accent local={fmtLocal(result.sendUtc, tz)} utc={fmtUtc(result.sendUtc)} date={fmtUtcDate(result.sendUtc)} />

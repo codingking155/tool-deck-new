@@ -86,3 +86,23 @@ export async function pdfToDocx(bytes, { onProgress } = {}) {
   if (!chars) throw new Error("No selectable text found. This looks like a scanned PDF — OCR isn't available.");
   return { blob: await Packer.toBlob(new Document({ sections: [{ children }] })), chars };
 }
+
+/** Small JPEG data-URL thumbnails for the first `max` pages. */
+export async function pdfThumbs(bytes, { max = 60, width = 120, signal } = {}) {
+  const pdf = await open(bytes);
+  const n = Math.min(pdf.numPages, max);
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    if (signal?.aborted) break;
+    const page = await pdf.getPage(i);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: width / base.width });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    out.push(canvas.toDataURL("image/jpeg", 0.6));
+  }
+  return { thumbs: out, total: pdf.numPages };
+}

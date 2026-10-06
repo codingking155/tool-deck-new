@@ -37,3 +37,28 @@ test("DST: wait across a spring-forward is a real elapsed duration (Amsterdam, 2
   const send = nextSendUtc(order, "2026-03-28", "08:00", "Europe/Amsterdam");
   assert.equal(fmtDurDays(send - order), "9 hr 0 min"); // 10 wall-clock hours minus the skipped hour
 });
+
+test("DST: Sydney spring-forward night loses an hour (22:00 -> 08:00 is 9 hr)", () => {
+  const z = "Australia/Sydney";
+  const order = zonedToUtc("2026-10-03", "22:00", z);
+  assert.equal(fmtDurDays(nextSendUtc(order, "2026-10-03", "08:00", z) - order), "9 hr 0 min");
+});
+
+test("DST: Lord Howe's 30-minute fall-back adds 30 min (22:00 -> 08:00 is 10 hr 30 min)", () => {
+  const z = "Australia/Lord_Howe";
+  const order = zonedToUtc("2026-04-04", "22:00", z);
+  assert.equal(fmtDurDays(nextSendUtc(order, "2026-04-04", "08:00", z) - order), "10 hr 30 min");
+});
+
+test("DST: New York fall-back adds an hour (00:30 -> 08:00 is 8 hr 30 min)", () => {
+  const z = "America/New_York";
+  const order = zonedToUtc("2026-11-01", "00:30", z);
+  assert.equal(fmtDurDays(nextSendUtc(order, "2026-11-01", "08:00", z) - order), "8 hr 30 min");
+});
+
+test("hourly table stays 24 rows with positive waits across a DST change", () => {
+  const rows = buildOrderRows("2026-03-28", "22:00", "08:00", "Europe/Amsterdam");
+  assert.equal(rows.length, 24);
+  assert.ok(rows.every((r) => !r.wait.startsWith("-") && !r.wait.startsWith("0 hr 0")));
+  assert.ok(rows.some((r) => r.offset === "GMT+1") && rows.some((r) => r.offset === "GMT+2"));
+});

@@ -4,11 +4,26 @@ import {
   addWatermark, cropPdf, rebuildPdf, imagesToPdf, pageCount,
 } from "../lib/pdf.js";
 import { readParams, writeParams } from "../hooks/index.js";
+import { parseRanges } from "../lib/pdf.js";
 
 const PAGES = { key: "pages", label: "Pages (e.g. 1-3, 5, 8-)", type: "text", ph: "1-3, 5" };
 const base = (f) => f.name.replace(/\.[^.]+$/, "");
 const pdf = (bytes, name) => ({ name, blob: new Blob([bytes], { type: "application/pdf" }) });
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+
+/* "1-3,5" <-> clicked pages. Organize keeps click order; others collapse to sorted ranges. */
+function specFrom(indices, ordered) {
+  if (ordered) return indices.map((i) => i + 1).join(",");
+  const a = [...new Set(indices)].sort((x, y) => x - y), out = [];
+  for (let i = 0; i < a.length; i++) {
+    let j = i;
+    while (a[j + 1] === a[j] + 1) j++;
+    out.push(j > i ? `${a[i] + 1}-${a[j] + 1}` : `${a[i] + 1}`);
+    i = j;
+  }
+  return out.join(", ");
+}
+function safeIndices(spec, total) { try { return spec.trim() ? parseRanges(spec, total) : []; } catch { return []; } }
 
 const GROUPS = ["Organize", "Optimize", "Convert to PDF", "Convert from PDF", "Edit", "Security"];
 
@@ -16,18 +31,18 @@ const GROUPS = ["Organize", "Optimize", "Convert to PDF", "Convert from PDF", "E
 const TOOLS = [
   { id: "merge", g: 0, icon: "🔗", name: "Merge PDF", desc: "Combine PDFs in the order you want.", multi: true, min: 2,
     run: async (fs) => [pdf(await mergePdfs(fs.map((f) => f.bytes)), "merged.pdf")] },
-  { id: "split", g: 0, icon: "✂️", name: "Split PDF", desc: "One file per page, or per range group.",
+  { id: "split", pick: "spec", g: 0, icon: "✂️", name: "Split PDF", desc: "One file per page, or per range group.",
     opts: [{ key: "spec", label: "Ranges, comma-separated groups (blank = every page)", type: "text", ph: "1-3, 4-6" }],
     run: async ([f], o) => (await splitPdf(f.bytes, o.spec || "")).map((b, i) => pdf(b, `${base(f)}-part${i + 1}.pdf`)) },
-  { id: "remove", g: 0, icon: "🗑️", name: "Remove pages", desc: "Delete the pages you don't need.", opts: [PAGES],
+  { id: "remove", pick: "pages", g: 0, icon: "🗑️", name: "Remove pages", desc: "Delete the pages you don't need.", opts: [PAGES],
     run: async ([f], o) => [pdf(await removePages(f.bytes, o.pages || ""), `${base(f)}-trimmed.pdf`)] },
-  { id: "extract", g: 0, icon: "📤", name: "Extract pages", desc: "Pull selected pages into a new PDF.", opts: [PAGES],
+  { id: "extract", pick: "pages", g: 0, icon: "📤", name: "Extract pages", desc: "Pull selected pages into a new PDF.", opts: [PAGES],
     run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-extract.pdf`)] },
-  { id: "organize", g: 0, icon: "🗂️", name: "Organize PDF", desc: "Reorder or duplicate pages — write the new order.",
+  { id: "organize", pick: "pages", g: 0, icon: "🗂️", name: "Organize PDF", desc: "Reorder or duplicate pages — write the new order.",
     opts: [{ key: "pages", label: "New page order (e.g. 3,1,2 or 5-1)", type: "text", ph: "3,1,2" }],
     run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-organized.pdf`)] },
 
-  { id: "compress", g: 1, icon: "🗜️", name: "Compress PDF", desc: "Smaller file by re-rendering pages as images (text becomes non-selectable).",
+  { id: "compress", heavy: true, g: 1, icon: "🗜️", name: "Compress PDF", desc: "Smaller file by re-rendering pages as images (text becomes non-selectable).",
     opts: [{ key: "level", label: "Compression", type: "select", options: [["low", "Low — best quality"], ["medium", "Medium"], ["high", "High — smallest"]], def: "medium" }],
     run: async ([f], o, prog) => {
       const { compressPdf } = await import("../lib/pdfRender.js");
@@ -43,21 +58,21 @@ const TOOLS = [
       { key: "margin", label: "Margin (pt)", type: "number", def: 0 }],
     run: async (fs, o) => [pdf(await imagesToPdf(fs.map((f) => ({ bytes: f.bytes, type: /png$/i.test(f.type) ? "png" : "jpg" })), { fit: o.fit || "image", margin: Number(o.margin) || 0 }), "images.pdf")] },
 
-  { id: "pdf2jpg", g: 3, icon: "📷", name: "PDF to JPG", desc: "Every page as a high-quality JPG.",
+  { id: "pdf2jpg", heavy: true, g: 3, icon: "📷", name: "PDF to JPG", desc: "Every page as a high-quality JPG.",
     opts: [{ key: "scale", label: "Resolution", type: "select", options: [["1.5", "Standard"], ["2", "High"], ["3", "Very high"]], def: "2" }],
     run: async ([f], o, prog) => {
       const { pdfToJpegs } = await import("../lib/pdfRender.js");
       const imgs = await pdfToJpegs(f.bytes, { scale: Number(o.scale) || 2, onProgress: prog });
       return imgs.map((b, i) => ({ name: `${base(f)}-page${i + 1}.jpg`, blob: new Blob([b], { type: "image/jpeg" }) }));
     } },
-  { id: "pdf2word", g: 3, icon: "📝", name: "PDF to Word", desc: "Editable DOCX of the text (layout, images and tables are not kept).",
+  { id: "pdf2word", heavy: true, g: 3, icon: "📝", name: "PDF to Word", desc: "Editable DOCX of the text (layout, images and tables are not kept).",
     run: async ([f], o, prog) => {
       const { pdfToDocx } = await import("../lib/pdfRender.js");
       const { blob } = await pdfToDocx(f.bytes, { onProgress: prog });
       return [{ name: `${base(f)}.docx`, blob }];
     } },
 
-  { id: "rotate", g: 4, icon: "🔄", name: "Rotate PDF", desc: "Rotate all pages, or just some.",
+  { id: "rotate", pick: "pages", g: 4, icon: "🔄", name: "Rotate PDF", desc: "Rotate all pages, or just some.",
     opts: [{ key: "deg", label: "Rotate", type: "select", options: [["90", "90° clockwise"], ["180", "180°"], ["270", "90° counter-clockwise"]], def: "90" },
       { key: "pages", label: "Pages (blank = all)", type: "text", ph: "2-4" }],
     run: async ([f], o) => [pdf(await rotatePdf(f.bytes, Number(o.deg) || 90, o.pages || ""), `${base(f)}-rotated.pdf`)] },
@@ -102,6 +117,47 @@ function Field({ f, value, onChange }) {
           value={v} onChange={(e) => onChange(f.key, e.target.value)} style={{ marginTop: 4 }} />
       )}
     </label>
+  );
+}
+
+function PageThumbs({ file, spec, ordered, onChange }) {
+  const [state, setState] = useState({ thumbs: [], total: 0, loading: true });
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setState({ thumbs: [], total: 0, loading: true });
+    import("../lib/pdfRender.js").then((m) => m.pdfThumbs(file.bytes, { signal: ctrl.signal }))
+      .then((r) => !ctrl.signal.aborted && setState({ ...r, loading: false }))
+      .catch(() => !ctrl.signal.aborted && setState({ thumbs: [], total: 0, loading: false }));
+    return () => ctrl.abort();
+  }, [file]);
+  const chosen = safeIndices(spec, file.pages || state.total);
+  const toggle = (i) => {
+    const cur = [...chosen];
+    const at = cur.indexOf(i);
+    if (at >= 0) cur.splice(at, 1); else cur.push(i);
+    onChange(specFrom(cur, ordered));
+  };
+  if (state.loading) return <div className="hint" style={{ marginTop: 12 }}>Loading page previews…</div>;
+  if (!state.thumbs.length) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div className="hint">Tap pages to select them{ordered ? " — order of taps becomes the new order" : ""}.{state.total > state.thumbs.length ? ` Previews cover the first ${state.thumbs.length} of ${state.total} pages; type the rest in the box.` : ""}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(84px,1fr))", gap: 8, marginTop: 8, maxHeight: 340, overflowY: "auto" }}>
+        {state.thumbs.map((src, i) => {
+          const pos = chosen.indexOf(i);
+          return (
+            <button key={i} type="button" aria-pressed={pos >= 0} aria-label={`Page ${i + 1}`} onClick={() => toggle(i)}
+              style={{ position: "relative", padding: 4, background: "var(--panel)", cursor: "pointer", color: "var(--tx)",
+                border: `2px solid ${pos >= 0 ? "var(--pri2)" : "var(--line)"}`, borderRadius: 8 }}>
+              <img src={src} alt="" style={{ width: "100%", display: "block", borderRadius: 3 }} />
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>{i + 1}</span>
+              {pos >= 0 && ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>{pos + 1}</span>}
+              {pos >= 0 && !ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -180,6 +236,15 @@ function Workspace({ tool, notify, onBack }) {
         ))}
 
         {files.length > 0 && tool.opts?.map((f) => <Field key={f.key} f={f} value={opts[f.key]} onChange={(k, v) => setOpts((o) => ({ ...o, [k]: v }))} />)}
+
+        {tool.pick && files.length === 1 && (
+          <PageThumbs file={files[0]} spec={opts[tool.pick] || ""} ordered={tool.id === "organize"}
+            onChange={(v) => setOpts((o) => ({ ...o, [tool.pick]: v }))} />
+        )}
+
+        {tool.heavy && files.some((f) => (f.pages || 0) > 150 || f.size > 50 * 1048576) && (
+          <div className="note w" style={{ marginTop: 12 }}><b>Large document · </b>this runs on your device and may take a while or slow the tab. Keep this page open until it finishes.</div>
+        )}
 
         {files.length > 0 && (
           <button className="btn" style={{ width: "100%", marginTop: 16 }} disabled={!!busy} onClick={run}>{busy || `${tool.name}`}</button>
