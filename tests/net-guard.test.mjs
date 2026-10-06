@@ -52,5 +52,6 @@ test("CORS default allowlist: own previews only, not any tool-deck-* Vercel proj
   assert.ok(allowedOrigin("https://tool-deck-gw9mar8td-codingking155-9340s-projects.vercel.app", def));
   assert.ok(allowedOrigin("https://tooldeck.in", def));
   assert.ok(allowedOrigin("https://tool-deck-new.vercel.app", def));
+  assert.ok(allowedOrigin("https://tool-deck-new-git-claude-relaxed-carson-dhbr2s-zoko-f348.vercel.app", def));
   assert.equal(allowedOrigin("https://tool-deck-attacker.vercel.app", def), null);
 });

@@ -22,6 +22,7 @@ export const DEFAULT_ALLOWED_ORIGINS = [
 // Vercel preview deployments of this project.
 export const DEFAULT_ORIGIN_PATTERNS = [
   /^https:\/\/[a-z0-9-]+-codingking155-9340s-projects\.vercel\.app$/,
+  /^https:\/\/[a-z0-9-]+-zoko-f348\.vercel\.app$/,
 ];
 
 const escape = (s) => s.replace(/[.+?^${}()|[\]\\/]/g, "\\$&");
