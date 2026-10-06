@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { ChevronLeft, ChevronRight, Undo2, LoaderCircle } from "lucide-react";
+import { Notice } from "../../components/ui.jsx";
 import { FilePick, Results, Shell, readFile } from "./shared.jsx";
 
 const INK = { black: "#111111", blue: "#1d3fbf" };
@@ -29,8 +31,8 @@ function DrawPad({ ink, onDone }) {
     <div>
       <canvas ref={ref} width={600} height={200} aria-label="Draw your signature"
         onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
-        style={{ width: "100%", touchAction: "none", background: "#fff", borderRadius: 8, border: "1px solid var(--line)", cursor: "crosshair" }} />
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        className="pdfs-pad" />
+      <div className="pdfs-row">
         <button type="button" className="btn gh" onClick={() => ref.current.getContext("2d").clearRect(0, 0, 600, 200)}>Clear</button>
         <button type="button" className="btn" onClick={async () => onDone(await toSig(ref.current))}>Use this signature</button>
       </div>
@@ -50,14 +52,13 @@ function TypePad({ ink, onDone }) {
   };
   return (
     <div>
-      <input className="inp" placeholder="Type your name" value={text} maxLength={40} onChange={(e) => setText(e.target.value)} aria-label="Typed signature"
-        style={{ fontFamily: '"Segoe Script","Brush Script MT",cursive', fontStyle: "italic", fontSize: 24, height: 56 }} />
-      <button type="button" className="btn" style={{ marginTop: 8 }} onClick={make}>Use this signature</button>
+      <input className="inp pdfs-typed" placeholder="Type your name" value={text} maxLength={40} onChange={(e) => setText(e.target.value)} aria-label="Typed signature" />
+      <div className="pdfs-row"><button type="button" className="btn" onClick={make}>Use this signature</button></div>
     </div>
   );
 }
 
-export default function SignPdf({ notify, onBack }) {
+export default function SignPdf({ notify, onBack, icon }) {
   const [file, setFile] = useState(null);
   const [bytes, setBytes] = useState(null);
   const [pageNum, setPageNum] = useState(1);
@@ -122,63 +123,72 @@ export default function SignPdf({ notify, onBack }) {
   const here = places.map((p, i) => ({ ...p, i })).filter((p) => p.page === pageNum - 1);
 
   return (
-    <Shell title="✍️ Sign PDF" desc="Draw, type or upload a signature, then click where it should go." onBack={onBack}>
+    <Shell icon={icon} title="Sign PDF" desc="Draw, type or upload a signature, then click where it should go." onBack={onBack}>
       <FilePick label="PDF to sign" file={file} onFile={choose} />
 
       {bytes && (
         <>
-          <div className="modes" role="group" aria-label="Signature source">
-            {[["draw", "Draw"], ["type", "Type"], ["upload", "Upload image"]].map(([k, l]) =>
-              <button key={k} aria-pressed={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}
-          </div>
-          {tab !== "upload" && (
-            <div className="pillrow" style={{ marginBottom: 8 }}>
-              {Object.keys(INK).map((k) => <button key={k} className="pill" aria-pressed={ink === k} onClick={() => setInk(k)} style={{ borderColor: ink === k ? "var(--pri2)" : undefined }}>
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 99, background: INK[k], marginRight: 6 }} />{k}</button>)}
+          <section className="pdfw-sec" aria-labelledby="pdfs-s2">
+            <h3 className="pdfw-label" id="pdfs-s2"><span className="pdfs-step" aria-hidden="true">1</span>Create your signature</h3>
+            <div className="modes" role="group" aria-label="Signature source">
+              {[["draw", "Draw"], ["type", "Type"], ["upload", "Upload image"]].map(([k, l]) =>
+                <button type="button" key={k} aria-pressed={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}
             </div>
-          )}
-          {tab === "draw" && <DrawPad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Draw something first."))} />}
-          {tab === "type" && <TypePad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Type your name first."))} />}
-          {tab === "upload" && <FilePick label="Signature image (PNG with transparent background works best)" accept="image/png,image/jpeg" file={null} onFile={upload} />}
+            {tab !== "upload" && (
+              <div className="pillrow pdfs-inks" role="group" aria-label="Ink colour">
+                {Object.keys(INK).map((k) => <button type="button" key={k} className="pill" aria-pressed={ink === k} onClick={() => setInk(k)}>
+                  <span className="pdfs-swatch" style={{ "--ink": INK[k] }} aria-hidden="true" />{k}</button>)}
+              </div>
+            )}
+            {tab === "draw" && <DrawPad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Draw something first."))} />}
+            {tab === "type" && <TypePad ink={INK[ink]} onDone={(s) => (s ? (setSig(s), notify("Signature ready — click the page to place it.")) : notify("Type your name first."))} />}
+            {tab === "upload" && <FilePick label="Signature image (PNG with transparent background works best)" accept="image/png,image/jpeg" file={null} onFile={upload} />}
 
-          {sig && <div className="kv" style={{ alignItems: "center", gap: 10, marginTop: 12 }}>
-            <span className="k">Current signature</span>
-            <img src={sig.url} alt="Your signature" style={{ height: 40, background: "#fff", borderRadius: 6, padding: 4 }} />
-          </div>}
+            {sig && <div className="pdfs-current">
+              <span className="pdfw-label">Current signature</span>
+              <img src={sig.url} alt="Your signature" className="pdfs-sigprev" />
+            </div>}
+          </section>
 
-          <div className="field" style={{ marginTop: 14 }}>
-            <label htmlFor="sw">Signature size ({width}% of page width)</label>
-            <input id="sw" type="range" min="8" max="60" value={width} onChange={(e) => setWidth(+e.target.value)} />
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0" }}>
-            <button className="pill" disabled={pageNum <= 1} onClick={() => setPageNum((n) => n - 1)}>← Prev</button>
-            <span style={{ fontSize: 13 }}>Page {pageNum} of {prev?.total ?? "…"}</span>
-            <button className="pill" disabled={!prev || pageNum >= prev.total} onClick={() => setPageNum((n) => n + 1)}>Next →</button>
-            <span className="hint" style={{ margin: "0 0 0 auto" }}>{places.length} placed</span>
-          </div>
-
-          {prev && (
-            <div style={{ position: "relative", maxWidth: 560, margin: "0 auto", cursor: sig ? "crosshair" : "not-allowed", border: "1px solid var(--line)", borderRadius: 6, overflow: "hidden" }}
-              role="button" tabIndex={0} aria-label={`Page ${pageNum}: click to place the signature, or press Enter to place it in the centre`}
-              onClick={place} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); placeAt(0.5, 0.5); } }}>
-              <img src={prev.url} alt={`Page ${pageNum}`} draggable={false} style={{ width: "100%", display: "block" }} />
-              {here.map((p) => (
-                <img key={p.i} src={p.sig.url} alt="" draggable={false}
-                  style={{ position: "absolute", left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%`, transform: "translate(-50%,-50%)", outline: "1px dashed var(--pri2)", pointerEvents: "none" }} />
-              ))}
+          <section className="pdfw-sec" aria-labelledby="pdfs-s3">
+            <h3 className="pdfw-label" id="pdfs-s3"><span className="pdfs-step" aria-hidden="true">2</span>Place it on the page</h3>
+            <div className="field">
+              <label htmlFor="sw">Signature size ({width}% of page width)</label>
+              <input id="sw" type="range" min="8" max="60" value={width} onChange={(e) => setWidth(+e.target.value)} />
             </div>
-          )}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn gh" disabled={!places.length} onClick={() => { setPlaces((p) => p.slice(0, -1)); setOut([]); }}>Undo last</button>
-            <button className="btn" style={{ flex: 1 }} disabled={busy || !places.length} onClick={apply}>{busy ? "Signing…" : "Apply signature"}</button>
+            <div className="pdfs-nav">
+              <button type="button" className="btn gh sm" disabled={pageNum <= 1} onClick={() => setPageNum((n) => n - 1)} aria-label="Previous page"><ChevronLeft aria-hidden="true" />Prev</button>
+              <span className="pdfs-pg" aria-live="polite">Page {pageNum} of {prev?.total ?? "…"}</span>
+              <button type="button" className="btn gh sm" disabled={!prev || pageNum >= prev.total} onClick={() => setPageNum((n) => n + 1)} aria-label="Next page">Next<ChevronRight aria-hidden="true" /></button>
+              <span className="hint pdfs-count" aria-live="polite">{places.length} placed</span>
+            </div>
+            {!sig && <p className="hint">Create a signature above, then click the page where it should go.</p>}
+
+            {prev ? (
+              <div className={`pdfs-stage${sig ? "" : " no-sig"}`}
+                role="button" tabIndex={0} aria-label={`Page ${pageNum}: click to place the signature, or press Enter to place it in the centre`}
+                onClick={place} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); placeAt(0.5, 0.5); } }}>
+                <img src={prev.url} alt={`Page ${pageNum}`} draggable={false} className="pdfs-page" />
+                {here.map((p) => (
+                  <img key={p.i} src={p.sig.url} alt="" draggable={false} className="pdfs-placed"
+                    style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: `${p.w * 100}%` }} />
+                ))}
+              </div>
+            ) : <div className="skel pdfs-stageskel" aria-hidden="true" />}
+          </section>
+
+          <div className="pdfw-act pdfs-act">
+            <button type="button" className="btn gh" disabled={!places.length} onClick={() => { setPlaces((p) => p.slice(0, -1)); setOut([]); }}><Undo2 aria-hidden="true" />Undo last</button>
+            <button type="button" className="btn pri" disabled={busy || !places.length} onClick={apply}>
+              {busy ? <><LoaderCircle className="spin" aria-hidden="true" />Signing…</> : "Apply signature"}
+            </button>
           </div>
           <Results items={out} />
-          <div className="note w" style={{ marginTop: 16 }}>
-            <b>Visual signature · </b>this stamps your signature image onto the page, like signing on paper. It is not a certificate-based digital signature,
+          <Notice tone="w" title="Visual signature" className="pdfw-foot">
+            This stamps your signature image onto the page, like signing on paper. It is not a certificate-based digital signature,
             so it doesn't prove identity or detect later edits. Pages that are rotated must be set upright first (Rotate PDF).
-          </div>
+          </Notice>
         </>
       )}
     </Shell>

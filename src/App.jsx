@@ -15,6 +15,11 @@ import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import "./tools/css/v3.css";
+
+/* Tools on the redesigned workspace UI: their content sits inside .v3tool, which scopes
+   the V3 primitives (src/tools/css/v3.css) so the shell, Home and other tools are unchanged. */
+const V3_TOOLS = new Set(["speed", "ssl", "utc", "ytdownloader", "ip", "image", "pdf", "prompt", "phone", "password", "breach", "price"]);
 
 /* After a deploy, an open tab may ask for a chunk hash that no longer exists:
    reload once to pick up the new build instead of showing the error panel. */
@@ -217,7 +222,7 @@ export default function App() {
               </nav>
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
-                  <MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} />
+                  <div className="v3tool"><MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} /></div>
                 </Suspense>
               </ToolErrorBoundary>
             </div>
@@ -230,7 +235,7 @@ export default function App() {
               {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
-                  <ToolView notify={notify} nav={nav} arg={toolArg} />
+                  <div className={V3_TOOLS.has(tool.id) ? "v3tool" : undefined}><ToolView notify={notify} nav={nav} arg={toolArg} /></div>
                 </Suspense>
               </ToolErrorBoundary>
               {tool.faqs && <FaqSection tool={tool} />}

@@ -1,13 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
+import { BellOff, BellRing, CircleCheck, CirclePause, Mail, MessageCircle, Package, Pencil, Play, Pause, Trash2 } from "lucide-react";
+import { EmptyState, Notice, StatusBadge, BetaBadge } from "../../components/ui.jsx";
 import { createAlertsApi } from "./api.js";
+import "./alerts.css";
 
 function money(n, currency = "INR") {
   if (n == null) return "—";
   try { return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { style: "currency", currency }).format(Number(n)); }
   catch { return `${currency} ${n}`; }
 }
-const STATUS_CHIP = { active: "act", triggered: "up", paused: "wk", cancelled: "done", expired: "done" };
-const DELIVERY_CHIP = { sent: "act", failed: "wk", pending: "done", skipped: "done" };
+/* status → badge tone + icon + words (never colour alone) */
+const STATUS = {
+  active: ["ok", BellRing, "Active"], triggered: ["brand", CircleCheck, "Triggered"], paused: ["warn", CirclePause, "Paused"],
+  cancelled: ["", BellOff, "Cancelled"], expired: ["", BellOff, "Expired"],
+};
+const DELIVERY_TONE = { sent: "ok", failed: "warn", pending: "", skipped: "" };
 
 export default function MyAlerts({ functionsBase, getToken, manageToken, signedIn = false }) {
 
@@ -57,82 +64,112 @@ export default function MyAlerts({ functionsBase, getToken, manageToken, signedI
     if (await act(() => api.update(a.id, { targetPrice: n }, manageToken))) setEditing(null);
   };
 
-  if (state === "loading") return <div className="pa-empty">Loading your alerts…</div>;
+  if (state === "loading") return (
+    <div className="pa-page">
+      <PageHead manageToken={manageToken} />
+      <div className="pa-list" role="status" aria-label="Loading your alerts">
+        {[0, 1].map((i) => <div key={i} className="pa-row pa-row-skel"><div className="skel pa-thumb" /><div className="pa-rmain"><div className="skel pa-sk1" /><div className="skel pa-sk2" /></div></div>)}
+      </div>
+    </div>
+  );
   if (state === "error") return (
-    <div className="panel"><div className="pb">
-      <div className="pa-formerr" role="alert"><b>Couldn't load alerts.</b> {error}</div>
-      <button className="btn gh" onClick={load}>Try again</button>
-    </div></div>
+    <div className="pa-page">
+      <PageHead manageToken={manageToken} />
+      <Notice tone="e" title="Couldn't load alerts." actions={<button type="button" className="btn gh sm" onClick={load}>Try again</button>}>
+        <p>{error}</p>
+      </Notice>
+    </div>
   );
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <h1 style={{ fontFamily: "var(--disp)", fontSize: 20, fontWeight: 700 }}>
-          {manageToken ? "Your price alert" : "My price alerts"}
-        </h1>
-        <span className="pa-beta">Beta</span>
-      </div>
+    <div className="pa-page">
+      <PageHead manageToken={manageToken} />
 
-      {error && <div className="pa-formerr" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
+      {error && <Notice tone="e" className="pa-formerr">{error}</Notice>}
 
       {alerts.length === 0 ? (
-        <div className="pa-empty">
-          No alerts yet. Track a product and choose “Set price alert” to get notified when the price drops.
+        <div className="panel">
+          <EmptyState icon={BellOff} title="No alerts yet"
+            actions={<a className="btn gh" href="/tool/price">Track a product</a>}>
+            No alerts yet. Track a product and choose “Set price alert” to get notified when the price drops.
+          </EmptyState>
         </div>
-      ) : alerts.map((a) => (
-        <div className="pa-alertcard" key={a.id}>
-          <div className="pa-top">
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{a.productName || a.productId}</div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--tx2)", marginTop: 3 }}>
-                Target {money(a.targetPrice, a.currency)}
-                {a.originalPrice ? <> · was {money(a.originalPrice, a.currency)}</> : null}
-              </div>
-            </div>
-            <span className={`chip ${STATUS_CHIP[a.status] || "done"}`}>{a.status}</span>
-          </div>
+      ) : (
+        <ul className="pa-list">
+          {alerts.map((a) => {
+            const [tone, Icon, word] = STATUS[a.status] || ["", BellOff, a.status];
+            return (
+              <li className="pa-row" key={a.id}>
+                {a.productImage
+                  ? <img className="pa-thumb" src={a.productImage} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  : <div className="pa-thumb pa-noimg" aria-hidden="true"><Package size={20} strokeWidth={1.7} /></div>}
+                <div className="pa-rmain">
+                  <div className="pa-rtop">
+                    <h2 className="pa-rname">
+                      {a.productUrl
+                        ? <a href={a.productUrl} target="_blank" rel="nofollow sponsored noopener noreferrer">{a.productName || a.productId}<span className="sr-only"> (opens in a new tab)</span></a>
+                        : (a.productName || a.productId)}
+                    </h2>
+                    <StatusBadge tone={tone} icon={Icon}>{word}</StatusBadge>
+                  </div>
+                  <dl className="pa-prices">
+                    <div><dt>Target</dt><dd>{money(a.targetPrice, a.currency)}</dd></div>
+                    {a.originalPrice ? <div><dt>Price when set</dt><dd>{money(a.originalPrice, a.currency)}</dd></div> : null}
+                  </dl>
 
-          <div className="pa-delivery">
-            {a.emailEnabled && (
-              <span className={`chip ${DELIVERY_CHIP[a.notificationStatus?.email] || "done"}`}>
-                email: {a.notificationStatus?.email || "pending"}
-              </span>
-            )}
-            {a.whatsappEnabled && (
-              <span className={`chip ${DELIVERY_CHIP[a.notificationStatus?.whatsapp] || "done"}`}>
-                whatsapp: {a.notificationStatus?.whatsapp || "pending"}
-              </span>
-            )}
-            {a.triggeredAt && <span className="chip up">notified {new Date(a.triggeredAt).toLocaleDateString()}</span>}
-          </div>
+                  <div className="pa-delivery">
+                    {a.emailEnabled && (
+                      <StatusBadge tone={DELIVERY_TONE[a.notificationStatus?.email] || ""} icon={Mail}>
+                        email: {a.notificationStatus?.email || "pending"}
+                      </StatusBadge>
+                    )}
+                    {a.whatsappEnabled && (
+                      <StatusBadge tone={DELIVERY_TONE[a.notificationStatus?.whatsapp] || ""} icon={MessageCircle}>
+                        whatsapp: {a.notificationStatus?.whatsapp || "pending"}
+                      </StatusBadge>
+                    )}
+                    {a.triggeredAt && <StatusBadge tone="brand" icon={CircleCheck}>notified {new Date(a.triggeredAt).toLocaleDateString()}</StatusBadge>}
+                  </div>
 
-          {editing === a.id ? (
-            <div style={{ marginTop: 12 }}>
-              <label htmlFor={`pa-edit-${a.id}`} className="hint" style={{ display: "block", marginBottom: 4 }}>New target price ({a.currency || "INR"})</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input id={`pa-edit-${a.id}`} type="number" min="1" inputMode="decimal" className="inp" style={{ margin: 0, flex: 1 }}
-                  value={editVal} onChange={(e) => { setEditVal(e.target.value); if (editErr) setEditErr(""); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveEdit(a); }}
-                  aria-invalid={!!editErr} aria-describedby={editErr ? `pa-edit-err-${a.id}` : undefined} />
-                <button className="btn gh" onClick={() => saveEdit(a)}>Save</button>
-                <button className="btn gh" onClick={() => { setEditing(null); setEditErr(""); }}>Cancel</button>
-              </div>
-              {editErr && <div id={`pa-edit-err-${a.id}`} className="pa-err" role="alert">{editErr}</div>}
-            </div>
-          ) : (
-            <div className="pa-actions">
-              <button className="pill" onClick={() => { setEditing(a.id); setEditVal(String(a.targetPrice)); setEditErr(""); }}>Edit target</button>
-              {a.status === "active"
-                ? <button className="pill" onClick={() => act(() => api.pause(a.id, manageToken))}>Pause</button>
-                : (a.status === "paused" || a.status === "triggered" || a.status === "expired")
-                  ? <button className="pill" onClick={() => act(() => api.reactivate(a.id, manageToken))}>Reactivate</button>
-                  : null}
-              <button className="pill" onClick={() => act(() => api.remove(a.id, manageToken))}>Delete</button>
-            </div>
-          )}
-        </div>
-      ))}
+                  {editing === a.id ? (
+                    <div className="field pa-edit">
+                      <label htmlFor={`pa-edit-${a.id}`}>New target price ({a.currency || "INR"})</label>
+                      <div className="inrow">
+                        <input id={`pa-edit-${a.id}`} type="number" min="1" inputMode="decimal" className="mono"
+                          value={editVal} onChange={(e) => { setEditVal(e.target.value); if (editErr) setEditErr(""); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveEdit(a); }}
+                          aria-invalid={!!editErr} aria-describedby={editErr ? `pa-edit-err-${a.id}` : undefined} />
+                        <button type="button" className="btn sm" onClick={() => saveEdit(a)}>Save</button>
+                        <button type="button" className="btn qt sm" onClick={() => { setEditing(null); setEditErr(""); }}>Cancel</button>
+                      </div>
+                      {editErr && <div id={`pa-edit-err-${a.id}`} className="pa-err" role="alert">{editErr}</div>}
+                    </div>
+                  ) : (
+                    <div className="actions pa-actions">
+                      <button type="button" className="btn gh sm" onClick={() => { setEditing(a.id); setEditVal(String(a.targetPrice)); setEditErr(""); }}><Pencil size={14} aria-hidden="true" />Edit target</button>
+                      {a.status === "active"
+                        ? <button type="button" className="btn gh sm" onClick={() => act(() => api.pause(a.id, manageToken))}><Pause size={14} aria-hidden="true" />Pause</button>
+                        : (a.status === "paused" || a.status === "triggered" || a.status === "expired")
+                          ? <button type="button" className="btn gh sm" onClick={() => act(() => api.reactivate(a.id, manageToken))}><Play size={14} aria-hidden="true" />Reactivate</button>
+                          : null}
+                      <button type="button" className="btn qt sm pa-del" onClick={() => act(() => api.remove(a.id, manageToken))}><Trash2 size={14} aria-hidden="true" />Delete</button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function PageHead({ manageToken }) {
+  return (
+    <div className="pa-pagehead">
+      <h1>{manageToken ? "Your price alert" : "My price alerts"} <BetaBadge /></h1>
+      <p>Alerts check the live Amazon price every hour and notify you once it's at or below your target.</p>
     </div>
   );
 }

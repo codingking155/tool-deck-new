@@ -1,0 +1,129 @@
+/* UTC Wait-Time Generator — configuration left, live ORDER → WAIT → SEND result right. */
+
+/* ── configuration ─────────────────────────────────────────── */
+.utc-ph{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s3)}
+.utc-ph .btn.qt{flex:none;margin:-6px -8px 0 0}
+.utc-warn ul{margin:6px 0 0 18px;padding:0}
+.utc-warn li+li{margin-top:2px}
+.utc-mine{display:inline-flex;align-items:center;gap:6px}
+.utc-step{border:0;margin:0;padding:var(--s3) 0 0;border-top:1px solid var(--line2);min-width:0}
+.utc-step legend{float:left;width:100%;display:flex;align-items:center;gap:8px;padding:0;margin:0 0 var(--s3);
+  font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--tx2)}
+.utc-step legend+*{clear:both}
+.utc-step .st-dot{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;flex:none;
+  color:var(--tx2);background:var(--surface-interactive);border:1px solid var(--line)}
+.utc-step.send .st-dot{color:var(--pri2);background:var(--pri-soft);border-color:var(--pri-line)}
+.utc-step .field{margin-bottom:var(--s3)}
+.utc-step .hint{margin-top:4px}
+.utc .mono-h{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.utc-step .lbl-row{align-items:center;min-height:19px}
+.utc-step .lbl-row label .opt{font-weight:500;color:var(--tx3)}
+.utc-clear{margin:-13px -6px -13px 0;padding:0 6px;min-height:44px;line-height:1}
+.utc-sdh{margin:-4px 0 var(--s3)}
+.utc-opts{border-top:1px solid var(--line2)}
+.utc-opts .tgl:first-child{border-top:0}
+.utc-seg{margin:0;flex:none}
+.utc-seg button{font-family:var(--mono);font-size:12.5px;min-width:46px;justify-content:center}
+
+/* presets: secondary, compact */
+.utc-presets{margin-top:var(--s2)}
+.utc-presets>summary svg{color:var(--tx3)}
+.utc-presets>summary .badge{height:20px;padding:0 7px}
+.utc-pbody{padding-bottom:var(--s1)}
+.utc-chips{list-style:none;margin:0 0 var(--s3);padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.utc-chip{display:inline-flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);overflow:hidden;
+  transition:border-color var(--dur-1)}
+.utc-chip:hover,.utc-chip:focus-within{border-color:var(--border-strong)}
+.utc-chip button{background:none;border:0;color:var(--tx2);cursor:pointer;min-height:34px;font:500 12.5px var(--body)}
+.utc-chip .cp-apply{padding:0 6px 0 12px}
+.utc-chip .cp-apply:hover{color:var(--tx)}
+.utc-chip .cp-del{display:grid;place-items:center;width:30px;color:var(--tx3);border-left:1px solid var(--line2)}
+.utc-chip .cp-del:hover{color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.utc-chip button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.utc-none{margin:0 0 var(--s3)}
+.utc-save .btn{gap:6px}
+
+/* ── result ────────────────────────────────────────────────── */
+.utc-big{padding-top:var(--s1)}
+.utc-big .lab{display:flex;align-items:center;gap:6px}
+.utc-big .val{color:var(--tx)}
+.utc-big .sub b{font-family:var(--mono);font-weight:600;color:var(--tx);font-variant-numeric:tabular-nums}
+/* elapsed share of the wait — a quiet state cue, not an animation loop */
+.utc-prog{display:block;height:3px;margin-top:var(--s3);border-radius:var(--r-pill);background:var(--line);overflow:hidden}
+.utc-prog i{display:block;height:100%;width:var(--p,0%);border-radius:inherit;background:var(--tool-accent,var(--brand));transition:width var(--dur-3) var(--ease)}
+
+/* timeline: Order card → connector → Send card */
+.utc-tl{list-style:none;margin:var(--s5) 0 0;padding:0}
+.ocard{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3) var(--s4)}
+.ocard.acc{border-color:var(--pri-line);background:var(--pri-soft)}
+.oc-h{display:flex;align-items:center;gap:8px;margin-bottom:var(--s2)}
+.oc-ic{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;flex:none;color:var(--tx2);background:var(--surface-interactive);border:1px solid var(--line)}
+.ocard.acc .oc-ic{color:var(--pri2);background:var(--surface);border-color:var(--pri-line)}
+.ocard .ot{font-size:13.5px;font-weight:600;color:var(--tx)}
+.oc-rows{margin:0;display:grid;gap:2px}
+.oc-row{display:grid;grid-template-columns:minmax(84px,auto) 1fr;align-items:baseline;gap:var(--s3);padding:6px 0}
+.oc-row+.oc-row{border-top:1px dashed var(--line)}
+.oc-row dt{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);white-space:nowrap}
+.oc-row dt .oc-z{display:block;font:500 11px var(--body);letter-spacing:0;text-transform:none;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.oc-row dd{margin:0;display:flex;align-items:baseline;justify-content:flex-end;flex-wrap:wrap;gap:4px 10px;text-align:right;min-width:0}
+.oc-t{font:600 17px var(--mono);color:var(--tx);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.oc-t small{font-size:12px;font-weight:600;color:var(--tx3)}
+.oc-row.utc .oc-t{font-size:15px;color:var(--tx2)}
+.ocard.acc .oc-row.utc .oc-t{color:var(--pri2)}
+.ocard.acc .oc-row.utc .oc-t small{color:inherit}
+.oc-d{font-size:12px;color:var(--tx3)}
+
+.utc-gap{position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;min-height:52px;margin-left:var(--s4);padding:var(--s2) 0 var(--s2) 30px;
+  font-size:12.5px;color:var(--tx2)}
+.utc-gap::before{content:"";position:absolute;left:12px;top:0;bottom:0;border-left:2px dashed var(--line-strong)}
+.utc-gap::after{content:"";position:absolute;left:8px;bottom:-1px;width:8px;height:8px;border-right:2px solid var(--line-strong);border-bottom:2px solid var(--line-strong);transform:rotate(45deg)}
+.utc-gap .g-tx b{font-family:var(--mono);font-weight:600;color:var(--tx)}
+
+.utc-unusual{margin:var(--s4) 0 0}
+.utc-acts{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--s2) var(--s3);margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line2)}
+.utc-acts .btn{gap:6px}
+.utc-acts .sharebtn{min-height:var(--ctl-sm);padding:0 12px;font-size:12.5px;border-radius:var(--r-sm)}
+.utc-foot{margin-top:var(--s4)}
+
+/* phones: a compact sticky answer above the controls */
+.utc-peek{display:none}
+@media(max-width:920px){
+  .utc-peek{position:sticky;top:72px;z-index:5;display:flex;align-items:center;gap:10px;width:100%;min-height:48px;margin-bottom:var(--s3);padding:0 var(--s4);
+    background:color-mix(in srgb,var(--surface-elevated) 92%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-2);color:var(--tx);cursor:pointer;font:inherit;text-align:left}
+  .utc-peek>svg{flex:none;color:var(--tx3)}
+  .utc-peek .pk-w{font:600 15px var(--disp);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .utc-peek .pk-s{font:500 12.5px var(--mono);color:var(--pri2);margin-left:auto;white-space:nowrap}
+  .utc-peek .pk-c{margin-left:2px}
+  .utc-peek:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+}
+@media(max-width:600px){
+  .utc-peek{top:66px}
+  .utc-chip button{min-height:44px}
+  .utc-chip .cp-del{width:44px}
+  .utc-seg button{min-height:44px}
+  .oc-row{grid-template-columns:1fr;gap:2px}
+  .oc-row dd{justify-content:flex-start;text-align:left}
+  .utc-acts{flex-direction:column;align-items:stretch}
+  .utc-acts .actions>*{flex:1 1 auto}
+  .utc-ph .btn.qt,.utc-acts .sharebtn{min-height:44px}
+}
+
+/* ── hourly table ──────────────────────────────────────────── */
+.utc-bar h2{display:flex;align-items:center;gap:8px}
+.utc-bar h2 svg{color:var(--tx3)}
+.utc-bar .hint{margin-top:2px}
+.utc-bar .btn{gap:6px}
+.utc-chev{transition:transform var(--dur-2) var(--ease)}
+.utc-chev.up{transform:rotate(180deg)}
+.utc-tbl{max-height:min(560px,70vh);overflow:auto}
+.utc-tbl:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.utc-tbl table.rt{min-width:900px}
+.utc-tbl .rt th{z-index:1}
+.utc-tbl .rt .num{text-align:right}
+.utc-tbl .rt td.w{color:var(--tx);font-weight:600}
+.utc-tbl .rt td.c-loc b{font-weight:600}
+.utc-tbl .rt tr.today td{background:var(--pri-soft)}
+.utc-tbl .rt tr.today td:first-child{box-shadow:inset 3px 0 0 var(--pri2)}
+.utc-now{margin-left:10px}
+@media(prefers-reduced-motion:reduce){.utc-prog i,.utc-chev{transition:none}}
