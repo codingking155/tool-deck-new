@@ -829,3 +829,6 @@ table.rt.pt-table{min-width:520px}
 .hbtn:disabled,.pill:disabled,.rowcopy:disabled,.zbtn:disabled,.rangebar button:disabled,.modes button:disabled,.linkbtn:disabled,.jt-more:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
 .foot-visits{color:var(--pri2);font-weight:600}
 .foot-line{margin-top:6px;line-height:1.55;padding:0 12px}
+/* paired fields: let children shrink, and stack on the narrowest phones */
+.two>*,.three>*{min-width:0}
+@media(max-width:360px){.two,.three{grid-template-columns:1fr}}
