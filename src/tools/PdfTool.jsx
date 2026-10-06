@@ -84,7 +84,7 @@ const TOOLS = [
   { id: "numbers", g: 4, icon: "🔢", name: "Add page numbers", desc: "Stamp page numbers on every page.",
     opts: [{ key: "position", label: "Position", type: "select", options: [["bottom-center", "Bottom centre"], ["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-center", "Top centre"], ["top-right", "Top right"], ["top-left", "Top left"]], def: "bottom-center" },
       { key: "start", label: "Start at", type: "number", def: 1 }],
-    run: async ([f], o) => [pdf(await (await pdfOps()).addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: o.start == null || o.start === "" || !Number.isFinite(Number(o.start)) ? 1 : Number(o.start) }), `${base(f)}-numbered.pdf`)] },
+    run: async ([f], o) => [pdf(await (await pdfOps()).addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: Number(o.start) || 1 }), `${base(f)}-numbered.pdf`)] },
   { id: "watermark", g: 4, icon: "💧", name: "Watermark", desc: "Diagonal text watermark on every page.",
     opts: [{ key: "text", label: "Watermark text", type: "text", ph: "CONFIDENTIAL" },
       { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" },
@@ -173,8 +173,8 @@ function PageThumbs({ file, spec, ordered, onChange }) {
                 border: `2px solid ${pos >= 0 ? "var(--pri2)" : "var(--line)"}`, borderRadius: 8 }}>
               <img src={src} alt="" style={{ width: "100%", display: "block", borderRadius: 3 }} />
               <span style={{ fontSize: 11, color: "var(--tx3)" }}>{i + 1}</span>
-              {pos >= 0 && ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "var(--bg)", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>{pos + 1}</span>}
-              {pos >= 0 && !ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "var(--bg)", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>✓</span>}
+              {pos >= 0 && ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>{pos + 1}</span>}
+              {pos >= 0 && !ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>✓</span>}
             </button>
           );
         })}
@@ -192,14 +192,12 @@ function Workspace({ tool, notify, onBack }) {
   const input = useRef(null);
   const resultsRef = useRef([]);
   resultsRef.current = results;
-  const runId = useRef(0);
-  useEffect(() => () => { runId.current++; resultsRef.current.forEach((r) => URL.revokeObjectURL(r.url)); }, []);
+  useEffect(() => () => resultsRef.current.forEach((r) => URL.revokeObjectURL(r.url)), []);
 
   const accept = tool.accept || "application/pdf";
   const clearResults = () => { results.forEach((r) => URL.revokeObjectURL(r.url)); setResults([]); };
 
   const add = async (list) => {
-    if (busy) return;
     const ok = [];
     for (const f of Array.from(list)) {
       const good = tool.accept ? accept.split(",").includes(f.type) : f.type === "application/pdf" || /\.pdf$/i.test(f.name);
@@ -219,14 +217,12 @@ function Workspace({ tool, notify, onBack }) {
   const run = async () => {
     if (files.length < (tool.min || 1)) return notify(tool.min ? `Add at least ${tool.min} files.` : "Add a file first.");
     clearResults(); setBusy("Working…");
-    const id = ++runId.current;
     try {
-      const out = await tool.run(files, opts, (i, n) => id === runId.current && setBusy(`Page ${i} of ${n}…`));
-      if (id !== runId.current) return;
+      const out = await tool.run(files, opts, (i, n) => setBusy(`Page ${i} of ${n}…`));
       setResults(out.map((r) => ({ ...r, url: URL.createObjectURL(r.blob), size: r.blob.size })));
     } catch (e) {
-      if (id === runId.current) notify(e?.message || "Something went wrong.");
-    } finally { if (id === runId.current) setBusy(""); }
+      notify(e?.message || "Something went wrong.");
+    } finally { setBusy(""); }
   };
 
   const inSize = files.reduce((s, f) => s + f.size, 0);
@@ -235,14 +231,14 @@ function Workspace({ tool, notify, onBack }) {
     <div className="panel rise d1" style={{ maxWidth: 720, margin: "0 auto" }}>
       <div className="ph">
         <button className="btn gh" onClick={onBack} style={{ float: "right" }}>← All PDF tools</button>
-        <h2>{tool.icon} {tool.name}</h2><p>{tool.desc}</p>
+        <h3>{tool.icon} {tool.name}</h3><p>{tool.desc}</p>
       </div>
       <div className="pb">
-        <div role="button" tabIndex={busy ? -1 : 0} aria-label="Choose files" aria-disabled={!!busy}
-          onClick={() => !busy && input.current?.click()} onKeyDown={(e) => !busy && (e.key === "Enter" || e.key === " ") && input.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDrag(!busy); }} onDragLeave={() => setDrag(false)}
+        <div role="button" tabIndex={0} aria-label="Choose files"
+          onClick={() => input.current?.click()} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); add(e.dataTransfer.files); }}
-          style={{ border: `2px dashed ${drag ? "var(--good)" : "var(--line)"}`, borderRadius: 12, padding: 28, textAlign: "center", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1, color: "var(--tx)" }}>
+          style={{ border: `2px dashed ${drag ? "var(--good)" : "var(--line)"}`, borderRadius: 12, padding: 28, textAlign: "center", cursor: "pointer", color: "var(--tx)" }}>
           <div style={{ fontSize: 28 }}>⬆️</div>
           <b>Click or drop {tool.accept ? "images" : tool.multi ? "PDFs" : "a PDF"} here</b>
           <div style={{ fontSize: 12, color: "var(--tx3)" }}>{tool.multi ? "Select several files" : "One file"} · processed in your browser, never uploaded</div>
@@ -254,10 +250,10 @@ function Workspace({ tool, notify, onBack }) {
             <span className="k" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{f.name}</span>
             <span className="v">{kb(f.size)}{f.pages ? ` · ${f.pages} p` : ""}</span>
             {tool.multi && files.length > 1 && <>
-              <button className="pill" aria-label="Move up" disabled={!!busy} onClick={() => move(i, -1)}>↑</button>
-              <button className="pill" aria-label="Move down" disabled={!!busy} onClick={() => move(i, 1)}>↓</button>
+              <button className="pill" aria-label="Move up" onClick={() => move(i, -1)}>↑</button>
+              <button className="pill" aria-label="Move down" onClick={() => move(i, 1)}>↓</button>
             </>}
-            <button className="pill" aria-label={`Remove ${f.name}`} disabled={!!busy} onClick={() => { clearResults(); setFiles((p) => p.filter((x) => x.id !== f.id)); }}>✕</button>
+            <button className="pill" aria-label={`Remove ${f.name}`} onClick={() => { clearResults(); setFiles((p) => p.filter((x) => x.id !== f.id)); }}>✕</button>
           </div>
         ))}
 
@@ -273,7 +269,7 @@ function Workspace({ tool, notify, onBack }) {
         )}
 
         {files.length > 0 && (
-          <button className="btn pri" style={{ width: "100%", marginTop: 16 }} disabled={!!busy} onClick={run}>{busy || `${tool.name}`}</button>
+          <button className="btn" style={{ width: "100%", marginTop: 16 }} disabled={!!busy} onClick={run}>{busy || `${tool.name}`}</button>
         )}
 
         {results.length > 0 && (
@@ -308,6 +304,7 @@ function Workspace({ tool, notify, onBack }) {
 export default function PdfTool({ notify }) {
   const [id, setId] = useState(() => readParams().get("t") || "");
   useEffect(() => { writeParams({ t: id || null }); }, [id]);
+  const [query, setQuery] = useState("");
   const tool = useMemo(() => TOOLS.find((t) => t.id === id), [id]);
 
   if (tool?.Custom) return (
@@ -317,23 +314,37 @@ export default function PdfTool({ notify }) {
   );
   if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} />;
 
+  const q = query.trim().toLowerCase();
+  const match = (t) => !q || (t.name + " " + t.desc).toLowerCase().includes(q);
+  const shown = TOOLS.filter(match);
+
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      {GROUPS.map((g, gi) => (
-        <section key={g} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 14, color: "var(--tx3)", margin: "0 0 8px" }}>{g}</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 10 }}>
-            {TOOLS.filter((t) => t.g === gi).map((t) => (
-              <button key={t.id} className="panel" onClick={() => setId(t.id)}
-                style={{ textAlign: "left", padding: 14, cursor: "pointer", color: "var(--tx)", border: "1px solid var(--line)" }}>
-                <div style={{ fontSize: 22 }}>{t.icon}</div>
-                <b>{t.name}</b>
-                <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 2 }}>{t.desc}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+    <div className="pdfh">
+      <div className="pdfh-search">
+        <span aria-hidden="true">🔍</span>
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${TOOLS.length} PDF tools…`} aria-label="Search PDF tools" />
+      </div>
+      {GROUPS.map((g, gi) => {
+        const items = shown.filter((t) => t.g === gi);
+        if (!items.length) return null;
+        return (
+          <section key={g}>
+            <h3 className="pdfh-gh">{g}<i>{items.length}</i></h3>
+            <div className="pdfh-grid">
+              {items.map((t) => (
+                <button key={t.id} className="pdfh-card" onClick={() => setId(t.id)}>
+                  <span className="pdfh-ico" aria-hidden="true">{t.icon}</span>
+                  <b>{t.name}</b>
+                  <small>{t.desc}</small>
+                  <span className="pdfh-go" aria-hidden="true">→</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {!shown.length && <div className="pdfh-empty">No tools match “{query}”.</div>}
       <div className="note i"><b>Privacy · </b>every tool here runs locally in your browser — files are never uploaded.</div>
       <div className="note w" style={{ marginTop: 10 }}><b>Not available (need a server) · </b>{NOT_AVAILABLE.join(" · ")}</div>
     </div>

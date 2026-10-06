@@ -846,3 +846,23 @@ table.rt.pt-table{min-width:520px}
 .sd-signals li{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line2);font-size:13px;color:var(--tx);
   animation:rise .3s both;animation-delay:calc(var(--i) * 35ms)}
 .sd-signals li svg{flex:none;color:var(--sd);background:color-mix(in srgb,var(--sd) 14%,transparent);border-radius:99px;padding:2px;width:18px;height:18px}
+
+/* PDF Toolkit home */
+.pdfh{max-width:960px;margin:0 auto}
+.pdfh-search{position:relative;margin:0 0 22px}
+.pdfh-search input{width:100%;box-sizing:border-box;padding:12px 14px 12px 40px;font-size:15px;color:var(--tx);background:var(--panel);border:1px solid var(--line);border-radius:12px;outline:none;transition:border-color .15s,box-shadow .15s}
+.pdfh-search input:focus{border-color:var(--pri-line);box-shadow:0 0 0 3px var(--pri-soft)}
+.pdfh-search span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--tx3);pointer-events:none}
+.pdfh-gh{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3)}
+.pdfh-gh i{font-style:normal;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);letter-spacing:0}
+.pdfh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:28px}
+.pdfh-card{position:relative;display:flex;flex-direction:column;gap:6px;text-align:left;padding:16px;cursor:pointer;color:var(--tx);background:var(--panel);border:1px solid var(--line);border-radius:14px;font:inherit;transition:transform .15s,border-color .15s,box-shadow .15s,background .15s}
+.pdfh-card:hover,.pdfh-card:focus-visible{transform:translateY(-2px);border-color:var(--pri-line);background:var(--panel2);box-shadow:0 8px 24px rgba(0,0,0,.18);outline:none}
+.pdfh-card:focus-visible{box-shadow:0 0 0 3px var(--pri-soft)}
+.pdfh-ico{width:42px;height:42px;display:grid;place-items:center;font-size:22px;border-radius:11px;background:var(--pri-soft);border:1px solid var(--pri-line);margin-bottom:4px}
+.pdfh-card b{font-size:15px}
+.pdfh-card small{font-size:12.5px;line-height:1.45;color:var(--tx3)}
+.pdfh-go{position:absolute;top:16px;right:16px;color:var(--tx3);opacity:0;transform:translateX(-4px);transition:opacity .15s,transform .15s}
+.pdfh-card:hover .pdfh-go,.pdfh-card:focus-visible .pdfh-go{opacity:1;transform:none;color:var(--pri)}
+.pdfh-empty{text-align:center;padding:30px;color:var(--tx3)}
+@media (prefers-reduced-motion:reduce){.pdfh-card,.pdfh-go{transition:none}.pdfh-card:hover{transform:none}}
