@@ -242,8 +242,10 @@ Check it with `curl https://<service>.onrender.com/api/health`, which should ret
 - YouTube often challenges requests from cloud/datacenter IPs ("Sign in to confirm you're not a bot"). The tool then
   shows a "slow down" error. That is YouTube's access control, and this project deliberately doesn't work around it
   (no cookies, no proxy rotation).
-- Render's free plan sleeps when idle, so the first request takes about a minute, and it has little memory for
-  FFmpeg. The blueprint uses the `starter` plan.
+- The blueprint uses Render's **free** plan. It sleeps after about 15 minutes without traffic, so the next request
+  waits about a minute while it wakes. With 512 MB of RAM and a fraction of a CPU, it is limited to one download at a
+  time, files up to 1 GB and videos up to 1 hour. To lift the limits, change `plan:` and the `MAX_*` values in
+  `render.yaml`.
 
 ## Extending it
 
