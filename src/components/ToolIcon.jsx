@@ -1,11 +1,11 @@
-import { Clock3, PhoneCall, ShoppingBag, Gauge, Globe, TrendingDown, Braces, LockKeyhole, KeyRound, Sparkles, ImageDown, ShieldAlert, FileStack } from "lucide-react";
+import { Clock3, PhoneCall, ShoppingBag, Gauge, Globe, TrendingDown, Braces, LockKeyhole, KeyRound, Sparkles, ImageDown, ShieldAlert, FileStack, Clapperboard } from "lucide-react";
 
 /* One consistent line-icon set for the tool tiles (emoji render differently on every OS).
    The emoji in toolsMeta stay for text-only places like the command palette. */
 const ICONS = {
   utc: Clock3, phone: PhoneCall, shopifydetector: ShoppingBag, speed: Gauge, ip: Globe,
   price: TrendingDown, json: Braces, ssl: LockKeyhole, password: KeyRound, prompt: Sparkles,
-  image: ImageDown, breach: ShieldAlert, pdf: FileStack,
+  image: ImageDown, breach: ShieldAlert, pdf: FileStack, ytdownloader: Clapperboard,
 };
 
 export default function ToolIcon({ tool, size = 22 }) {

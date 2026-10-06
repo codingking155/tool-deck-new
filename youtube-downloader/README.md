@@ -178,8 +178,9 @@ download through a temporary object URL with a sanitized filename, and revokes t
 - **Headers:** the API sends `nosniff`, `no-referrer`, `DENY` and `no-store`. The frontend sends a CSP that only allows
   connections to itself and the API, plus YouTube's image CDN.
 
-Behind a reverse proxy, set `TRUST_PROXY_HEADERS=true` so rate limits use `X-Forwarded-For`. Only do this if the proxy
-overwrites that header.
+Behind a reverse proxy, set `TRUSTED_PROXY_HOPS` to the number of proxies that append to `X-Forwarded-For`
+(Render: `1`). The client is then read that many entries from the right, so a client can't spoof its IP by sending its
+own header. Uvicorn's `--proxy-headers` is deliberately off.
 
 ## Configuration (backend environment)
 
@@ -194,7 +195,7 @@ overwrites that header.
 | `MAX_QUEUED_JOBS` / `MAX_ACTIVE_JOBS_PER_CLIENT` | `20` / `2` | Admission limits |
 | `INFO_RATE_LIMIT_PER_MINUTE` / `DOWNLOAD_RATE_LIMIT_PER_MINUTE` | `30` / `6` | Per-client rate limits |
 | `MAX_BODY_BYTES` | `4096` | Request body limit |
-| `TRUST_PROXY_HEADERS` | `false` | Use `X-Forwarded-For` for client identity |
+| `TRUSTED_PROXY_HOPS` | `0` | Proxies in front of the app (Render: `1`); `0` uses the socket address |
 
 ## Testing
 
@@ -219,6 +220,30 @@ The same fake can run the whole app offline, which is useful for UI work:
 ```bash
 cd backend && python -m tests.demo_server --port 8000   # any youtu.be/<11 chars> link "works"
 ```
+
+## Deploying with ToolDeck
+
+In ToolDeck this is the **YouTube Video Downloader** tool (`/tool/ytdownloader`, `src/tools/YtDownloaderTool.jsx`).
+The UI ships with the ToolDeck site on Vercel. This backend runs separately, because yt-dlp, FFmpeg and multi-minute
+downloads don't fit Vercel functions or Supabase Edge Functions.
+
+1. **Backend on Render.** In Render, choose *New → Blueprint* and pick this repository. It reads `render.yaml` at the
+   repo root and creates the `tooldeck-ytdl` web service from `youtube-downloader/backend/Dockerfile`, with FFmpeg
+   included. Check `ALLOWED_ORIGINS` there: it must list every origin the site is served from (the default is
+   `https://tooldeck.in,https://www.tooldeck.in`; add Vercel preview URLs if you want the tool to work on previews).
+2. **Point ToolDeck at it.** In the Vercel project settings, set `VITE_DOWNLOADER_API_URL` to the service URL (for
+   example `https://tooldeck-ytdl.onrender.com`) and redeploy. Until it is set, the tool shows a "not connected" notice.
+3. **CSP.** `vercel.json` already allows `https://*.onrender.com` in `connect-src` and YouTube's thumbnail hosts in
+   `img-src`. If you put the backend on a custom domain, add that origin to `connect-src`.
+
+Check it with `curl https://<service>.onrender.com/api/health`, which should return `{"status":"ok","ffmpeg":true}`.
+
+**Caveats**
+- YouTube often challenges requests from cloud/datacenter IPs ("Sign in to confirm you're not a bot"). The tool then
+  shows a "slow down" error. That is YouTube's access control, and this project deliberately doesn't work around it
+  (no cookies, no proxy rotation).
+- Render's free plan sleeps when idle, so the first request takes about a minute, and it has little memory for
+  FFmpeg. The blueprint uses the `starter` plan.
 
 ## Extending it
 

@@ -32,6 +32,8 @@ const PV = {
   image: <><rect x="24" y="8" width="64" height="42" rx="6" className="pv-ln" /><circle cx="40" cy="21" r="4.5" className="pv-acc pv-blink" />
     <polyline className="pv-draw" pathLength="1" points="28,46 46,30 58,40 70,28 84,44" /></>,
   shield: <><path d="M56 7l18 7v12c0 12-8 20-18 25-10-5-18-13-18-25V14z" className="pv-ln" /><path className="pv-draw" d="M48 29l6 6 11-12" pathLength="1" /></>,
+  film: <><rect x="30" y="9" width="52" height="34" rx="6" className="pv-ln" /><path d="M51 19v14l12-7z" className="pv-acc" />
+    <rect x="30" y="48" width="52" height="4" rx="2" className="pv-fill" /><rect x="30" y="48" width="52" height="4" rx="2" className="pv-meter" /></>,
   pages: <><rect x="38" y="12" width="32" height="40" rx="4" className="pv-ln pv-dim pv-page2" /><rect x="44" y="7" width="32" height="40" rx="4" className="pv-ln pv-page" />
     <rect x="50" y="16" width="18" height="3" rx="1.5" className="pv-fill" /><rect x="50" y="23" width="20" height="3" rx="1.5" className="pv-fill" /><rect x="50" y="30" width="14" height="3" rx="1.5" className="pv-fill" /></>,
 };

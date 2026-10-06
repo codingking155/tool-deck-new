@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "ToolDeck BLR \u2014 thirteen fast, private utilities",
+  "description": "ToolDeck BLR \u2014 fourteen fast, private utilities",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

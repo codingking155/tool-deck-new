@@ -17,13 +17,6 @@ def _int(name: str, default: int) -> int:
         raise RuntimeError(f"Environment variable {name} must be an integer.") from exc
 
 
-def _bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _list(name: str, default: list[str]) -> list[str]:
     raw = os.getenv(name)
     if not raw:
@@ -49,8 +42,9 @@ class Settings:
     info_rate_limit: int = field(default_factory=lambda: _int("INFO_RATE_LIMIT_PER_MINUTE", 30))
     download_rate_limit: int = field(default_factory=lambda: _int("DOWNLOAD_RATE_LIMIT_PER_MINUTE", 6))
     max_body_bytes: int = field(default_factory=lambda: _int("MAX_BODY_BYTES", 4 * 1024))
-    # Only enable behind a reverse proxy you control; otherwise clients could spoof their IP.
-    trust_proxy_headers: bool = field(default_factory=lambda: _bool("TRUST_PROXY_HEADERS", False))
+    # Number of reverse proxies in front of the app that append to X-Forwarded-For (Render = 1).
+    # The client's own entries (left of those) are ignored, so the IP can't be spoofed. 0 = use the socket peer.
+    trusted_proxy_hops: int = field(default_factory=lambda: _int("TRUSTED_PROXY_HOPS", 0))
     socket_timeout: int = field(default_factory=lambda: _int("SOCKET_TIMEOUT_SECONDS", 20))
 
 

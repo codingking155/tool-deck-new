@@ -178,11 +178,13 @@ async def unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
 
 
 def client_key(request: Request) -> str:
-    if settings.trust_proxy_headers:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+    """Rate-limit identity. Behind N trusted proxies, the client is the Nth entry from the
+    right of X-Forwarded-For; anything further left is client-supplied and ignored."""
+    hops = settings.trusted_proxy_hops
+    if hops > 0:
+        entries = [e.strip() for e in request.headers.get("x-forwarded-for", "").split(",") if e.strip()]
+        if len(entries) >= hops:
+            return entries[-hops]
     return request.client.host if request.client else "unknown"
 
 
