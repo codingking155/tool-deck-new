@@ -10,6 +10,8 @@ export function checkYouTubeUrl(raw) {
   const input = String(raw ?? "").trim();
   if (!input) return { ok: false, reason: "Paste a YouTube link to get started." };
   if (input.length > 2048) return { ok: false, reason: "That link is too long." };
+  // Browsers' URL parsers percent-encode spaces ("not a link" parses), Node's don't: reject up front for consistency.
+  if (/\s/.test(input)) return { ok: false, reason: "That doesn't look like a valid link." };
   let u;
   try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(input) ? input : `https://${input}`); }
   catch { return { ok: false, reason: "That doesn't look like a valid link." }; }

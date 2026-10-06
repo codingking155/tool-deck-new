@@ -26,6 +26,12 @@ test("rejects other hosts, look-alikes, credentials, playlists and non-http sche
   }
 });
 
+test("text with spaces is reported as an invalid link, not an unsupported host", () => {
+  assert.equal(checkYouTubeUrl("not a link").reason, "That doesn't look like a valid link.");
+  assert.equal(checkYouTubeUrl("https://youtu.be/dQw4w9WgXcQ extra").ok, false);
+  assert.equal(checkYouTubeUrl("  https://youtu.be/dQw4w9WgXcQ  ").ok, true);   // surrounding whitespace is trimmed
+});
+
 test("formats sizes and durations", () => {
   assert.equal(formatBytes(34.8 * 1024 * 1024), "34.8 MB");
   assert.equal(formatBytes(182 * 1024 * 1024), "182 MB");
