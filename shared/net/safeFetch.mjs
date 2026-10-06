@@ -153,6 +153,8 @@ export async function safeFetch(rawUrl, opts = {}) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new BlockedUrlError("timeout", current.href);
 
+    // The deadline must also cover the body read: a server that sends headers
+    // and then trickles the body would otherwise hold the request open forever.
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), remaining);
     let res;
@@ -163,26 +165,26 @@ export async function safeFetch(rawUrl, opts = {}) {
         redirect: "manual", // we walk redirects ourselves so each hop is checked
         signal: ctrl.signal,
       });
+
+      const isRedirect = res.status >= 300 && res.status < 400 && res.headers.get("location");
+      if (!isRedirect) {
+        const { text, truncated } = await readCapped(res, maxBytes);
+        return {
+          ok: res.ok,
+          status: res.status,
+          finalUrl: current.href,
+          headers: res.headers,
+          text,
+          truncated,
+          hops,
+        };
+      }
+
+      // Drain the redirect body so the connection can be reused/closed cleanly.
+      try { await res.body?.cancel(); } catch { /* no body */ }
     } finally {
       clearTimeout(timer);
     }
-
-    const isRedirect = res.status >= 300 && res.status < 400 && res.headers.get("location");
-    if (!isRedirect) {
-      const { text, truncated } = await readCapped(res, maxBytes);
-      return {
-        ok: res.ok,
-        status: res.status,
-        finalUrl: current.href,
-        headers: res.headers,
-        text,
-        truncated,
-        hops,
-      };
-    }
-
-    // Drain the redirect body so the connection can be reused/closed cleanly.
-    try { await res.body?.cancel(); } catch { /* no body */ }
 
     let next;
     try {

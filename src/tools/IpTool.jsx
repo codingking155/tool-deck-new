@@ -26,7 +26,14 @@ export default function IpTool() {
   const [demo, setDemo] = useState(false);
   const [openTip, setOpenTip] = useState(-1);
   const ua = useMemo(parseUA, []);
-  const tryJson = async (u) => { try { const r = await fetch(u, { cache: "no-store" }); return await r.json(); } catch { return null; } };
+  /* each lookup gets 5 s (body included): a hanging endpoint must not leave the panel loading forever */
+  const tryJson = async (u) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    try { const r = await fetch(u, { cache: "no-store", signal: ctrl.signal }); return r.ok ? await r.json() : null; }
+    catch { return null; }
+    finally { clearTimeout(t); }
+  };
   const check = async () => {
     setSt("loading"); setV4(null); setV6(null); setGeo(null); setDemo(false);
     let any = false;
@@ -57,7 +64,7 @@ export default function IpTool() {
     <>
     <div className="grid2">
       <div className="panel rise d1">
-        <div className="ph"><h3>Your connection</h3><p>Public addresses are read from the network — nothing is stored.</p></div>
+        <div className="ph"><h2>Your connection</h2><p>Public addresses are read from the network — nothing is stored.</p></div>
         <div className="pb">
           {st === "idle" && <button className="btn pri" onClick={check}>Check my IP & IPv6</button>}
           {st === "loading" && <><div className="skel" style={{ height: 44, marginBottom: 10 }} /><div className="skel" style={{ height: 44, marginBottom: 10 }} /><div className="skel" style={{ height: 44 }} /></>}
@@ -84,7 +91,7 @@ export default function IpTool() {
         </div>
       </div>
       <div className="panel rise d2">
-        <div className="ph"><h3>{st === "done" && !v6 ? "IPv6 is off — how to enable it" : "About IPv6"}</h3></div>
+        <div className="ph"><h2>{st === "done" && !v6 ? "IPv6 is off — how to enable it" : "About IPv6"}</h2></div>
         <div className="pb">
           <div className="note i"><b>The honest version · </b>IPv6 gives a vastly larger address space and can improve direct
             connectivity on compatible networks. It does not automatically make your internet faster — availability depends on

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useVisitCount } from "../hooks/index.js";
 
 /* ── daylight palette ─────────────────────────────────────────────────────
@@ -53,6 +53,8 @@ export default function BengaluruFooter({ reduced, theme }) {
   const [lorry, setLorry] = useState(false);
   const [morphKey, setMorphKey] = useState(0);
   const tapRef = useRef(0);
+  const flyTimer = useRef(null);
+  useEffect(() => () => clearTimeout(flyTimer.current), []);
   const visitors = useVisitCount();
   const day = theme === "light";
 
@@ -61,7 +63,7 @@ export default function BengaluruFooter({ reduced, theme }) {
   const fly = () => {
     if (flying) return;
     setFlying(true);
-    setTimeout(() => setFlying(false), reduced ? 3200 : 5600);
+    flyTimer.current = setTimeout(() => setFlying(false), reduced ? 3200 : 5600);
   };
 
   /* Double-click (or double-tap) the moving vehicle to swap auto ⇄ lorry.
@@ -316,11 +318,9 @@ export default function BengaluruFooter({ reduced, theme }) {
       </div>
 
       <div className="foot-links">
-        {visitors != null
-          ? <span style={{ color: "var(--pri2)", fontWeight: 600 }}>👥 {visitors.toLocaleString("en-IN")} visit{visitors === 1 ? "" : "s"} from this device</span>
-          : <span title="Works automatically in the Claude preview; on your own host, point COUNTER_ENDPOINT at a tiny counter API.">👥 visitor counter connects on deployment</span>}
-        <div style={{ marginTop: 6 }}><a href="/analytics" style={{ color: "var(--pri2)", textDecoration: "underline", cursor: "pointer" }}>📊 Analytics</a> · Tip: double-click the auto on the road to swap it for a lorry · hover the heart for a flypast</div>
-        <div style={{ marginTop: 6 }}>Privacy: nothing you type is stored · IP lookups are never logged by this page · the visitor counter stores only one shared number · Reduced-motion is respected everywhere.</div>
+        <span className="foot-visits"><span aria-hidden="true">👥 </span>{visitors.toLocaleString("en-IN")} visit{visitors === 1 ? "" : "s"} from this device</span>
+        <div className="foot-line">Tip: double-click the auto on the road to swap it for a lorry · hover the heart for a flypast</div>
+        <div className="foot-line">Privacy: on-device tools never upload your files or text · network tools send only what they need to check · nothing is sold or used for ads.</div>
       </div>
     </footer>
   );

@@ -31,6 +31,8 @@ async function scenario(name, fn, { mock } = {}) {
   page.setDefaultTimeout(60000); // PDF rendering can be slow on shared CI runners
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  /* under `npm run preview:csp` a policy violation fails the scenario */
+  page.on("console", (m) => { if (m.type() === "error" && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   // The real internet is blocked; scenarios add specific mocks afterwards (later routes take precedence).
   await page.route((url) => /^https?:$/.test(url.protocol) && !url.href.startsWith(BASE), (r) => r.abort());
   try {
@@ -61,7 +63,7 @@ await scenario("every tool page renders and the homepage filters cover all tools
     await p.getByRole("button", { name: c, exact: true }).click(); total += await p.locator(".bcard").count();
   }
   assert.equal(total, TOOL_IDS.length);
-  for (const id of TOOL_IDS) { await p.goto(`${BASE}/tool/${id}`); await p.locator(".thead h2").waitFor({ timeout: 15000 }); }
+  for (const id of TOOL_IDS) { await p.goto(`${BASE}/tool/${id}`); await p.locator(".thead h1").waitFor({ timeout: 15000 }); }
 });
 
 await scenario("UTC: reference scenario, weekend skipping and calendar export", async (p) => {
@@ -170,9 +172,12 @@ await scenario("Breach: email results render; password check sends only a 5-char
   await p.goto(`${BASE}/tool/breach`);
   await p.getByLabel("Email address").fill("me@example.com");
   await p.getByRole("button", { name: "Check this email" }).click();
+  // The email check needs VITE_SUPABASE_URL at build time; without it the app (correctly) never calls the mocked endpoint.
+  await p.getByText(/Found in 1 breach|isn't configured/).first().waitFor();
+  assert.equal(await p.getByText("isn't configured").count(), 0, "built without VITE_SUPABASE_URL — build like CI: VITE_SUPABASE_URL=https://e2e.supabase.co VITE_SUPABASE_ANON_KEY=e2e-placeholder npm run build");
   await p.getByText("Found in 1 breach").waitFor();
   assert.ok(await p.getByText("SENSITIVE").count() >= 1);
-  await p.getByRole("tab", { name: "Password check" }).click();
+  await p.getByRole("button", { name: "Password check" }).click();
   await p.getByLabel("Password").fill("password");
   await p.getByRole("button", { name: "Check this password" }).click();
   await p.getByText("9,545,824").waitFor();
@@ -244,6 +249,23 @@ await scenario("Install prompt: people who dismissed the old prompt are never sh
   await fireInstallEvent(p);
   await p.clock.runFor(15000);
   assert.equal(await installBox(p).count(), 0);
+});
+
+await scenario("Shell: unknown routes show a not-found page; malformed share links never crash a tool", async (p) => {
+  await p.goto(`${BASE}/tool/does-not-exist`);
+  await p.getByRole("heading", { name: "Page not found" }).waitFor();
+  await p.getByRole("button", { name: "Browse all tools" }).click();
+  await p.locator(".bcard").first().waitFor();
+  assert.equal(new URL(p.url()).pathname, "/");
+
+  await p.goto(`${BASE}/tool/utc?date=abc&senddate=x&order=foo&tz=Nope/Zone`);
+  await p.locator(".thead h1").waitFor();
+  assert.equal(await p.getByText("Something went wrong in this tool").count(), 0);
+
+  await p.goto(`${BASE}/tool/json`);
+  await p.locator("textarea").first().fill("[".repeat(5000) + "]".repeat(5000));
+  await p.waitForTimeout(800);
+  assert.equal(await p.getByText("Something went wrong in this tool").count(), 0);
 });
 
 await scenario("Phone: validity and line type from libphonenumber", async (p) => {

@@ -96,7 +96,7 @@ export default function SetPriceAlert({
     <div className="pa-overlay" onClick={(e) => e.target === e.currentTarget && onClose && onClose()}>
       <div className="pa-dialog" role="dialog" aria-modal="true" aria-label="Set price alert" ref={boxRef}>
         <div className="pa-head">
-          <h3>Set price alert <span className="pa-beta">Beta</span></h3>
+          <h2>Set price alert <span className="pa-beta">Beta</span></h2>
           <button className="pa-x" aria-label="Close" onClick={onClose}>×</button>
         </div>
 
@@ -112,7 +112,7 @@ export default function SetPriceAlert({
           </div>
 
           {state === "success" ? (
-            <div className="pa-success">
+            <div className="pa-success" role="status">
               <div className="pa-tick">✓</div>
               <p style={{ fontWeight: 600, marginBottom: 6 }}>Alert set.</p>
               <p className="note i" style={{ display: "block", textAlign: "left" }}>
@@ -132,51 +132,57 @@ export default function SetPriceAlert({
             </div>
           ) : (
             <>
-              {serverError && <div className="pa-formerr"><b>Couldn't save.</b> {serverError}</div>}
+              {serverError && <div className="pa-formerr" role="alert"><b>Couldn't save.</b> {serverError}</div>}
 
               <div className="field">
                 <label htmlFor="pa-target">Target price ({cur})</label>
                 <input id="pa-target" type="number" min="1" inputMode="decimal"
                   className={errors.targetPrice ? "pa-invalid" : ""}
+                  aria-invalid={!!errors.targetPrice} aria-describedby={errors.targetPrice ? "pa-target-err" : undefined}
                   value={form.targetPrice}
                   onChange={(e) => set("targetPrice", e.target.value)}
                   placeholder="e.g. 4999" />
-                {errors.targetPrice && <div className="pa-err">{errors.targetPrice}</div>}
+                {errors.targetPrice && <div id="pa-target-err" className="pa-err" role="alert">{errors.targetPrice}</div>}
               </div>
 
               <div className="field">
                 <label htmlFor="pa-email">Email address</label>
                 <input id="pa-email" type="email" autoComplete="email"
                   className={errors.email ? "pa-invalid" : ""}
+                  aria-invalid={!!errors.email} aria-describedby={errors.email ? "pa-email-err" : undefined}
                   value={form.email} onChange={(e) => set("email", e.target.value)}
                   placeholder="you@example.com" />
-                {errors.email && <div className="pa-err">{errors.email}</div>}
+                {errors.email && <div id="pa-email-err" className="pa-err" role="alert">{errors.email}</div>}
               </div>
 
               <div className="field">
                 <label htmlFor="pa-phone">WhatsApp number (with country code)</label>
                 <input id="pa-phone" type="tel" autoComplete="tel"
                   className={errors.phone ? "pa-invalid" : ""}
+                  aria-invalid={!!errors.phone} aria-describedby={errors.phone ? "pa-phone-err" : undefined}
                   value={form.phone} onChange={(e) => set("phone", e.target.value)}
                   placeholder="+91 98765 43210" />
-                {errors.phone && <div className="pa-err">{errors.phone}</div>}
+                {errors.phone && <div id="pa-phone-err" className="pa-err" role="alert">{errors.phone}</div>}
               </div>
 
               <label className="pa-check">
-                <input type="checkbox" checked={form.emailEnabled} onChange={(e) => set("emailEnabled", e.target.checked)} />
+                <input type="checkbox" checked={form.emailEnabled} onChange={(e) => set("emailEnabled", e.target.checked)}
+                  aria-invalid={!!errors.channels} aria-describedby={errors.channels ? "pa-channels-err" : undefined} />
                 <span>Notify me by email</span>
               </label>
               <label className="pa-check">
-                <input type="checkbox" checked={form.whatsappEnabled} onChange={(e) => set("whatsappEnabled", e.target.checked)} />
+                <input type="checkbox" checked={form.whatsappEnabled} onChange={(e) => set("whatsappEnabled", e.target.checked)}
+                  aria-invalid={!!errors.channels} aria-describedby={errors.channels ? "pa-channels-err" : undefined} />
                 <span>Notify me on WhatsApp</span>
               </label>
-              {errors.channels && <div className="pa-err">{errors.channels}</div>}
+              {errors.channels && <div id="pa-channels-err" className="pa-err" role="alert">{errors.channels}</div>}
 
               <label className="pa-check" style={{ marginTop: 6 }}>
-                <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} />
+                <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)}
+                  aria-invalid={!!errors.consent} aria-describedby={errors.consent ? "pa-consent-err" : undefined} />
                 <span>I agree to receive price-alert messages at the contact details above and understand I can unsubscribe anytime.</span>
               </label>
-              {errors.consent && <div className="pa-err">{errors.consent}</div>}
+              {errors.consent && <div id="pa-consent-err" className="pa-err" role="alert">{errors.consent}</div>}
 
               <button className="btn pri" style={{ marginTop: 14 }} disabled={state === "submitting"} onClick={submit}>
                 {state === "submitting" ? "Setting alert…" : "Set price alert"}

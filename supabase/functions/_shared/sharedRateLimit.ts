@@ -19,6 +19,6 @@ export async function sharedRateLimit(scope: string, id: string, max: number, wi
     return { ok: !!row.allowed, retryAfter: Number(row.retry_after) || windowSec };
   } catch {
     const r = rateLimit(key, max, windowSec * 1000);
-    return { ok: r.ok, retryAfter: "retryAfter" in r ? r.retryAfter : windowSec };
+    return { ok: r.ok, retryAfter: ("retryAfter" in r ? r.retryAfter : undefined) ?? windowSec };
   }
 }

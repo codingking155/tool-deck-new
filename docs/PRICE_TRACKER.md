@@ -104,6 +104,19 @@ provider secrets and deploys every function on each push to `main` that touches
 
 Front-end needs `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at build time.
 
+### CORS (all functions)
+
+`_shared/http.ts` sets `Access-Control-Allow-Origin` per request and **fails closed**:
+an origin not on the allowlist gets no CORS header, so browsers on other sites can't
+read responses (server-to-server callers send no `Origin` and are unaffected). With
+`ALLOWED_ORIGIN` unset the allowlist is `https://tooldeck.in`, `https://www.tooldeck.in`,
+`http://localhost:5173`, `http://localhost:4173` and this project's Vercel previews
+(`https://*-codingking155-9340s-projects.vercel.app`, `https://tool-deck*.vercel.app`).
+Set `ALLOWED_ORIGIN` (comma-separated; `*` matches DNS-label characters, e.g.
+`https://*.example.com`) to replace that list, e.g.
+`supabase secrets set ALLOWED_ORIGIN=https://tooldeck.in,https://www.tooldeck.in`.
+A lone `*` re-opens it to every origin. Logic: `shared/net/cors.mjs`.
+
 ## Tests
 
 `npm test` — `tests/price-tracker.test.mjs` covers URL normalization, short links,

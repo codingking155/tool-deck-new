@@ -12,6 +12,20 @@ export class BigNum {
 }
 export const isContainer = (v) => v !== null && typeof v === "object" && !(v instanceof BigNum);
 
+/* The converters, tree and diff recurse per level; past this the browser stack overflows. */
+export const MAX_DEPTH = 1000;
+const DEEP_MSG = `Nested more than ${MAX_DEPTH.toLocaleString("en")} levels deep — too deep to process safely in the browser`;
+function tooDeep(root) {
+  const stack = [root, 0];
+  while (stack.length) {
+    const d = stack.pop(), v = stack.pop();
+    if (!isContainer(v)) continue;
+    if (d >= MAX_DEPTH) return true;
+    for (const c of Array.isArray(v) ? v : Object.values(v)) stack.push(c, d + 1);
+  }
+  return false;
+}
+
 export function lineCol(text, pos) {
   const before = text.slice(0, pos);
   const line = before.split("\n").length;
@@ -25,9 +39,10 @@ function locateError(s) {
   const fail = (msg) => { throw { pos: i, msg }; };
   const ws = () => { while (i < s.length && " \t\n\r".includes(s[i])) i++; };
   const show = () => (i >= s.length ? "end of input" : `"${s[i]}"`);
-  const value = () => {
+  const value = (depth = 0) => {
     ws();
     const c = s[i];
+    if ((c === "{" || c === "[") && depth >= MAX_DEPTH) fail(DEEP_MSG);
     if (c === "{") {
       i++; ws();
       if (s[i] === "}") { i++; return; }
@@ -36,7 +51,7 @@ function locateError(s) {
         if (s[i] !== '"') fail(s[i] === "'" ? "Keys need double quotes, not single quotes" : s[i] === "}" ? "Trailing comma before }" : `Expected a "quoted" key but found ${show()}`);
         str(); ws();
         if (s[i] !== ":") fail(`Expected ":" after the key but found ${show()}`);
-        i++; value(); ws();
+        i++; value(depth + 1); ws();
         if (s[i] === ",") { i++; continue; }
         if (s[i] === "}") { i++; return; }
         fail(`Expected "," or "}" but found ${show()} — missing comma?`);
@@ -48,7 +63,7 @@ function locateError(s) {
       for (;;) {
         ws();
         if (s[i] === "]") fail("Trailing comma before ]");
-        value(); ws();
+        value(depth + 1); ws();
         if (s[i] === ",") { i++; continue; }
         if (s[i] === "]") { i++; return; }
         fail(`Expected "," or "]" but found ${show()} — missing comma?`);
@@ -88,7 +103,10 @@ function locateError(s) {
 }
 
 function unsafeNumber(raw) {
-  if (!/[.eE]/.test(raw)) return !Number.isSafeInteger(Number(raw));
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return true; // 1e400 → Infinity → null
+  if (n === 0 && /[1-9]/.test(raw.replace(/[eE].*$/, ""))) return true; // 1e-400 underflows to 0
+  if (!/[.eE]/.test(raw)) return !Number.isSafeInteger(n);
   const digits = raw.replace(/^-/, "").replace(/[eE].*$/, "").replace(".", "").replace(/^0+/, "");
   if (digits.length <= 15) return false;
   const back = Number(raw).toPrecision(Math.min(digits.length, 100)).replace(/^-/, "").replace(/e.*$/, "").replace(".", "").replace(/^0+/, "");
@@ -97,10 +115,10 @@ function unsafeNumber(raw) {
 
 /* Count numbers in valid JSON text that would lose precision. Skips strings. */
 export function countUnsafeNumbers(text) {
-  if (!/\d[\d.]{15}/.test(text)) return 0;
+  if (!/\d[\d.]{15}|[eE][+-]?\d{3}/.test(text)) return 0;
   const re = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
   let n = 0, m;
-  while ((m = re.exec(text))) if (m[0][0] !== '"' && m[0].replace(/^-/, "").length > 15 && unsafeNumber(m[0])) n++;
+  while ((m = re.exec(text))) if (m[0][0] !== '"' && (m[0].replace(/^-/, "").length > 15 || /[eE][+-]?\d{3}/.test(m[0])) && unsafeNumber(m[0])) n++;
   return n;
 }
 
@@ -168,9 +186,9 @@ function parseLenient(src) {
   const set = (o, k, v) => Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
 
   const value = (depth) => {
-    if (depth > 4000) err("Nested too deeply");
     ws();
     const c = src[i];
+    if ((c === "{" || c === "[") && depth >= MAX_DEPTH) err(DEEP_MSG);
     if (c === "{") return obj(depth);
     if (c === "[") return arr(depth);
     if (CLOSE[c]) return str();
@@ -260,18 +278,25 @@ export function parseJSON(text) {
   try {
     value = JSON.parse(text);
   } catch (e) {
-    const loc = locateError(text);
+    let loc = null;
+    try { loc = locateError(text); } catch { /* stack overflow etc. — fall back to the engine's message */ }
     if (!loc) return { ok: false, error: { message: String(e.message || e) } };
     return { ok: false, error: { message: loc.msg, pos: loc.pos, ...lineCol(text, loc.pos) } };
   }
-  const bigNumbers = countUnsafeNumbers(text);
-  if (bigNumbers) value = parseLenient(text).value;
-  return { ok: true, value, bigNumbers };
+  try {
+    if (tooDeep(value)) return { ok: false, error: { message: DEEP_MSG } };
+    const bigNumbers = countUnsafeNumbers(text);
+    if (bigNumbers) value = parseLenient(text).value;
+    return { ok: true, value, bigNumbers };
+  } catch (e) {
+    return { ok: false, error: { message: String(e?.message || e) } };
+  }
 }
 
 export function repairJSON(text) {
   try {
     const r = parseLenient(text);
+    if (tooDeep(r.value)) throw new Error(DEEP_MSG);
     return { ok: true, ...r };
   } catch (e) {
     return { ok: false, error: { message: e.message, ...(typeof e.pos === "number" ? { pos: e.pos, ...lineCol(text, e.pos) } : {}) } };
@@ -307,7 +332,7 @@ function yamlScalar(v) {
   if (s && YAML_PLAIN.test(s) && !YAML_RESERVED.test(s) && s.trim() === s) return s;
   return JSON.stringify(s);
 }
-function yamlKey(k) { return YAML_PLAIN.test(k) && !YAML_RESERVED.test(k) ? k : JSON.stringify(k); }
+function yamlKey(k) { return YAML_PLAIN.test(k) && !YAML_RESERVED.test(k) && k.trim() === k ? k : JSON.stringify(k); }
 const nonEmpty = (c) => isContainer(c) && (Array.isArray(c) ? c.length : Object.keys(c).length);
 const emptyLit = (c) => (Array.isArray(c) ? "[]" : "{}");
 
@@ -347,12 +372,14 @@ export function toCSV(v) {
   return [cols.map(cell).join(","), ...v.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n");
 }
 
-/* Supports $, .key, ['key'], ["key"], [0], [-1], [*], .* and ..key (recursive). */
+const unesc = (k) => k.replace(/\\(.)/gs, "$1");
+
+/* Supports $, .key, ['key'], ["key"] (backslash escapes), [0], [-1], [*], .* and ..key (recursive). */
 export function queryPath(root, path) {
   const p = path.trim();
   if (!p.startsWith("$")) return { ok: false, error: "Path must start with $" };
   const tokens = [];
-  const re = /\.\.([A-Za-z_$][\w$-]*)|\.([A-Za-z_$][\w$-]*)|\.\*|\[(-?\d+)\]|\[\*\]|\[\s*'([^']*)'\s*\]|\[\s*"([^"]*)"\s*\]/y;
+  const re = /\.\.([A-Za-z_$][\w$-]*)|\.([A-Za-z_$][\w$-]*)|\.\*|\[(-?\d+)\]|\[\*\]|\[\s*'((?:[^'\\]|\\.)*)'\s*\]|\[\s*"((?:[^"\\]|\\.)*)"\s*\]/y;
   let i = 1;
   while (i < p.length) {
     re.lastIndex = i;
@@ -361,8 +388,8 @@ export function queryPath(root, path) {
     if (m[1] !== undefined) tokens.push({ deep: m[1] });
     else if (m[2] !== undefined) tokens.push({ key: m[2] });
     else if (m[3] !== undefined) tokens.push({ index: Number(m[3]) });
-    else if (m[4] !== undefined) tokens.push({ key: m[4] });
-    else if (m[5] !== undefined) tokens.push({ key: m[5] });
+    else if (m[4] !== undefined) tokens.push({ key: unesc(m[4]) });
+    else if (m[5] !== undefined) tokens.push({ key: unesc(m[5]) });
     else tokens.push({ wild: true });
     i = re.lastIndex;
   }
@@ -372,7 +399,7 @@ export function queryPath(root, path) {
     const next = [];
     for (const n of cur) {
       if (!isContainer(n)) continue;
-      if (t.wild) next.push(...(Array.isArray(n) ? n : Object.values(n)));
+      if (t.wild) { for (const x of Array.isArray(n) ? n : Object.values(n)) next.push(x); } // no spread: >120k args overflows
       else if (t.deep !== undefined) {
         const stack = [n];
         while (stack.length) {
@@ -393,13 +420,14 @@ export function queryPath(root, path) {
 
 export function stats(value, text) {
   let keys = 0, depth = 0, nodes = 0;
-  const walk = (v, d) => {
+  const stack = [value, 0]; // iterative: deep documents can't overflow the call stack
+  while (stack.length) {
+    const d = stack.pop(), v = stack.pop();
     nodes++;
-    depth = Math.max(depth, d);
-    if (Array.isArray(v)) v.forEach((x) => walk(x, d + 1));
-    else if (isContainer(v)) for (const k of Object.keys(v)) { keys++; walk(v[k], d + 1); }
-  };
-  walk(value, 0);
+    if (d > depth) depth = d;
+    if (Array.isArray(v)) for (const x of v) stack.push(x, d + 1);
+    else if (isContainer(v)) for (const k of Object.keys(v)) { keys++; stack.push(v[k], d + 1); }
+  }
   return { keys, depth, nodes, bytes: new TextEncoder().encode(text).length };
 }
 
@@ -410,14 +438,14 @@ export function typeOf(v) {
   return typeof v;
 }
 
-/* Path segments → "$.users[0]['full name']" (matches queryPath syntax). */
+/* Path segments → "$.users[0]['full name']" (round-trips through queryPath). */
 export function formatPath(segs) {
   let s = "$";
   for (const k of segs) {
     if (typeof k === "number") s += `[${k}]`;
     else if (typeof k === "object") s += `[${k.key}=${JSON.stringify(k.value)}]`;
     else if (/^[A-Za-z_$][\w$]*$/.test(k)) s += `.${k}`;
-    else s += `['${k.replace(/'/g, "\\'")}']`;
+    else s += `['${k.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}']`;
   }
   return s;
 }
@@ -450,33 +478,37 @@ const scalarEq = (x, y) => (x instanceof BigNum || y instanceof BigNum ? String(
 export function diffJSON(a, b, limit = 2000) {
   const out = [];
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const full = () => out.length >= limit;
   const walk = (x, y, path) => {
-    if (out.length >= limit) return;
+    if (full()) return;
     const tx = typeOf(x), ty = typeOf(y);
     if (tx !== ty) { out.push({ kind: "changed", path, from: x, to: y }); return; }
     if (tx === "object") {
       for (const k of Object.keys(x)) {
+        if (full()) return;
         if (!has(y, k)) out.push({ kind: "removed", path: path.concat(k), from: x[k] });
         else walk(x[k], y[k], path.concat(k));
       }
-      for (const k of Object.keys(y)) if (!has(x, k)) out.push({ kind: "added", path: path.concat(k), to: y[k] });
+      for (const k of Object.keys(y)) if (full()) return; else if (!has(x, k)) out.push({ kind: "added", path: path.concat(k), to: y[k] });
     } else if (tx === "array") {
       const idk = idKeyFor(x, y);
       if (idk) {
         const mapY = new Map(y.map((v) => [String(v[idk]), v]));
         const mapX = new Map(x.map((v) => [String(v[idk]), v]));
         for (const v of x) {
+          if (full()) return;
           const seg = { key: idk, value: v[idk] instanceof BigNum ? v[idk].raw : v[idk] };
           const w = mapY.get(String(v[idk]));
           if (w === undefined) out.push({ kind: "removed", path: path.concat(seg), from: v });
           else walk(v, w, path.concat(seg));
         }
         for (const v of y) {
+          if (full()) return;
           if (!mapX.has(String(v[idk]))) out.push({ kind: "added", path: path.concat({ key: idk, value: v[idk] instanceof BigNum ? v[idk].raw : v[idk] }), to: v });
         }
       } else {
         const n = Math.max(x.length, y.length);
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < n && !full(); i++) {
           if (i >= y.length) out.push({ kind: "removed", path: path.concat(i), from: x[i] });
           else if (i >= x.length) out.push({ kind: "added", path: path.concat(i), to: y[i] });
           else walk(x[i], y[i], path.concat(i));
@@ -567,7 +599,7 @@ export function toJSONSchema(value) {
   const conv = (s) => {
     const opts = [];
     if (s.obj) {
-      const properties = {};
+      const properties = Object.create(null); // a "__proto__" key must stay a property, not a prototype
       const required = [];
       for (const [k, f] of s.obj.fields) {
         properties[k] = conv(f.t);

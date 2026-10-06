@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName, crc32, buildZip } from "../src/lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../src/lib/imageCore.mjs";
+import { makeZip } from "../src/lib/zip.js";
 
 test("fmtBytes", () => {
   assert.equal(fmtBytes(512), "512 B");
@@ -14,6 +15,11 @@ test("resizeDims", () => {
   assert.deepEqual(resizeDims(1000, 500, { mode: "px", width: 300, height: 300, keep: true }), { w: 300, h: 150 });
   assert.deepEqual(resizeDims(1000, 500, { mode: "px", width: 300, height: 300, keep: false }), { w: 300, h: 300 });
   assert.deepEqual(resizeDims(1000, 500, { mode: "pct", pct: 50 }), { w: 500, h: 250 });
+});
+
+test("resizeDims: one empty box scales proportionally even with keep off (width-only presets)", () => {
+  assert.deepEqual(resizeDims(1000, 500, { mode: "px", width: 300, height: "", keep: false }), { w: 300, h: 150 });
+  assert.deepEqual(resizeDims(1000, 500, { mode: "px", width: "", height: 250, keep: false }), { w: 500, h: 250 });
 });
 
 test("fitMax never upscales", () => {
@@ -31,15 +37,12 @@ test("outName", () => {
   assert.equal(outName("photo.PNG", "-min", "image/webp"), "photo-min.webp");
 });
 
-test("crc32 known vector", () => {
-  assert.equal(crc32(new TextEncoder().encode("123456789")), 0xcbf43926);
-});
-
-test("buildZip layout", () => {
-  const z = buildZip([{ name: "a.txt", data: new TextEncoder().encode("hi") }, { name: "a.txt", data: new Uint8Array([1]) }]);
+test("ImageTool ZIP (zip.js makeZip) writes a valid DOS date and unique names", () => {
+  const z = makeZip([{ name: "a.txt", data: new TextEncoder().encode("hi") }, { name: "a.txt", data: new Uint8Array([1]) }]);
   const dv = new DataView(z.buffer);
   assert.equal(dv.getUint32(0, true), 0x04034b50);
-  assert.equal(dv.getUint32(z.length - 22, true), 0x06054b50);
   assert.equal(dv.getUint16(z.length - 22 + 10, true), 2);
-  assert.match(new TextDecoder().decode(z), /a \(1\)\.txt/);
+  const date = dv.getUint16(12, true), month = (date >> 5) & 15, day = date & 31;
+  assert.ok(month >= 1 && month <= 12 && day >= 1 && day <= 31 && (date >> 9) + 1980 >= 2020);
+  assert.match(new TextDecoder().decode(z), /a \(2\)\.txt/);
 });

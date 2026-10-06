@@ -1,7 +1,7 @@
 /* Minimal RFC 5545 calendar helpers (UTC times only). */
 
 const stamp = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-const esc = (t) => String(t).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const esc = (t) => String(t).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n");
 
 /** Lines longer than 75 octets are folded with CRLF + space. */
 function fold(line) {

@@ -156,42 +156,74 @@ function LiveGraph({ series, color, label }) {
    ──────────────────────────────────────────────────────────────────────────── */
 
 /* Observations are stored as a one-way fingerprint of the address (never the IP
-   itself), so the page's "isn't stored" promise holds while visits stay comparable. */
-const IP_OBS_KEY = "td-speed-ip-obs-v2";
+   itself), so the page's "isn't stored" promise holds while visits stay comparable.
+   v3: SHA-256 over a random per-device salt + the IP. The old unsalted 32-bit FNV
+   hash could be reversed by brute force over the IPv4 space; v2 entries are kept as
+   `l` (legacy) and upgraded in place the next time the same address is seen. */
+const IP_OBS_KEY = "td-speed-ip-obs-v3";
+const IP_OBS_V2_KEY = "td-speed-ip-obs-v2";
 const IP_OBS_LEGACY_KEY = "td-speed-ip-obs";
+const IP_SALT_KEY = "td-speed-ip-salt";
 
-function ipFingerprint(ip) {
-  let h = 0x811c9dc5;                                 // FNV-1a 32-bit
+const toHex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+/* legacy only: recognises v2 entries for the current address */
+function fnv1a(ip) {
+  let h = 0x811c9dc5;
   for (let i = 0; i < ip.length; i++) { h ^= ip.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+let sessionSalt = null;
+function deviceSalt() {
+  try {
+    let s = localStorage.getItem(IP_SALT_KEY);
+    if (!/^[0-9a-f]{32}$/.test(s || "")) { s = toHex(crypto.getRandomValues(new Uint8Array(16))); localStorage.setItem(IP_SALT_KEY, s); }
+    return s;
+  } catch {
+    return (sessionSalt ??= toHex(crypto.getRandomValues(new Uint8Array(16))));   // private mode: nothing persists anyway
+  }
+}
+
+async function ipFingerprint(ip) {
+  if (!globalThis.crypto?.subtle) return null;    // insecure context: no history rather than a weak hash
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${deviceSalt()}|${ip}`));
+  return toHex(new Uint8Array(d)).slice(0, 32);
 }
 
 function loadIpObservations() {
   try {
     const cur = JSON.parse(localStorage.getItem(IP_OBS_KEY));
     if (Array.isArray(cur)) return cur;
-    /* one-time migration from the raw-IP format: fingerprint, keep history, drop the raw copy */
-    const legacy = JSON.parse(localStorage.getItem(IP_OBS_LEGACY_KEY)) || [];
-    const migrated = legacy.filter((o) => o && o.ip && o.iso).map((o) => ({ h: ipFingerprint(o.ip), iso: o.iso }));
+    /* one-time migration: v2 FNV fingerprints and the older raw-IP format become legacy entries; raw IPs are dropped */
+    const v2 = JSON.parse(localStorage.getItem(IP_OBS_V2_KEY)) || [];
+    const raw = JSON.parse(localStorage.getItem(IP_OBS_LEGACY_KEY)) || [];
+    const migrated = [
+      ...v2.filter((o) => o && o.h && o.iso).map((o) => ({ l: o.h, iso: o.iso })),
+      ...raw.filter((o) => o && o.ip && o.iso).map((o) => ({ l: fnv1a(o.ip), iso: o.iso })),
+    ].sort((a, b) => (a.iso < b.iso ? 1 : -1)).slice(0, 100);
     localStorage.setItem(IP_OBS_KEY, JSON.stringify(migrated));
+    localStorage.removeItem(IP_OBS_V2_KEY);
     localStorage.removeItem(IP_OBS_LEGACY_KEY);
     return migrated;
   } catch { return []; }
 }
 
 /* one entry per address per hour — reloads and StrictMode double-mounts shouldn't count as evidence */
-function recordIpObservation(obs, ip) {
-  const h = ipFingerprint(ip), now = Date.now();
-  if (obs[0] && obs[0].h === h && now - new Date(obs[0].iso).getTime() < 3600000) return obs;
-  return [{ h, iso: new Date(now).toISOString() }, ...obs].slice(0, 100);
+function recordIpObservation(obs, h, legacyH) {
+  const now = Date.now();
+  const upgraded = obs.map((o) => (o?.l && o.l === legacyH ? { h, iso: o.iso } : o));
+  const changed = upgraded.some((o, i) => o !== obs[i]);
+  if (upgraded[0] && upgraded[0].h === h && now - new Date(upgraded[0].iso).getTime() < 3600000) return changed ? upgraded : obs;
+  return [{ h, iso: new Date(now).toISOString() }, ...upgraded].slice(0, 100);
 }
 
 /** Static vs dynamic from this device's own history — a browser can't ask the ISP,
     so it only ever reports what the evidence supports. Always returns a valid state. */
-function classifyIp(currentIp, observations = []) {
-  if (!currentIp) return { state: "Unknown", detail: "No public IP was detected in this session." };
-  const seen = observations.filter((o) => o && o.h && o.iso);
-  const distinct = new Set([ipFingerprint(currentIp), ...seen.map((o) => o.h)]);
+function classifyIp(currentHash, observations = []) {
+  if (!currentHash) return { state: "Unknown", detail: "No public IP was detected in this session." };
+  const seen = observations.filter((o) => o && (o.h || o.l) && o.iso);
+  const distinct = new Set([currentHash, ...seen.map((o) => o.h || `legacy:${o.l}`)]);
   if (distinct.size > 1) return {
     state: "Likely dynamic",
     detail: `This device has seen ${distinct.size} different public addresses over time.`,
@@ -262,6 +294,7 @@ export default function SpeedTool({ notify }) {
   const [downSamples, setDownSamples] = useState([]);
   const [upSamples, setUpSamples] = useState([]);
   const [ipObservations, setIpObservations] = useState(loadIpObservations);
+  const [ipHash, setIpHash] = useState(null);
   const abortRef = useRef(null);
   const sampleIndexRef = useRef({ down: 0, up: 0 });
   const currentPhaseRef = useRef(null);
@@ -273,17 +306,18 @@ export default function SpeedTool({ notify }) {
   /* connection panel loads independently of the test (TRAI pattern) */
   useEffect(() => {
     let alive = true;
-    fetchMeta(servers[0]).then((m) => {
-      if (alive) {
-        setMeta(m);
-        if (m?.ip) {
-          setIpObservations((obs) => {
-            const next = recordIpObservation(obs, m.ip);
-            if (next !== obs) { try { localStorage.setItem(IP_OBS_KEY, JSON.stringify(next)); } catch { /* private mode */ } }
-            return next;
-          });
-        }
-      }
+    fetchMeta(servers[0]).then(async (m) => {
+      if (!alive) return;
+      setMeta(m);
+      if (!m?.ip) return;
+      const h = await ipFingerprint(m.ip).catch(() => null);
+      if (!alive || !h) return;
+      setIpHash(h);
+      setIpObservations((obs) => {
+        const next = recordIpObservation(obs, h, fnv1a(m.ip));
+        if (next !== obs) { try { localStorage.setItem(IP_OBS_KEY, JSON.stringify(next)); } catch { /* private mode */ } }
+        return next;
+      });
     });
     return () => { alive = false; };
   }, [servers]);
@@ -347,7 +381,7 @@ export default function SpeedTool({ notify }) {
     <div className="grid2" style={{ alignItems: "start" }}>
       {/* ── main test card ── */}
       <div className="panel rise d1">
-        <div className="ph"><h3>Network quality test</h3>
+        <div className="ph"><h2>Network quality test</h2>
           <p>Real transfers against a measurement server — nothing simulated, nothing estimated.</p></div>
         <div className="pb">
           {/* live region announces stage changes to screen readers */}
@@ -400,10 +434,10 @@ export default function SpeedTool({ notify }) {
                 <Speedometer mbps={res.up} phase="up" label="Upload" />
               </div>
               {downSamples.length > 2 && (
-                <LiveGraph series={downSamples} color="var(--teal, #2dd4bf)" label="Download" />
+                <LiveGraph series={downSamples} color="var(--teal)" label="Download" />
               )}
               {upSamples.length > 2 && (
-                <LiveGraph series={upSamples} color="var(--warn, #f59e0b)" label="Upload" />
+                <LiveGraph series={upSamples} color="var(--warn)" label="Upload" />
               )}
               {delta && <div className="hint" style={{ textAlign: "center", marginTop: 2 }}>
                 vs last test: ↓ {delta.down > 0 ? "+" : ""}{delta.down ?? "—"} · ↑ {delta.up > 0 ? "+" : ""}{delta.up ?? "—"} · ping {delta.ping > 0 ? "+" : ""}{delta.ping ?? "—"} ms
@@ -423,12 +457,12 @@ export default function SpeedTool({ notify }) {
                 <div className="note i" style={{ marginTop: 10 }}><b>Bufferbloat detected · </b>latency under load is {Math.round(res.loadedDown / res.ping)}× idle — video calls may stutter while downloads run. Router SQM/QoS usually fixes this.</div>
               )}
               {labels && <div style={{ marginTop: 12 }}>
-                {labels.map((x) => <div className="qrow" key={x.l}><span className={x.ok ? "ok" : "no"}>{x.ok ? "✓" : "✕"}</span>{x.l}</div>)}
+                {labels.map((x) => <div className="qrow" key={x.l}><span className={x.ok ? "ok" : "no"}><span aria-hidden="true">{x.ok ? "✓" : "✕"}</span><span className="sr-only">{x.ok ? "Suitable for " : "Not suitable for "}</span></span>{x.l}</div>)}
               </div>}
               <div className="kv" style={{ padding: "10px 0 0", borderBottom: 0 }}><span className="k">Server</span><span className="v">{res.server}</span></div>
               <div className="kv" style={{ padding: "6px 0", borderBottom: 0 }}><span className="k">Tested</span><span className="v">{res.when}</span></div>
               <div className="pillrow" style={{ marginTop: 12 }}>
-                <button className="pill" onClick={start} style={{ background: "linear-gradient(135deg, var(--pri), var(--teal))", borderColor: "var(--pri-line)", color: "#fff", fontWeight: 600 }}>↻ Retest</button>
+                <button className="pill" onClick={start} style={{ background: "var(--pri-soft)", borderColor: "var(--pri-line)", color: "var(--pri2)", fontWeight: 600 }}>↻ Retest</button>
               </div>
             </>
           )}
@@ -443,7 +477,7 @@ export default function SpeedTool({ notify }) {
       {/* ── right column: connection + history ── */}
       <div>
         <div className="panel rise d2">
-          <div className="ph"><h3>Your connection</h3><p>Looked up from your public IP — location is approximate.</p></div>
+          <div className="ph"><h2>Your connection</h2><p>Looked up from your public IP — location is approximate.</p></div>
           <div className="pb">
             {meta === undefined && <><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18 }} /></>}
             {meta !== undefined && <>
@@ -453,7 +487,7 @@ export default function SpeedTool({ notify }) {
               {kv("Server location", meta?.serverLoc)}
               {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
               {(() => {
-                const ipClass = classifyIp(meta?.ip, ipObservations);
+                const ipClass = classifyIp(meta?.ip ? ipHash : null, ipObservations);
                 return kv("IP type", <span title={ipClass.detail}>{ipClass.state}</span>);
               })()}
               {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
@@ -469,7 +503,7 @@ export default function SpeedTool({ notify }) {
 
         {history.length > 0 && (
           <div className="panel rise d3" style={{ marginTop: 16 }}>
-            <div className="ph" style={{ display: "flex", alignItems: "center" }}><h3 style={{ flex: 1 }}>History (this device)</h3>
+            <div className="ph" style={{ display: "flex", alignItems: "center" }}><h2 style={{ flex: 1 }}>History (this device)</h2>
               <button className="pill" onClick={() => { setHistory([]); saveHistory([]); notify("History cleared."); }}>Clear</button></div>
             <div className="pb" style={{ paddingTop: 6 }}>
               {history.slice(0, 6).map((h) => (

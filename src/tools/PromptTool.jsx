@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { saveBlob } from "../lib/zip.js";
 
 const PRESETS = {
   blank: { label: "Blank", role: "", task: "", context: "", audience: "", tone: "", format: "", length: "", constraints: "", example: "" },
@@ -149,31 +150,30 @@ export default function PromptTool({ notify }) {
   const tokens = Math.ceil(prompt.length / 4);
   const missing = ["role", "context", "format"].filter((k) => !f[k].trim());
 
-  const pick = (k) => { setPreset(k); setF({ ...PRESETS[k] }); };
+  const edited = FIELDS.some(([k]) => f[k] !== PRESETS[preset][k]);
+  const pick = (k) => {
+    if (edited && !window.confirm(`Replace your edits with the ${PRESETS[k].label} template?`)) return;
+    setPreset(k); setF({ ...PRESETS[k] });
+  };
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(prompt); notify("Prompt copied"); }
     catch { notify("Copy failed — select the text and copy manually"); }
   };
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([prompt], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = "prompt.txt"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const download = () => saveBlob(new Blob([prompt], { type: "text/plain" }), "prompt.txt");
 
   return (
     <div>
-      <div className="modes" role="tablist" aria-label="Start from a template">
+      <div className="modes" role="group" aria-label="Start from a template">
         {Object.entries(PRESETS).map(([k, p]) => (
-          <button key={k} role="tab" aria-selected={preset === k} className={preset === k ? "on" : ""} onClick={() => pick(k)}>{p.label}</button>
+          <button key={k} type="button" aria-pressed={preset === k} className={preset === k ? "on" : ""} onClick={() => pick(k)}>{p.label}</button>
         ))}
       </div>
 
       <div className="grid2">
         <div className="panel rise d1">
-          <div className="ph"><h3>Describe what you need</h3><p>Only the task is required. Every field you fill makes the answer more precise.</p></div>
+          <div className="ph"><h2>Describe what you need</h2><p>Only the task is required. Every field you fill makes the answer more precise.</p></div>
           <div className="pb">
             {FIELDS.map(([k, label, ph, multi]) => (
               <div className="field" key={k}>
@@ -183,20 +183,20 @@ export default function PromptTool({ notify }) {
                   : <input id={`pg-${k}`} value={f[k]} onChange={set(k)} placeholder={ph} />}
               </div>
             ))}
-            <div className="field">
-              <label>Extra instructions</label>
+            <fieldset className="field" style={{ border: 0, padding: 0, margin: "0 0 14px", minWidth: 0 }}>
+              <legend style={{ padding: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--tx2)", marginBottom: 6 }}>Extra instructions</legend>
               {EXTRAS.map(([k, line]) => (
                 <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", textTransform: "none", letterSpacing: 0, fontWeight: 500, fontSize: 13, color: "var(--tx2)", margin: "6px 0", cursor: "pointer" }}>
                   <input type="checkbox" checked={!!extras[k]} onChange={(e) => setExtras((x) => ({ ...x, [k]: e.target.checked }))} style={{ width: 18, height: 18, minHeight: 0, flexShrink: 0, margin: 0 }} />
                   {line}
                 </label>
               ))}
-            </div>
+            </fieldset>
           </div>
         </div>
 
         <div className="panel rise d2">
-          <div className="ph"><h3>Your prompt</h3><p>Paste it into ChatGPT, Claude, Gemini or any other assistant.</p></div>
+          <div className="ph"><h2>Your prompt</h2><p>Paste it into ChatGPT, Claude, Gemini or any other assistant.</p></div>
           <div className="pb">
             <div className="field">
               <label htmlFor="pg-style">Structure</label>

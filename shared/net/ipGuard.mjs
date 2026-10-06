@@ -152,6 +152,8 @@ export function reservedIpv6Reason(h) {
   if (topFiveZero && h[5] === 0) return "ipv4-compatible-deprecated";
   if ((h[0] & 0xfe00) === 0xfc00) return "unique-local";
   if ((h[0] & 0xffc0) === 0xfe80) return "link-local";
+  if ((h[0] & 0xffc0) === 0xfec0) return "site-local-deprecated";
+  if (h[0] === 0x0100 && h[1] === 0 && h[2] === 0 && h[3] === 0) return "discard-only";
   if ((h[0] & 0xff00) === 0xff00) return "multicast";
   if (h[0] === 0x0064 && h[1] === 0xff9b) return "nat64";
   if (h[0] === 0x2001 && h[1] === 0x0000) return "teredo";
@@ -170,7 +172,9 @@ const BLOCKED_SUFFIX = /(^|\.)(localhost|local|internal|intranet|lan|corp|home|h
  * @returns {{kind:'ipv4'|'ipv6'|'name', blocked:boolean, reason:string|null, addr?:number|number[]}}
  */
 export function classifyHost(hostname) {
-  const host = String(hostname || "").trim().toLowerCase();
+  // "localhost." and "db." are the same names as "localhost" and "db" (the
+  // root label is implicit), so drop trailing dots before any suffix check.
+  const host = String(hostname || "").trim().toLowerCase().replace(/\.+$/, "");
   if (!host) return { kind: "name", blocked: true, reason: "empty-host" };
 
   const v6 = parseIpv6(host);
@@ -189,7 +193,6 @@ export function classifyHost(hostname) {
   // A bare label with no dot is an internal service name (`db`, `redis`), not a
   // site anyone can visit on the public web.
   if (!host.includes(".")) return { kind: "name", blocked: true, reason: "bare-hostname" };
-  if (host.endsWith(".")) return { kind: "name", blocked: false, reason: null };
   return { kind: "name", blocked: false, reason: null };
 }
 

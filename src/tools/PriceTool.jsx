@@ -80,7 +80,8 @@ export default function PriceTool({ notify, nav }) {
       setShowTable(false);
       if (p.canonicalUrl) setUrl(p.canonicalUrl);
     } catch (e) {
-      if (e?.name === "AbortError") return;
+      /* a superseded/unmounted lookup can also fail with a non-Abort error (e.g. its body read was cut off) */
+      if (e?.name === "AbortError" || c.signal.aborted) return;
       setState({ kind: "error", code: e.code, message: e.message || UNAVAILABLE, detail: e.detail, input });
     }
   }, [notify]);
@@ -156,7 +157,7 @@ export default function PriceTool({ notify, nav }) {
                 ? <img className="pt-img" src={shown.image} alt="" width="96" height="96" loading="lazy" referrerPolicy="no-referrer" />
                 : <div className="pt-img pt-img-none" aria-hidden="true">📦</div>}
               <div className="pt-meta">
-                <h3 className="pt-title">{shown.title || `Amazon product ${shown.externalId}`}</h3>
+                <h2 className="pt-title">{shown.title || `Amazon product ${shown.externalId}`}</h2>
                 <div className="pt-chips">
                   <span className="chip done">{shown.marketplace.replace(/^amazon/, "Amazon")}</span>
                   <span className="chip done">ASIN {shown.externalId}</span>
@@ -190,7 +191,7 @@ export default function PriceTool({ notify, nav }) {
         <div className="panel rise d3" style={{ marginTop: 18 }}>
           <div className="pb" style={{ paddingTop: 18 }}>
             <div className="pt-hist-head">
-              <h3>Price history</h3>
+              <h2>Price history</h2>
               {ranges.length > 1 && (
                 <div className="rangebar" role="group" aria-label="Time range">
                   {ranges.map(([l, d]) => <button key={l} className={activeRange === d ? "on" : ""} aria-pressed={activeRange === d} onClick={() => setRange(d)}>{l}</button>)}
