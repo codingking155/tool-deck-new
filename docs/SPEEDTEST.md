@@ -122,3 +122,44 @@ IPv6 · slow link · fast link · high-latency link · failed server · cancel
 mid-stage. The engine has no browser-specific APIs beyond `fetch` streams
 (supported in all of the above) — Safari < 14.1 falls back gracefully
 because a missing `response.body` simply ends that stream.
+
+
+## Phase 1 diagnostics (v3)
+
+**Consistency.** Throughput window samples taken every ~300 ms during the
+download stage. Score = 100 at ≤5% coefficient of variation, linearly to 0 at
+≥60%. Major drop = a sample below 50% of the mean. Formula versioned with
+`HISTORY_VERSION`; changing it requires a version bump.
+
+**Bufferbloat grade.** Worst added latency (loaded − idle, ms):
+A+ <15 · A <40 · B <100 · C <250 · D <500 · F ≥500. Deterministic; the
+explanation names the congested direction.
+
+**Network health score.** Weighted subscores (download .25, upload .15, idle
+latency .15, loaded latency .15, jitter .10, packet loss .10, consistency
+.10). Speed is log-scaled (25 Mbps ≈ 70, 300 Mbps ≈ 100) so raw throughput
+cannot dominate. Missing metrics are removed and remaining weights
+renormalised — absence is reduced confidence, never a failure. Grade bands:
+A+ ≥90 · A ≥80 · B ≥65 · C ≥50 · D ≥35 · F.
+
+**Packet-loss states.** `measured` (server-side TCP counters via
+Server-Timing cfL4) or `unsupported` with a reason. The UI never shows a
+bare "Unavailable" and never substitutes zero for unsupported.
+
+**IP classification.** Browser sessions cannot determine static vs dynamic
+addressing. States: Unknown · Cannot be determined automatically (fewer than
+2 device-local observations) · Dynamic (observed) (address changed) ·
+Possibly static (same address ≥7 days, with the caveat that only the ISP can
+confirm) · Likely dynamic (stable but <7 days observed). Observations are
+stored on-device only.
+
+**Privacy.** The public IP is sent to the measurement provider's lookup
+endpoint to populate the connection panel; it is not stored by the page.
+History is device-local (localStorage, schema v3 with automatic v2
+migration) and stores the IP masked (/24) by default — configurable to full
+or none under Advanced settings. Clearing history also clears IP
+observations.
+
+**Client detection.** UA Client Hints first, user-agent parsing as fallback.
+No canvas/audio/hardware fingerprinting; only browser, OS and device
+category are derived.

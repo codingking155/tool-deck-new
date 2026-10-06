@@ -19,10 +19,11 @@ test("every tool has a known category, a data-location tag, FAQs and a unique id
   }
 });
 
-test("homepage copy does not hard-code a stale tool count", () => {
-  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  const words = { six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-  const m = html.match(/\b(Six|Seven|Eight|Nine|Ten) fast/i);
-  assert.ok(m, "expected a tool-count phrase in index.html");
-  assert.equal(words[m[1].toLowerCase()], TOOLS.length);
+test("homepage copy never hard-codes a tool count that has gone stale", () => {
+  const words = { six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16 };
+  for (const file of ["../index.html", "../src/hooks/index.js"]) {
+    const text = readFileSync(new URL(file, import.meta.url), "utf8");
+    const m = text.match(/\b(Six|Seven|Eight|Nine|Ten|Eleven|Twelve|Thirteen|Fourteen|Fifteen|Sixteen) (fast|private|everyday)/i);
+    if (m) assert.equal(words[m[1].toLowerCase()], TOOLS.length, `${file} says "${m[1]}" tools but there are ${TOOLS.length}`);
+  }
 });

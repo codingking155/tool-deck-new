@@ -55,6 +55,45 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
+  { id: "json", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "utc",
+    blurb: "Validate JSON as you type with the exact line of any error, and auto-fix broken JSON (trailing commas, single quotes, comments, unquoted keys). Beautify or minify, explore a searchable tree, compare two documents, query with JSONPath, and generate TypeScript interfaces, JSON Schema, YAML or CSV. Large IDs are kept exactly. Runs entirely in your browser.",
+    faqs: [
+      ["How do I fix invalid JSON?", "The validator shows the line and column of the first problem in plain words and marks the line. Auto-fix repairs common mistakes — trailing or missing commas, single or curly quotes, comments, unquoted keys, Python True/None, NaN and unclosed brackets — and lists every change it made."],
+      ["Why do large numbers change in other formatters?", "JavaScript can only represent integers exactly up to 2⁵³ (about 9 quadrillion), so most tools silently round long IDs like 98765432109876543210. This tool keeps the original digits in every output."],
+      ["How does Compare work?", "Paste two versions and you get every added, removed and changed value with its path. Key order is ignored, and arrays of objects with an id, _id, uuid or key field are matched by that field, so a reordered list isn't reported as all changed."],
+      ["Can I generate TypeScript types from JSON?", "Yes — Convert → TypeScript interfaces. All items in an array are merged, so fields missing from some items become optional and mixed types become unions. JSON Schema (draft 2020-12) works the same way."],
+      ["Is my JSON stored or uploaded?", "No. Everything runs in your browser; nothing is sent anywhere or saved."],
+    ] },
+  { id: "ssl", where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "View certificate chain, expiry dates, key strength, and vulnerability alerts.", pv: "scan",
+    blurb: "Enter a domain to see its SSL certificate chain, expiry date, key algorithm, size, and signature algorithm. Get alerts for certificates expiring soon.",
+    faqs: [
+      ["How do I check a website's SSL certificate?", "Enter the domain name (e.g., google.com). The tool fetches the certificate chain and displays subject, issuer, expiry date, key size, and more."],
+      ["What does 'Days Left' mean?", "The number of days until the certificate expires. Green = >90 days, orange = 30–90 days, red = <30 days or expired."],
+      ["Can I check for weak keys or algorithms?", "Yes. The tool shows key size (aim for 2048+ bits for RSA) and signature algorithm. Older algorithms like SHA-1 are flagged as weak."],
+    ] },
+  { id: "password", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "scan",
+    blurb: "Check password strength with client-side entropy calculation (charset and length). Verify against HaveIBeenPwned's 700+ million breached passwords using k-anonymity (your password is never sent to any API).",
+    faqs: [
+      ["How do you calculate password strength?", "By entropy: bits = log₂(charset size ^ password length). We check for lowercase, uppercase, digits, and special characters. 80+ bits resists brute force for years."],
+      ["Is my password safe to check?", "Yes. The password stays on your device. HIBP check uses k-anonymity: we hash it locally, send only the first 5 hash characters, and check the response locally."],
+      ["What does 'Not breached' mean?", "The password isn't in HIBP's public breach data (700+ million passwords from confirmed leaks). But always use a unique password per account."],
+      ["What if HIBP is unavailable?", "The entropy check still works offline. If HIBP is down, try again later — the API has 99.9% uptime."],
+    ] },
+  { id: "prompt", where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "utc",
+    blurb: "Build clear, structured prompts for ChatGPT, Claude, Gemini and other AI assistants. Fill in the role, task, context, audience, tone, format and rules — or start from a template — and copy a ready-to-use prompt as plain text, Markdown or XML. Runs entirely in your browser.",
+    faqs: [
+      ["What makes a good AI prompt?", "A clear task plus the context the AI can't guess: who it's for, the tone, the output format and any rules. An example of a good answer helps most of all."],
+      ["Which structure should I pick?", "Plain text works everywhere. Markdown sections and XML tags help with long prompts — Claude in particular follows XML-tagged sections well."],
+      ["Is what I type sent anywhere?", "No. The prompt is assembled in your browser and nothing is stored or sent until you paste it into an assistant yourself."],
+    ] },
+  { id: "image", where: "device", cat: "Files & documents", icon: "🖼️", c: "#14B8A6", name: "Image Compressor & Converter", desc: "Compress, resize, crop, convert, rotate, watermark, edit, meme and blur images — in your browser, nothing uploaded.", pv: "image",
+    blurb: "Nine image tools in one: compress, resize, crop, convert (JPG, PNG, WebP, AVIF), rotate & flip, watermark, photo editor, meme maker and blur/redact. Batch up to 40 images and download them as a ZIP. Everything runs locally in your browser, so your photos never leave your device.",
+    faqs: [
+      ["Are my images uploaded anywhere?", "No. Every tool runs on your device using the browser's canvas — files are never sent to a server."],
+      ["How do I compress an image without losing quality?", "Use Compress and keep quality around 70–80 for JPG or WebP; the difference is rarely visible. PNG is lossless, so switch the output to WebP or JPG, or set a max width, for large savings."],
+      ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
+      ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
+    ] },
   { id: "breach", where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "scan",
     blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
     faqs: [
@@ -63,7 +102,7 @@ export const TOOLS = [
       ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
-  { id: "pdf", where: "device", cat: "Documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
+  { id: "pdf", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
     blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
@@ -75,18 +114,19 @@ export const TOOLS = [
     ] },
 ];
 
-export const CATEGORIES = ["All", "Time & network", "Shopping & web", "Documents", "Security"];
+export const CATEGORIES = ["All", "Time & network", "Shopping & web", "Files & documents", "Developer", "Security"];
 
 export const WHERE_LABEL = {
   device: ["On-device", "Runs entirely in your browser; your input is never sent anywhere."],
   server: ["Uses network", "Needs our server or a third-party service to work."],
-  mixed: ["Mixed", "Password check runs on-device; the email lookup goes through our server."],
+  mixed: ["Mixed", "Mostly on-device; some checks use our server or a privacy-preserving third-party lookup."],
 };
 
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
 
 export const ROTATE = [
   "Calculate order-to-send wait times in UTC", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
-  "Merge, split and compress PDFs", "Check if your email was in a breach",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Validate and format JSON",
+  "Check password strength and breaches", "Generate better AI prompts", "Compress and convert images",
+  "Merge, split and compress PDFs", "Detect Shopify storefronts", "Check if your email was in a breach",
 ];

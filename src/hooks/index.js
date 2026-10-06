@@ -67,7 +67,7 @@ export function useDocumentMeta(tool) {
   useEffect(() => {
     const title = tool ? `${tool.name} · ToolDeck BLR` : "ToolDeck BLR — fast, private browser utilities";
     const desc = tool ? tool.blurb
-      : "Nine fast, private tools: UTC wait times, phone → country, Shopify detectors, speed test, IP & IPv6, price tracker, PDF toolkit and breach checker. Nothing you type is stored.";
+      : "Fast, private everyday tools: UTC wait times, phone → country, Shopify detectors, speed test, IP & IPv6 leak checks, price tracker, PDF and image tools, JSON, passwords and breach checks. Nothing you type is stored.";
     const url = SITE + (tool ? `/tool/${tool.id}` : "/");
     document.title = title;
     setMeta("description", desc);
@@ -181,4 +181,41 @@ export function useVisitCount() {
     return () => { alive = false; };
   }, []);
   return count;
+}
+
+/* ─── swipe gesture detection (mobile tool navigation) ──────────────────── */
+
+export function useSwipe(onSwipe) {
+  useEffect(() => {
+    let startX = 0;
+    let startTime = 0;
+    const minDistance = 60;
+    const maxTime = 500;
+
+    const handleTouchStart = (e) => {
+      startX = e.touches[0]?.clientX || 0;
+      startTime = Date.now();
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!startX) return;
+      const endX = e.changedTouches[0]?.clientX || 0;
+      const distance = startX - endX;
+      const time = Date.now() - startTime;
+
+      // Swipe threshold: 60px in 500ms
+      if (Math.abs(distance) >= minDistance && time <= maxTime) {
+        const direction = distance > 0 ? "left" : "right";
+        onSwipe?.(direction);
+      }
+      startX = 0;
+    };
+
+    document.addEventListener("touchstart", handleTouchStart, false);
+    document.addEventListener("touchend", handleTouchEnd, false);
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [onSwipe]);
 }

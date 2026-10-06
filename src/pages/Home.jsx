@@ -14,6 +14,9 @@ function Preview({ kind }) {
     <div className="pv-pk" style={{ animation: "slideblocks 2.3s .4s linear infinite", top: 46, left: 8, background: "var(--teal)" }} /></div>;
   if (kind === "chart") return <div className="preview" aria-hidden="true">
     <svg width="120" height="74" viewBox="0 0 120 74"><polyline className="pv-chartline" points="6,58 26,44 42,50 60,30 78,38 96,18 114,24" /></svg></div>;
+  if (kind === "image") return <div className="preview" aria-hidden="true">
+    <svg width="120" height="74" viewBox="0 0 120 74"><rect x="22" y="12" width="76" height="50" rx="6" fill="none" stroke="var(--teal)" strokeWidth="1.5" />
+      <circle cx="40" cy="28" r="5" fill="var(--pri2)" /><polyline className="pv-chartline" points="26,56 48,38 62,48 78,32 94,52" /></svg></div>;
   return null;
 }
 

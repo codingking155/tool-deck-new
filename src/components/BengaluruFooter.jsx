@@ -309,7 +309,7 @@ export default function BengaluruFooter({ reduced, theme }) {
         {visitors != null
           ? <span style={{ color: "var(--pri2)", fontWeight: 600 }}>👥 {visitors.toLocaleString("en-IN")} visit{visitors === 1 ? "" : "s"} from this device</span>
           : <span title="Works automatically in the Claude preview; on your own host, point COUNTER_ENDPOINT at a tiny counter API.">👥 visitor counter connects on deployment</span>}
-        <div style={{ marginTop: 6 }}>Tip: double-click the auto on the road to swap it for a lorry · hover the heart for a flypast</div>
+        <div style={{ marginTop: 6 }}><a href="/analytics" style={{ color: "var(--pri2)", textDecoration: "underline", cursor: "pointer" }}>📊 Analytics</a> · Tip: double-click the auto on the road to swap it for a lorry · hover the heart for a flypast</div>
         <div style={{ marginTop: 6 }}>Privacy: nothing you type is stored · IP lookups are never logged by this page · the visitor counter stores only one shared number · Reduced-motion is respected everywhere.</div>
       </div>
     </footer>
