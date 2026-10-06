@@ -38,17 +38,24 @@ function normalizeBreach(b) {
 }
 
 /** XposedOrNot breach-analytics payload -> breaches[]. Returns null when the shape is unrecognised
-    (so the caller reports an error instead of a false "all clear"). */
+    (so the caller reports an error instead of a false "all clear").
+    A clean address comes back 200 with `ExposedBreaches: null` alongside a `BreachesSummary` object;
+    that (and only that) is treated as zero breaches. */
 export function parseXonAnalytics(payload) {
-  const details = payload?.ExposedBreaches?.breaches_details;
+  if (!payload || typeof payload !== "object") return null;
+  if (payload.ExposedBreaches == null) {
+    return payload.BreachesSummary && typeof payload.BreachesSummary === "object" ? [] : null;
+  }
+  const details = payload.ExposedBreaches.breaches_details;
   if (!Array.isArray(details)) return null;
   return details.filter((b) => b && typeof b === "object").map(normalizeBreach)
     .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
 }
 
-/** XposedOrNot answers 404 {"Error":"Not found"} when an address is in no known breach. */
+/** XposedOrNot answers 404 "Not found" for an address in no known breach (or one the owner has shielded).
+    Older responses used {"Error":...}; the current FastAPI service uses {"detail":...}. */
 export const isXonNotFound = (status, payload) =>
-  status === 404 && /not found/i.test(String(payload?.Error ?? payload?.error ?? ""));
+  status === 404 && /^not found$/i.test(String(payload?.detail ?? payload?.Error ?? payload?.error ?? "").trim());
 
 export function summarize(breaches) {
   const types = new Set();
