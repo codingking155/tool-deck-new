@@ -4,7 +4,6 @@ import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, FlaskConical }
 import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
 import { readRecent, pushRecent, clearRecent } from "./lib/recentTools.js";
 import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
-import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
 import { Particles, CursorGlow } from "./components/Ambient.jsx";
@@ -89,7 +88,7 @@ class ToolErrorBoundary extends Component {
 /* Owns the 1 s tick so only the clocks re-render, not the whole app. */
 function HeaderClocks() {
   const now = useNow(1000);
-  return <><LocalClock now={now} /><div className="uclock utcchip" title="Live UTC">{fmtUtc(now)} UTC</div></>;
+  return <LocalClock now={now} />;
 }
 
 /* Real links (middle-click, crawlable) that route in-app on a plain click. */

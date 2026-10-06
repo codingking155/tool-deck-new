@@ -734,3 +734,33 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
   .lx-dev{padding:0 12px}.lx-dev span,.lx-count{display:none}
 }
 @media(prefers-reduced-motion:reduce){.lx-pop{animation:none}.lx-chip:hover{transform:none}}
+
+/* header clock — compact local + UTC, location on demand */
+.clk{position:relative;flex:none}
+.clk>summary{list-style:none;display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font:500 12.5px var(--mono);color:var(--tx2);font-variant-numeric:tabular-nums;white-space:nowrap;user-select:none}
+.clk>summary::-webkit-details-marker{display:none}
+.clk>summary:hover{border-color:var(--line-strong)}
+.clk .t-loc{color:var(--tx)}
+.clk .t-sep{width:1px;height:16px;background:var(--line)}
+.clk .t-utc{color:var(--pri2)}
+.clk .t-utc small,.clk .t-loc small{font-size:10px;color:var(--tx3);margin-left:4px;letter-spacing:.04em}
+.clk-pop{position:absolute;right:0;top:calc(100% + 8px);width:300px;padding:16px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 24px 64px rgba(0,0,0,.5);z-index:60;animation:pop .2s cubic-bezier(.2,.8,.2,1) both;font-size:13px;color:var(--tx2)}
+.clk-pop .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line2)}
+.clk-pop .row:last-of-type{border-bottom:0}
+.clk-pop .row b{font-family:var(--mono);font-weight:500;color:var(--tx);text-align:right;overflow-wrap:anywhere}
+.clk-pop .loc{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.clk-pop .hint{margin-top:8px}
+.clk-pop .pl{color:var(--tx)}
+.clk-pop .btn{margin-top:12px;width:100%}
+@media(max-width:900px){.clk .t-utc,.clk .t-sep{display:none}}
+@media(max-width:600px){.clk>summary{height:44px;padding:0 10px}.clk-pop{position:fixed;left:16px;right:16px;top:64px;width:auto}}
+@media(max-width:380px){.clk{display:none}}
+.clk .t-loc small{display:inline-block;max-width:120px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.light .clk-pop{box-shadow:0 24px 60px rgba(36,26,46,.18)}
+.clk-pop .pl{color:var(--tx)}
+.clk-pop .btn{margin-top:12px;width:100%}
+
+/* header order on phones: logo · clock · buttons */
+@media(max-width:600px){.hdr .clk{order:1;margin-left:auto}.hdr .hbtns{order:2}}
+@media(max-width:600px){.hdr{flex-wrap:nowrap}.hdr .hbtns{gap:8px}.hdr .clk>summary{gap:6px}}
+@media(max-width:440px){.hdr .logo small{display:none}.hdr .clk .t-loc small{max-width:72px}}
