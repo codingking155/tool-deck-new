@@ -18,7 +18,7 @@ services:
         value: "8000"
       # Browser origins allowed to call the API (comma-separated). Add preview domains if needed.
       - key: ALLOWED_ORIGINS
-        value: https://tooldeck.in,https://www.tooldeck.in
+        value: https://tooldeck.in,https://www.tooldeck.in,https://tool-deck-new.vercel.app
       # Render's load balancer appends one X-Forwarded-For entry.
       - key: TRUSTED_PROXY_HOPS
         value: "1"
