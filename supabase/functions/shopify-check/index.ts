@@ -4,8 +4,7 @@ import { analyzeShopify, applyHeaderSignals, applyProbeSignals, looksBlockedPage
 import { safeFetch, assertFetchable, BlockedUrlError } from "../../../shared/net/safeFetch.mjs";
 
 // GET /shopify-check?url=example.com
-// Response shape is a superset of shopifyornot.in's /check API, so existing
-// Zapier / n8n / Make recipes written for that shape work against this too:
+// Response shape (stable — Zapier / n8n / Make recipes depend on it):
 //   is_shopify, confidence (0-1), input_url, final_url, shop_domain,
 //   detected_signals, headers_sample, elapsed_ms
 //   + extras: verdict, confidence_pct, theme, currency, plus, signals_detail,
