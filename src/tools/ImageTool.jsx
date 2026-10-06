@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../lib/imageCore.mjs";
 import { makeZip } from "../lib/zip.js";
+import { ImagePlus, Loader2, Download, X, Columns2, Trash2, ClipboardPaste } from "lucide-react";
 
 /* Everything runs in the browser on <canvas>: files never leave the device. */
 
@@ -32,9 +33,14 @@ function noopReason(mode, o) {
   if (mode === "editor" && !Object.values(o).some(Boolean)) return "Move a slider to adjust the photo.";
   if (mode === "watermark" && !o.text.trim()) return "Enter watermark text.";
   if (mode === "meme" && !o.top.trim() && !o.bottom.trim()) return "Enter top or bottom text.";
+  if (mode === "rotate" && !o.angle && !o.flipH && !o.flipV) return "Pick a rotation or a flip.";
+  if (mode === "crop" && o.aspect === "free" && Number(o.zoom) <= 1) return "Pick an aspect ratio or zoom in to crop.";
   return "";
 }
 const MAX_PIXELS = 100e6;
+const QUALITY_PRESETS = [["Smallest", 40], ["Balanced", 70], ["High", 85], ["Best", 95]];
+const isImageFile = (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(f.name);
+const pct = (from, to) => (from ? Math.round((1 - to / from) * 100) : 0);
 
 async function loadBitmap(file) {
   if (typeof createImageBitmap === "function" && file.type !== "image/svg+xml") {
@@ -144,7 +150,9 @@ async function runMode(mode, o, file, canAvif) {
     if (mode === "compress") {
       const { w, h } = fitMax(sw, sh, o.max);
       canvas = mk(w, h); ctx = ctx2d(canvas);
-      mime = o.fmt === "auto" ? srcMime : o.fmt;
+      /* GIF/BMP/SVG/AVIF can't be re-encoded as-is; "same as original" would mean a lossless
+         PNG that is usually far BIGGER, so compress those to WebP where quality applies */
+      mime = o.fmt !== "auto" ? o.fmt : srcMime === file.type ? srcMime : "image/webp";
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, w, h);
       q = o.q / 100;
@@ -195,6 +203,7 @@ async function runMode(mode, o, file, canAvif) {
     if (mode === "compress" && blob.size >= file.size && mime === file.type && canvas.width === sw && canvas.height === sh) {
       return { blob: file, w: sw, h: sh, mime, note: "Already optimal — original kept" };
     }
+    if (mode === "compress" && blob.size >= file.size) note = "Bigger than the original — try a lower quality or WebP";
     return { blob, w: canvas.width, h: canvas.height, mime, note };
   } finally { bmp.close?.(); }
 }
@@ -208,11 +217,14 @@ function download(blob, name) {
 
 /* ---- option panels (module scope — the app re-renders every second) ---- */
 
-function Range({ id, label, value, min, max, step = 1, unit = "", onChange }) {
+function Range({ id, label, value, min, max, step = 1, unit = "", onChange, scale }) {
+  const fill = `${((value - min) / (max - min)) * 100}%`;
   return (
     <div className="field">
-      <label htmlFor={id}>{label} · {value}{unit}</label>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ padding: 0 }} />
+      <label htmlFor={id} className="imgrange-l"><span>{label}</span><output htmlFor={id}>{value}{unit}</output></label>
+      <input id={id} className="imgrange" type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))} style={{ padding: 0, "--fill": fill }} />
+      {scale && <div className="imgscale" aria-hidden="true"><span>{scale[0]}</span><span>{scale[1]}</span></div>}
     </div>
   );
 }
@@ -223,16 +235,19 @@ function Check({ id, label, checked, onChange }) {
   );
 }
 
-function Options({ mode, o, set, canAvif }) {
+function Options({ mode, o, set, canAvif, hasPng }) {
   if (mode === "compress") return <>
-    <Range id="oq" label="Quality" value={o.q} min={5} max={100} onChange={(v) => set("q", v)} />
+    <Range id="oq" label="Quality" value={o.q} min={5} max={100} onChange={(v) => set("q", v)} scale={["Smaller file", "Better quality"]} />
+    <div className="imgpresets" role="group" aria-label="Quality presets">
+      {QUALITY_PRESETS.map(([l, v]) => <button key={l} type="button" aria-pressed={o.q === v} onClick={() => set("q", v)}>{l}<small>{v}</small></button>)}
+    </div>
     <div className="field"><label htmlFor="ofmt">Output format</label>
       <select id="ofmt" value={o.fmt} onChange={(e) => set("fmt", e.target.value)}>
         <option value="auto">Same as original</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option>
       </select></div>
     <div className="field"><label htmlFor="omax">Max width/height (px, optional)</label>
       <input id="omax" type="number" min="1" placeholder="e.g. 1920" value={o.max} onChange={(e) => set("max", e.target.value)} /></div>
-    <div className="hint">PNG is lossless, so quality doesn't shrink it — switch the output to WebP or JPG (or set a max size) for big savings.</div>
+    {hasPng && o.fmt === "auto" && !Number(o.max) && <div className="note w imgnote">PNG is lossless, so quality doesn't shrink it — switch the output to WebP or JPG (or set a max size) for big savings.</div>}
   </>;
   if (mode === "resize") return <>
     <div className="field"><label htmlFor="orm">Resize by</label>
@@ -341,32 +356,44 @@ function RegionPreview({ item, mode, o, set }) {
   );
 }
 
+/** Before/after wipe: drag (or arrow-key) the handle to reveal the result over the original. */
+function CompareSlider({ before, after, ratio, beforeLabel, afterLabel }) {
+  const [pos, setPos] = useState(50);
+  return (
+    <div className="imgwipe" style={{ aspectRatio: ratio, "--pos": `${pos}%` }}>
+      <img src={before} alt="Original" draggable={false} />
+      <img src={after} alt="Result" draggable={false} className="after" />
+      <span className="tag l">{beforeLabel}</span><span className="tag r">{afterLabel}</span>
+      <div className="handle" aria-hidden="true" />
+      <input type="range" min="0" max="100" value={pos} onChange={(e) => setPos(Number(e.target.value))} aria-label="Reveal result" />
+    </div>
+  );
+}
+
 function FileRow({ item, onRemove, onSave }) {
   const [cmp, setCmp] = useState(false);
   const r = item.res;
-  const saved = r ? Math.round((1 - r.blob.size / item.file.size) * 100) : 0;
+  const saved = r ? pct(item.file.size, r.blob.size) : 0;
   return (
-    <div className="imgrow">
-      <img className="th" src={item.src} alt="" />
+    <div className={`imgrow${item.busy ? " busy" : ""}${item.err ? " err" : ""}`}>
+      <img className="th" src={r ? r.url : item.src} alt="" />
       <div className="meta">
         <b title={item.file.name}>{item.file.name}</b>
-        <span>{item.w}×{item.h} · {fmtBytes(item.file.size)}</span>
-        {item.err && <span style={{ color: "var(--bad)" }}>{item.err}</span>}
-        {item.busy && <span style={{ color: "var(--tx3)" }}>Processing…</span>}
-        {r && <span style={{ color: "var(--good)" }}>
-          → {r.w}×{r.h} · {fmtBytes(r.blob.size)}{saved > 0 ? ` · −${saved}%` : saved < 0 ? ` · +${-saved}%` : ""}{r.note ? ` · ${r.note}` : ""}
-        </span>}
+        <span>{item.w}×{item.h} · {fmtBytes(item.file.size)}
+          {r && <> → <span className="to">{r.w !== item.w || r.h !== item.h ? `${r.w}×${r.h} · ` : ""}{fmtBytes(r.blob.size)}</span></>}
+        </span>
+        {item.err && <span className="bad">{item.err}</span>}
+        {item.busy && <span className="wait"><Loader2 size={12} className="imgspin" /> Processing…</span>}
+        {r?.note && <span className="sub">{r.note}</span>}
       </div>
-      {r && <img className="th" src={r.url} alt="Result" />}
+      {r && saved !== 0 && <span className={`imgsave ${saved > 0 ? "good" : "bad"}`}>{saved > 0 ? `−${saved}%` : `+${-saved}%`}</span>}
       <div className="act">
-        {r && <button className="btn gh" onClick={() => setCmp((v) => !v)} aria-pressed={cmp}>Compare</button>}
-        {r && <button className="btn gh" onClick={() => onSave(item)}>Download</button>}
-        <button className="btn gh" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.file.name}`}>✕</button>
+        {r && r.blob !== item.file && <button className="btn gh ico" onClick={() => setCmp((v) => !v)} aria-pressed={cmp} title="Compare before / after" aria-label={`Compare ${item.file.name}`}><Columns2 size={16} /></button>}
+        {r && <button className="btn gh ico" onClick={() => onSave(item)} title="Download" aria-label={`Download ${item.file.name}`}><Download size={16} /></button>}
+        <button className="btn gh ico" onClick={() => onRemove(item.id)} title="Remove" aria-label={`Remove ${item.file.name}`}><X size={16} /></button>
       </div>
-      {r && cmp && <div className="imgcmp">
-        <figure><img src={item.src} alt="Original" /><figcaption>Original · {fmtBytes(item.file.size)}</figcaption></figure>
-        <figure><img src={r.url} alt="Result" /><figcaption>Result · {fmtBytes(r.blob.size)}</figcaption></figure>
-      </div>}
+      {r && cmp && r.blob !== item.file && <CompareSlider before={item.src} after={r.url} ratio={`${r.w} / ${r.h}`}
+        beforeLabel={`Original · ${fmtBytes(item.file.size)}`} afterLabel={`Result · ${fmtBytes(r.blob.size)}`} />}
     </div>
   );
 }
@@ -378,6 +405,7 @@ export default function ImageTool({ notify }) {
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [stale, setStale] = useState(false);
+  const [prog, setProg] = useState(null);   // { done, total } while a batch runs
   const idRef = useRef(0);
   const runRef = useRef(0);
   const itemsRef = useRef(items);
@@ -397,7 +425,7 @@ export default function ImageTool({ notify }) {
   const changeMode = (m) => { if (m !== mode && !busy) { setMode(m); clearResults(); setStale(false); } };
 
   const addFiles = useCallback(async (list) => {
-    const files = [...list].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(f.name));
+    const files = [...list].filter(isImageFile);
     if (!files.length) { notify("Choose image files (JPG, PNG, WebP, GIF, BMP, SVG, AVIF)."); return; }
     const room = MAX_FILES - itemsRef.current.length;
     if (files.length > room) notify(`Up to ${MAX_FILES} images at a time — added the first ${Math.max(room, 0)}.`);
@@ -414,20 +442,37 @@ export default function ImageTool({ notify }) {
     }
   }, [notify]);
 
+  /* paste screenshots / copied images straight in (Ctrl/⌘+V anywhere on the tool page) */
+  useEffect(() => {
+    const onPaste = (e) => {
+      const files = [...(e.clipboardData?.files || [])].filter(isImageFile);
+      if (!files.length) return;
+      e.preventDefault();
+      addFiles(files.map((f, i) => (f.name && f.name !== "image.png" ? f
+        : new File([f], `pasted-${Date.now()}${i ? `-${i}` : ""}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: f.type }))));
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [addFiles]);
+
   const remove = useCallback((id) => setItems((arr) => arr.filter((i) => {
     if (i.id !== id) return true;
     URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url);
     return false;
   })), []);
-  const clearAll = () => { runRef.current++; items.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); setItems([]); setBusy(false); };
+  const clearAll = () => { runRef.current++; items.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); setItems([]); setBusy(false); setProg(null); setStale(false); };
 
   const run = async () => {
     const token = ++runRef.current;
     const live = (id) => token === runRef.current && itemsRef.current.some((x) => x.id === id);
     setBusy(true); setStale(false);
     const o = opts[mode];
-    for (const it of itemsRef.current) {
+    const batch = itemsRef.current;
+    let n = 0;
+    setProg({ done: 0, total: batch.length });
+    for (const it of batch) {
       if (token !== runRef.current) return;
+      setProg({ done: n++, total: batch.length });
       if (!live(it.id)) continue;
       setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: true, err: null } : x)));
       try {
@@ -443,7 +488,7 @@ export default function ImageTool({ notify }) {
         if (live(it.id)) setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: false, res: null, err: e.message || "Failed." } : x)));
       }
     }
-    if (token === runRef.current) setBusy(false);
+    if (token === runRef.current) { setBusy(false); setProg(null); }
   };
 
   const saveOne = (it) => download(it.res.blob, outName(it.file.name, SUFFIX[mode], it.res.mime));
@@ -456,56 +501,71 @@ export default function ImageTool({ notify }) {
 
   const why = noopReason(mode, opts[mode]);
   const GIF = items.some((i) => i.file.type === "image/gif");
+  const hasPng = items.some((i) => i.file.type === "image/png");
+  const failed = items.filter((i) => i.err).length;
   const totalIn = done.reduce((s, i) => s + i.file.size, 0), totalOut = done.reduce((s, i) => s + i.res.blob.size, 0);
 
   return (
     <div>
-      <div className="modes" role="group" aria-label="Image tool">
+      <div className="modes imgmodes" role="group" aria-label="Image tool">
         {MODES.map(([id, label]) => (
           <button key={id} aria-pressed={mode === id} disabled={busy && mode !== id} className={mode === id ? "on" : ""} onClick={() => changeMode(id)}>{label}</button>
         ))}
       </div>
-      <div className="grid2">
+      <div className="grid2 imggrid">
         <div className="panel rise d1">
           <div className="ph"><h2>{MODES.find((m) => m[0] === mode)[1]} options</h2><p>Applied to every image in the list.</p></div>
           <div className="pb">
-            <Options mode={mode} o={opts[mode]} set={setOpt} canAvif={canAvif} />
+            <Options mode={mode} o={opts[mode]} set={setOpt} canAvif={canAvif} hasPng={hasPng} />
             <RegionPreview item={items[0]} mode={mode} o={opts[mode]} set={setOpt} />
             {GIF && <div className="hint">GIF animation isn't kept — only the first frame is processed.</div>}
-            {stale && <div className="note w" style={{ marginTop: 10, marginBottom: 0 }}>Options changed — results below are outdated. Apply again to refresh.</div>}
-            {why && <div className="hint">{why}</div>}
-            <button className="btn pri" style={{ marginTop: 12 }} disabled={!items.length || busy || !!why} onClick={run}>
-              {busy ? "Working…" : items.length ? `Apply to ${items.length} image${items.length > 1 ? "s" : ""}` : "Add images first"}
+            {stale && done.length > 0 && <div className="note w imgnote">Options changed — results are outdated. Apply again to refresh.</div>}
+            {why && items.length > 0 && <div className="hint">{why}</div>}
+            <button className="btn pri imgapply" disabled={!items.length || busy || !!why} onClick={run} aria-describedby={prog ? "imgprog" : undefined}>
+              {busy ? <><Loader2 size={17} className="imgspin" /> Working… {prog ? `${Math.min(prog.done + 1, prog.total)}/${prog.total}` : ""}</>
+                : items.length ? `${MODES.find((m) => m[0] === mode)[1]} ${items.length} image${items.length > 1 ? "s" : ""}` : "Add images to start"}
             </button>
+            {prog && <div id="imgprog" className="imgprog" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={prog.total} aria-valuenow={prog.done}>
+              <i style={{ width: `${(prog.done / Math.max(prog.total, 1)) * 100}%` }} />
+            </div>}
           </div>
         </div>
         <div className="panel rise d2">
-          <div className="ph"><h2>Images</h2><p>Processed locally in your browser — nothing is uploaded.</p></div>
+          <div className="ph imgph">
+            <div><h2>Images{items.length > 0 && <span className="imgcount">{items.length}/{MAX_FILES}</span>}</h2><p>Processed locally in your browser — nothing is uploaded.</p></div>
+            {items.length > 0 && <button className="btn gh imgclear" onClick={clearAll}><Trash2 size={15} /> Clear all</button>}
+          </div>
           <div className="pb">
-            <label className={`imgdrop ${drag ? "on" : ""}`}
-              onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+            <label className={`imgdrop ${drag ? "on" : ""} ${items.length ? "compact" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDrag(false); }}
               onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}>
               <input type="file" accept="image/*" multiple onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-              <b>Select images</b> or drop them here
-              <span>JPG · PNG · WebP · GIF · BMP · SVG · AVIF — up to {MAX_FILES}</span>
+              <span className="ic" aria-hidden="true"><ImagePlus size={items.length ? 18 : 26} /></span>
+              <span className="tx"><b>{items.length ? "Add more images" : "Select images"}</b> or drop them here</span>
+              {!items.length && <span className="sub">JPG · PNG · WebP · GIF · BMP · SVG · AVIF — up to {MAX_FILES}</span>}
+              {!items.length && <span className="sub kbd"><ClipboardPaste size={12} aria-hidden="true" /> or paste with <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd></span>}
             </label>
             {items.length > 0 && <>
+              {done.length > 0 && <div className="imgsum" aria-live="polite">
+                <div><small>Done</small><b>{done.length}/{items.length}</b></div>
+                <div><small>Before</small><b>{fmtBytes(totalIn)}</b></div>
+                <div><small>After</small><b>{fmtBytes(totalOut)}</b></div>
+                <div><small>{totalOut <= totalIn ? "Saved" : "Grew"}</small>
+                  <b className={totalOut <= totalIn ? "good" : "bad"}>{Math.abs(pct(totalIn, totalOut))}%</b></div>
+              </div>}
+              {failed > 0 && <div className="note e imgnote">{failed} image{failed > 1 ? "s" : ""} failed — see the list below.</div>}
               <div className="imglist">
                 {items.map((it) => <FileRow key={it.id} item={it} onRemove={remove} onSave={saveOne} />)}
               </div>
-              <div className="imgbar">
-                {done.length > 0 && <span className="hint" style={{ margin: 0 }}>
-                  {done.length} done · {fmtBytes(totalIn)} → {fmtBytes(totalOut)}
-                </span>}
-                <span style={{ flex: 1 }} />
-                {done.length > 1 && <button className="btn gh" onClick={saveZip}>Download all (.zip)</button>}
-                {done.length === 1 && <button className="btn gh" onClick={() => saveOne(done[0])}>Download</button>}
-                <button className="btn gh" onClick={clearAll}>Clear</button>
-              </div>
+              {done.length > 0 && <div className="imgbar">
+                {done.length > 1 && <button className="btn pri" onClick={saveZip}><Download size={16} /> Download all ({done.length}) as .zip</button>}
+                {done.length === 1 && <button className="btn pri" onClick={() => saveOne(done[0])}><Download size={16} /> Download</button>}
+              </div>}
             </>}
-            {!items.length && <div className="note i" style={{ marginTop: 14, marginBottom: 0 }}>
-              <b>Not included · </b>background removal, AI upscaling, HEIC input and HTML-to-image need server-side or heavy AI processing, so they aren't part of this private, in-browser tool.
-            </div>}
+            {!items.length && <p className="hint imgnot">
+              <b>Not included:</b> background removal, AI upscaling, HEIC input and HTML-to-image need server-side or heavy AI processing, so they aren't part of this private, in-browser tool.
+            </p>}
           </div>
         </div>
       </div>
