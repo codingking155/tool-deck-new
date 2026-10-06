@@ -1,396 +1,300 @@
-import { useState } from "react";
-import { formatBytes, parsePageRanges } from "../lib/pageRanges.js";
-import { makeZip, saveBlob } from "../lib/zip.js";
+import { useState, useRef, useMemo, useEffect } from "react";
 import {
-  pageCount, mergePdfs, extractGroups, compressLossless, compressRaster,
-  pdfToImages, imagesToPdf, extractText,
-} from "../lib/pdfOps.js";
+  mergePdfs, extractPages, removePages, splitPdf, rotatePdf, addPageNumbers,
+  addWatermark, cropPdf, rebuildPdf, imagesToPdf, pageCount,
+} from "../lib/pdf.js";
+import { readParams, writeParams } from "../hooks/index.js";
+import { parseRanges } from "../lib/pdf.js";
 
-const MAX_BYTES = 100 * 1024 * 1024;
-const MODES = [
-  ["merge", "Merge"],
-  ["split", "Split"],
-  ["compress", "Compress"],
-  ["toimg", "PDF → Images"],
-  ["fromimg", "Images → PDF"],
-  ["text", "Extract text"],
+const PAGES = { key: "pages", label: "Pages (e.g. 1-3, 5, 8-)", type: "text", ph: "1-3, 5" };
+const base = (f) => f.name.replace(/\.[^.]+$/, "");
+const pdf = (bytes, name) => ({ name, blob: new Blob([bytes], { type: "application/pdf" }) });
+const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(2) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+
+/* "1-3,5" <-> clicked pages. Organize keeps click order; others collapse to sorted ranges. */
+function specFrom(indices, ordered) {
+  if (ordered) return indices.map((i) => i + 1).join(",");
+  const a = [...new Set(indices)].sort((x, y) => x - y), out = [];
+  for (let i = 0; i < a.length; i++) {
+    let j = i;
+    while (a[j + 1] === a[j] + 1) j++;
+    out.push(j > i ? `${a[i] + 1}-${a[j] + 1}` : `${a[i] + 1}`);
+    i = j;
+  }
+  return out.join(", ");
+}
+function safeIndices(spec, total) { try { return spec.trim() ? parseRanges(spec, total) : []; } catch { return []; } }
+
+const GROUPS = ["Organize", "Optimize", "Convert to PDF", "Convert from PDF", "Edit", "Security"];
+
+/* run(files, opts, progress) -> [{ name, blob }]; files are [{ name, bytes }] */
+const TOOLS = [
+  { id: "merge", g: 0, icon: "🔗", name: "Merge PDF", desc: "Combine PDFs in the order you want.", multi: true, min: 2,
+    run: async (fs) => [pdf(await mergePdfs(fs.map((f) => f.bytes)), "merged.pdf")] },
+  { id: "split", pick: "spec", g: 0, icon: "✂️", name: "Split PDF", desc: "One file per page, or per range group.",
+    opts: [{ key: "spec", label: "Ranges, comma-separated groups (blank = every page)", type: "text", ph: "1-3, 4-6" }],
+    run: async ([f], o) => (await splitPdf(f.bytes, o.spec || "")).map((b, i) => pdf(b, `${base(f)}-part${i + 1}.pdf`)) },
+  { id: "remove", pick: "pages", g: 0, icon: "🗑️", name: "Remove pages", desc: "Delete the pages you don't need.", opts: [PAGES],
+    run: async ([f], o) => [pdf(await removePages(f.bytes, o.pages || ""), `${base(f)}-trimmed.pdf`)] },
+  { id: "extract", pick: "pages", g: 0, icon: "📤", name: "Extract pages", desc: "Pull selected pages into a new PDF.", opts: [PAGES],
+    run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-extract.pdf`)] },
+  { id: "organize", pick: "pages", g: 0, icon: "🗂️", name: "Organize PDF", desc: "Reorder or duplicate pages — write the new order.",
+    opts: [{ key: "pages", label: "New page order (e.g. 3,1,2 or 5-1)", type: "text", ph: "3,1,2" }],
+    run: async ([f], o) => [pdf(await extractPages(f.bytes, o.pages || ""), `${base(f)}-organized.pdf`)] },
+
+  { id: "compress", heavy: true, g: 1, icon: "🗜️", name: "Compress PDF", desc: "Smaller file by re-rendering pages as images (text becomes non-selectable).",
+    opts: [{ key: "level", label: "Compression", type: "select", options: [["low", "Low — best quality"], ["medium", "Medium"], ["high", "High — smallest"]], def: "medium" }],
+    run: async ([f], o, prog) => {
+      const { compressPdf } = await import("../lib/pdfRender.js");
+      const out = await compressPdf(f.bytes, { level: o.level || "medium", onProgress: prog });
+      if (out.length >= f.bytes.length) throw new Error("Already well-optimised — re-rendering would not make this file smaller.");
+      return [pdf(out, `${base(f)}-compressed.pdf`)];
+    } },
+  { id: "repair", g: 1, icon: "🩹", name: "Repair PDF", desc: "Rebuild a damaged PDF's structure and recover its pages.",
+    run: async ([f]) => [pdf(await rebuildPdf(f.bytes), `${base(f)}-repaired.pdf`)] },
+
+  { id: "jpg2pdf", g: 2, icon: "🖼️", name: "JPG / PNG to PDF", desc: "Turn images into a PDF, one per page.", multi: true, accept: "image/jpeg,image/png",
+    opts: [{ key: "fit", label: "Page size", type: "select", options: [["image", "Same as image"], ["a4", "A4 (fit)"]], def: "image" },
+      { key: "margin", label: "Margin (pt)", type: "number", def: 0 }],
+    run: async (fs, o) => [pdf(await imagesToPdf(fs.map((f) => ({ bytes: f.bytes, type: /png$/i.test(f.type) ? "png" : "jpg" })), { fit: o.fit || "image", margin: Number(o.margin) || 0 }), "images.pdf")] },
+
+  { id: "pdf2jpg", heavy: true, g: 3, icon: "📷", name: "PDF to JPG", desc: "Every page as a high-quality JPG.",
+    opts: [{ key: "scale", label: "Resolution", type: "select", options: [["1.5", "Standard"], ["2", "High"], ["3", "Very high"]], def: "2" }],
+    run: async ([f], o, prog) => {
+      const { pdfToJpegs } = await import("../lib/pdfRender.js");
+      const imgs = await pdfToJpegs(f.bytes, { scale: Number(o.scale) || 2, onProgress: prog });
+      return imgs.map((b, i) => ({ name: `${base(f)}-page${i + 1}.jpg`, blob: new Blob([b], { type: "image/jpeg" }) }));
+    } },
+  { id: "pdf2word", heavy: true, g: 3, icon: "📝", name: "PDF to Word", desc: "Editable DOCX of the text (layout, images and tables are not kept).",
+    run: async ([f], o, prog) => {
+      const { pdfToDocx } = await import("../lib/pdfRender.js");
+      const { blob } = await pdfToDocx(f.bytes, { onProgress: prog });
+      return [{ name: `${base(f)}.docx`, blob }];
+    } },
+
+  { id: "rotate", pick: "pages", g: 4, icon: "🔄", name: "Rotate PDF", desc: "Rotate all pages, or just some.",
+    opts: [{ key: "deg", label: "Rotate", type: "select", options: [["90", "90° clockwise"], ["180", "180°"], ["270", "90° counter-clockwise"]], def: "90" },
+      { key: "pages", label: "Pages (blank = all)", type: "text", ph: "2-4" }],
+    run: async ([f], o) => [pdf(await rotatePdf(f.bytes, Number(o.deg) || 90, o.pages || ""), `${base(f)}-rotated.pdf`)] },
+  { id: "numbers", g: 4, icon: "🔢", name: "Add page numbers", desc: "Stamp page numbers on every page.",
+    opts: [{ key: "position", label: "Position", type: "select", options: [["bottom-center", "Bottom centre"], ["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-center", "Top centre"], ["top-right", "Top right"], ["top-left", "Top left"]], def: "bottom-center" },
+      { key: "start", label: "Start at", type: "number", def: 1 }],
+    run: async ([f], o) => [pdf(await addPageNumbers(f.bytes, { position: o.position || "bottom-center", start: Number(o.start) || 1 }), `${base(f)}-numbered.pdf`)] },
+  { id: "watermark", g: 4, icon: "💧", name: "Watermark", desc: "Diagonal text watermark on every page.",
+    opts: [{ key: "text", label: "Watermark text", type: "text", ph: "CONFIDENTIAL" },
+      { key: "opacity", label: "Opacity", type: "select", options: [["0.15", "Light"], ["0.25", "Medium"], ["0.5", "Strong"]], def: "0.25" }],
+    run: async ([f], o) => [pdf(await addWatermark(f.bytes, { text: o.text, opacity: Number(o.opacity) || 0.25 }), `${base(f)}-watermarked.pdf`)] },
+  { id: "crop", g: 4, icon: "✂", name: "Crop PDF", desc: "Trim margins off every page (points; 72 pt = 1 inch).",
+    opts: ["top", "right", "bottom", "left"].map((k) => ({ key: k, label: `${k[0].toUpperCase() + k.slice(1)} (pt)`, type: "number", def: 0 })),
+    run: async ([f], o) => [pdf(await cropPdf(f.bytes, { top: +o.top || 0, right: +o.right || 0, bottom: +o.bottom || 0, left: +o.left || 0 }), `${base(f)}-cropped.pdf`)] },
+
+  { id: "unlock", g: 5, icon: "🔓", name: "Unlock PDF", desc: "Remove edit/print/copy restrictions. Cannot break an open-password.",
+    run: async ([f]) => [pdf(await rebuildPdf(f.bytes), `${base(f)}-unlocked.pdf`)] },
 ];
 
-const isPdf = (f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
-const base = (name) => name.replace(/\.pdf$/i, "") || "document";
-const pdfBlob = (bytes) => new Blob([bytes], { type: "application/pdf" });
+const NOT_AVAILABLE = [
+  "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A", "OCR (scanned PDFs)",
+  "Protect with password", "Sign PDF", "Redact PDF", "Compare PDF", "Edit PDF text",
+];
 
-function Drop({ accept, multiple, label, hint, onFiles }) {
-  const [over, setOver] = useState(false);
+function download(item) {
+  const a = document.createElement("a");
+  a.href = item.url; a.download = item.name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function Field({ f, value, onChange }) {
+  const v = value ?? f.def ?? "";
   return (
-    <label className={`dropzone${over ? " over" : ""}`}
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); onFiles([...e.dataTransfer.files]); }}>
-      <span style={{ fontSize: 26 }} aria-hidden="true">📄</span>
-      <b>{label}</b>
-      <span style={{ fontSize: 12, color: "var(--tx3)" }}>{hint}</span>
-      <input type="file" accept={accept} multiple={multiple} hidden onChange={(e) => { onFiles([...e.target.files]); e.target.value = ""; }} />
+    <label style={{ display: "block", marginTop: 12, fontSize: 13 }}>
+      <span style={{ color: "var(--tx3)" }}>{f.label}</span>
+      {f.type === "select" ? (
+        <select className="inp" value={v} onChange={(e) => onChange(f.key, e.target.value)} style={{ marginTop: 4 }}>
+          {f.options.map(([val, lab]) => <option key={val} value={val}>{lab}</option>)}
+        </select>
+      ) : (
+        <input className="inp" type={f.type === "number" ? "number" : "text"} min={f.type === "number" ? 0 : undefined} placeholder={f.ph}
+          value={v} onChange={(e) => onChange(f.key, e.target.value)} style={{ marginTop: 4 }} />
+      )}
     </label>
   );
 }
 
-function Progress({ value, label }) {
+function PageThumbs({ file, spec, ordered, onChange }) {
+  const [state, setState] = useState({ thumbs: [], total: 0, loading: true });
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setState({ thumbs: [], total: 0, loading: true });
+    import("../lib/pdfRender.js").then((m) => m.pdfThumbs(file.bytes, { signal: ctrl.signal }))
+      .then((r) => !ctrl.signal.aborted && setState({ ...r, loading: false }))
+      .catch(() => !ctrl.signal.aborted && setState({ thumbs: [], total: 0, loading: false }));
+    return () => ctrl.abort();
+  }, [file]);
+  const chosen = safeIndices(spec, file.pages || state.total);
+  const toggle = (i) => {
+    const cur = [...chosen];
+    const at = cur.indexOf(i);
+    if (at >= 0) cur.splice(at, 1); else cur.push(i);
+    onChange(specFrom(cur, ordered));
+  };
+  if (state.loading) return <div className="hint" style={{ marginTop: 12 }}>Loading page previews…</div>;
+  if (!state.thumbs.length) return null;
   return (
-    <div style={{ margin: "14px 0" }} role="status">
-      <div className="hint" style={{ marginBottom: 6 }}>{label} {Math.round(value * 100)}%</div>
-      <div style={{ height: 6, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: `${value * 100}%`, height: "100%", background: "var(--pri)", transition: "width .2s" }} />
+    <div style={{ marginTop: 12 }}>
+      <div className="hint">Tap pages to select them{ordered ? " — order of taps becomes the new order" : ""}.{state.total > state.thumbs.length ? ` Previews cover the first ${state.thumbs.length} of ${state.total} pages; type the rest in the box.` : ""}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(84px,1fr))", gap: 8, marginTop: 8, maxHeight: 340, overflowY: "auto" }}>
+        {state.thumbs.map((src, i) => {
+          const pos = chosen.indexOf(i);
+          return (
+            <button key={i} type="button" aria-pressed={pos >= 0} aria-label={`Page ${i + 1}`} onClick={() => toggle(i)}
+              style={{ position: "relative", padding: 4, background: "var(--panel)", cursor: "pointer", color: "var(--tx)",
+                border: `2px solid ${pos >= 0 ? "var(--pri2)" : "var(--line)"}`, borderRadius: 8 }}>
+              <img src={src} alt="" style={{ width: "100%", display: "block", borderRadius: 3 }} />
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>{i + 1}</span>
+              {pos >= 0 && ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>{pos + 1}</span>}
+              {pos >= 0 && !ordered && <span style={{ position: "absolute", top: 6, right: 6, background: "var(--pri2)", color: "#000", borderRadius: 99, fontSize: 10, fontWeight: 700, padding: "1px 6px" }}>✓</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function FileList({ files, onMove, onRemove, showPages }) {
+function Workspace({ tool, notify, onBack }) {
+  const [files, setFiles] = useState([]);
+  const [opts, setOpts] = useState({});
+  const [busy, setBusy] = useState("");
+  const [results, setResults] = useState([]);
+  const [drag, setDrag] = useState(false);
+  const input = useRef(null);
+  const resultsRef = useRef([]);
+  resultsRef.current = results;
+  useEffect(() => () => resultsRef.current.forEach((r) => URL.revokeObjectURL(r.url)), []);
+
+  const accept = tool.accept || "application/pdf";
+  const clearResults = () => { results.forEach((r) => URL.revokeObjectURL(r.url)); setResults([]); };
+
+  const add = async (list) => {
+    const ok = [];
+    for (const f of Array.from(list)) {
+      const good = tool.accept ? accept.split(",").includes(f.type) : f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      if (!good) { notify(`${f.name}: unsupported file type.`); continue; }
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      let pages = null;
+      if (!tool.accept) { try { pages = await pageCount(bytes); } catch { notify(`${f.name}: couldn't read this PDF${tool.id === "repair" ? "" : " (try Repair PDF)"}.`); if (tool.id !== "repair") continue; } }
+      ok.push({ id: Math.random().toString(36).slice(2), name: f.name, type: f.type, size: f.size, bytes, pages });
+    }
+    if (!ok.length) return;
+    clearResults();
+    setFiles((p) => (tool.multi ? [...p, ...ok] : ok.slice(0, 1)));
+  };
+
+  const move = (i, d) => setFiles((p) => { const n = [...p]; const j = i + d; if (j < 0 || j >= n.length) return p; [n[i], n[j]] = [n[j], n[i]]; return n; });
+
+  const run = async () => {
+    if (files.length < (tool.min || 1)) return notify(tool.min ? `Add at least ${tool.min} files.` : "Add a file first.");
+    clearResults(); setBusy("Working…");
+    try {
+      const out = await tool.run(files, opts, (i, n) => setBusy(`Page ${i} of ${n}…`));
+      setResults(out.map((r) => ({ ...r, url: URL.createObjectURL(r.blob), size: r.blob.size })));
+    } catch (e) {
+      notify(e?.message || "Something went wrong.");
+    } finally { setBusy(""); }
+  };
+
+  const inSize = files.reduce((s, f) => s + f.size, 0);
+
   return (
-    <div className="flist">
-      {files.map((f, i) => (
-        <div className="frow" key={f.id}>
-          {f.thumb ? <img src={f.thumb} alt="" /> : <span aria-hidden="true" style={{ fontSize: 20 }}>📄</span>}
-          <span className="fn" title={f.name}>{f.name}</span>
-          <span style={{ fontSize: 12, whiteSpace: "nowrap" }}>{showPages && f.pages != null ? `${f.pages} p · ` : ""}{formatBytes(f.size)}</span>
-          {onMove && <>
-            <button className="ib" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => onMove(i, -1)}>↑</button>
-            <button className="ib" aria-label={`Move ${f.name} down`} disabled={i === files.length - 1} onClick={() => onMove(i, 1)}>↓</button>
-          </>}
-          <button className="ib" aria-label={`Remove ${f.name}`} onClick={() => onRemove(f.id)}>✕</button>
+    <div className="panel rise d1" style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div className="ph">
+        <button className="btn gh" onClick={onBack} style={{ float: "right" }}>← All PDF tools</button>
+        <h3>{tool.icon} {tool.name}</h3><p>{tool.desc}</p>
+      </div>
+      <div className="pb">
+        <div role="button" tabIndex={0} aria-label="Choose files"
+          onClick={() => input.current?.click()} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && input.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); add(e.dataTransfer.files); }}
+          style={{ border: `2px dashed ${drag ? "var(--good)" : "var(--line)"}`, borderRadius: 12, padding: 28, textAlign: "center", cursor: "pointer", color: "var(--tx)" }}>
+          <div style={{ fontSize: 28 }}>⬆️</div>
+          <b>Click or drop {tool.accept ? "images" : tool.multi ? "PDFs" : "a PDF"} here</b>
+          <div style={{ fontSize: 12, color: "var(--tx3)" }}>{tool.multi ? "Select several files" : "One file"} · processed in your browser, never uploaded</div>
         </div>
-      ))}
+        <input ref={input} type="file" accept={accept} multiple={!!tool.multi} hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+
+        {files.map((f, i) => (
+          <div key={f.id} className="kv" style={{ alignItems: "center", gap: 8, marginTop: 8 }}>
+            <span className="k" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{f.name}</span>
+            <span className="v">{kb(f.size)}{f.pages ? ` · ${f.pages} p` : ""}</span>
+            {tool.multi && files.length > 1 && <>
+              <button className="pill" aria-label="Move up" onClick={() => move(i, -1)}>↑</button>
+              <button className="pill" aria-label="Move down" onClick={() => move(i, 1)}>↓</button>
+            </>}
+            <button className="pill" aria-label={`Remove ${f.name}`} onClick={() => { clearResults(); setFiles((p) => p.filter((x) => x.id !== f.id)); }}>✕</button>
+          </div>
+        ))}
+
+        {files.length > 0 && tool.opts?.map((f) => <Field key={f.key} f={f} value={opts[f.key]} onChange={(k, v) => setOpts((o) => ({ ...o, [k]: v }))} />)}
+
+        {tool.pick && files.length === 1 && (
+          <PageThumbs file={files[0]} spec={opts[tool.pick] || ""} ordered={tool.id === "organize"}
+            onChange={(v) => setOpts((o) => ({ ...o, [tool.pick]: v }))} />
+        )}
+
+        {tool.heavy && files.some((f) => (f.pages || 0) > 150 || f.size > 50 * 1048576) && (
+          <div className="note w" style={{ marginTop: 12 }}><b>Large document · </b>this runs on your device and may take a while or slow the tab. Keep this page open until it finishes.</div>
+        )}
+
+        {files.length > 0 && (
+          <button className="btn" style={{ width: "100%", marginTop: 16 }} disabled={!!busy} onClick={run}>{busy || `${tool.name}`}</button>
+        )}
+
+        {results.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div className="note i"><b>Done · </b>{results.length} file{results.length > 1 ? "s" : ""}
+              {results.length === 1 && files.length === 1 && ` · ${kb(inSize)} → ${kb(results[0].size)}`}</div>
+            {results.map((r) => (
+              <div key={r.name} className="kv" style={{ alignItems: "center", gap: 8, marginTop: 8 }}>
+                <span className="k" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</span>
+                <span className="v">{kb(r.size)}</span>
+                <button className="pill" onClick={() => download(r)}>⬇ Download</button>
+              </div>
+            ))}
+            {results.length > 1 && <button className="btn" style={{ marginTop: 12 }} onClick={() => results.forEach(download)}>⬇ Download all</button>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-/* Shared state machine for "pick files → run → result". */
-function useJob(notify) {
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState("");
-  const run = async (fn) => {
-    setBusy(true); setError(""); setProgress(0);
-    try { await fn(setProgress); }
-    catch (e) { setError(e?.message || String(e)); notify("Something went wrong — see the message"); }
-    finally { setBusy(false); }
-  };
-  return { busy, progress, error, setError, run };
-}
-
-async function readPdfs(list, notify) {
-  const out = [];
-  for (const f of list) {
-    if (!isPdf(f)) { notify(`${f.name} isn't a PDF`); continue; }
-    if (f.size > MAX_BYTES) { notify(`${f.name} is over ${formatBytes(MAX_BYTES)}`); continue; }
-    const bytes = new Uint8Array(await f.arrayBuffer());
-    let pages = null, err = "";
-    try { pages = await pageCount(bytes, f.name); } catch (e) { err = e.message; }
-    out.push({ id: `${Date.now()}-${Math.random()}`, name: f.name, size: f.size, bytes, pages, err });
-  }
-  return out;
-}
-
-function move(arr, i, d) {
-  const a = [...arr];
-  [a[i], a[i + d]] = [a[i + d], a[i]];
-  return a;
-}
-
-function ErrorNote({ error }) {
-  return error ? <div className="note w" style={{ marginTop: 14 }}><b>Couldn't finish · </b>{error}</div> : null;
-}
-
-function SingleFilePicker({ file, setFile, notify, job }) {
-  const pick = async (list) => {
-    const [f] = await readPdfs(list.slice(0, 1), notify);
-    if (!f) return;
-    if (f.err) { job.setError(f.err); return; }
-    job.setError("");
-    setFile(f);
-  };
-  return file ? (
-    <FileList files={[file]} onRemove={() => setFile(null)} showPages />
-  ) : (
-    <Drop accept="application/pdf,.pdf" label="Drop a PDF here or tap to choose" hint={`Up to ${formatBytes(MAX_BYTES)} · stays on your device`} onFiles={pick} />
-  );
-}
-
-function MergeView({ notify }) {
-  const [files, setFiles] = useState([]);
-  const job = useJob(notify);
-  const add = async (list) => {
-    const got = await readPdfs(list, notify);
-    const bad = got.filter((f) => f.err);
-    if (bad.length) job.setError(bad.map((b) => b.err).join(" "));
-    setFiles((p) => [...p, ...got.filter((f) => !f.err)]);
-  };
-  const total = files.reduce((s, f) => s + (f.pages || 0), 0);
-  return (
-    <>
-      <Drop accept="application/pdf,.pdf" multiple label="Drop PDFs here or tap to choose" hint="Add two or more · reorder with the arrows" onFiles={add} />
-      {files.length > 0 && <FileList files={files} showPages onMove={(i, d) => setFiles((p) => move(p, i, d))} onRemove={(id) => setFiles((p) => p.filter((f) => f.id !== id))} />}
-      {job.busy && <Progress value={job.progress} label="Merging…" />}
-      <button className="btn pri" style={{ marginTop: 14 }} disabled={files.length < 2 || job.busy}
-        onClick={() => job.run(async (p) => {
-          const out = await mergePdfs(files, p);
-          saveBlob(pdfBlob(out), "merged.pdf");
-          notify(`Merged ${files.length} PDFs · ${total} pages · ${formatBytes(out.length)}`);
-        })}>
-        {files.length < 2 ? "Add at least 2 PDFs" : `Merge ${files.length} PDFs (${total} pages)`}
-      </button>
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-function SplitView({ notify }) {
-  const [file, setFile] = useState(null);
-  const [how, setHow] = useState("ranges");
-  const [ranges, setRanges] = useState("1-2");
-  const job = useJob(notify);
-  const parsed = file && how !== "each" ? parsePageRanges(ranges, file.pages) : null;
-  const go = () => job.run(async () => {
-    const groups = how === "each" ? Array.from({ length: file.pages }, (_, i) => [i])
-      : how === "one" ? [parsed.groups.flat()] : parsed.groups;
-    const outs = await extractGroups(file.bytes, file.name, groups);
-    const label = (g) => (g.length === 1 ? `p${g[0] + 1}` : `p${g[0] + 1}-${g[g.length - 1] + 1}`);
-    if (outs.length === 1) saveBlob(pdfBlob(outs[0]), `${base(file.name)}-${how === "one" ? "extract" : label(groups[0])}.pdf`);
-    else saveBlob(new Blob([makeZip(outs.map((o, i) => ({ name: `${base(file.name)}-${label(groups[i])}.pdf`, data: o })))], { type: "application/zip" }), `${base(file.name)}-split.zip`);
-    notify(outs.length === 1 ? "PDF saved" : `${outs.length} PDFs saved as .zip`);
-  });
-  return (
-    <>
-      <SingleFilePicker file={file} setFile={setFile} notify={notify} job={job} />
-      {file && (
-        <div style={{ marginTop: 14 }}>
-          <div className="field">
-            <label htmlFor="pdf-how">How to split</label>
-            <select id="pdf-how" value={how} onChange={(e) => setHow(e.target.value)}>
-              <option value="ranges">Each range → its own PDF</option>
-              <option value="one">Selected pages → one PDF</option>
-              <option value="each">Every page → its own PDF</option>
-            </select>
-          </div>
-          {how !== "each" && (
-            <div className="field">
-              <label htmlFor="pdf-ranges">Pages (1–{file.pages})</label>
-              <input id="pdf-ranges" value={ranges} onChange={(e) => setRanges(e.target.value)} placeholder="e.g. 1-3, 5, 8-" />
-              <div className={parsed?.ok ? "hint" : "hint bad-tx"}>{parsed?.ok ? 'Commas separate ranges. "8-" means page 8 to the end.' : parsed?.error}</div>
-            </div>
-          )}
-          <button className="btn pri" disabled={job.busy || (how !== "each" && !parsed?.ok)} onClick={go}>{job.busy ? "Working…" : "Split PDF"}</button>
-        </div>
-      )}
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-const COMPRESS_LEVELS = {
-  light: { label: "Light — lossless, keeps text selectable", raster: false },
-  balanced: { label: "Strong — pages become images (120 dpi)", raster: true, dpi: 120, quality: 0.7 },
-  max: { label: "Extreme — smallest file (96 dpi, lower quality)", raster: true, dpi: 96, quality: 0.5 },
-};
-
-function CompressView({ notify }) {
-  const [file, setFile] = useState(null);
-  const [level, setLevel] = useState("balanced");
-  const [result, setResult] = useState(null);
-  const job = useJob(notify);
-  const lv = COMPRESS_LEVELS[level];
-  const go = () => job.run(async (p) => {
-    setResult(null);
-    const out = lv.raster ? await compressRaster(file.bytes, file.name, lv, p) : await compressLossless(file.bytes, file.name);
-    setResult({ bytes: out, before: file.size, after: out.length });
-  });
-  const saved = result ? Math.round((1 - result.after / result.before) * 100) : 0;
-  return (
-    <>
-      <SingleFilePicker file={file} setFile={(f) => { setFile(f); setResult(null); }} notify={notify} job={job} />
-      {file && (
-        <div style={{ marginTop: 14 }}>
-          <div className="field">
-            <label htmlFor="pdf-lvl">Compression</label>
-            <select id="pdf-lvl" value={level} onChange={(e) => { setLevel(e.target.value); setResult(null); }}>
-              {Object.entries(COMPRESS_LEVELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-            {lv.raster && <div className="hint">Best for scans and photo-heavy PDFs. Text and links won't be selectable or clickable afterwards.</div>}
-          </div>
-          {job.busy && <Progress value={job.progress} label="Compressing…" />}
-          {!result && <button className="btn pri" disabled={job.busy} onClick={go}>{job.busy ? "Working…" : "Compress PDF"}</button>}
-          {result && (
-            <>
-              <div className="pstat" style={{ marginBottom: 14 }}>
-                <div className="pcell"><div className="k">Before</div><div className="v">{formatBytes(result.before)}</div></div>
-                <div className="pcell"><div className="k">After</div><div className={`v ${saved > 0 ? "gd" : ""}`}>{formatBytes(result.after)}</div></div>
-                <div className="pcell"><div className="k">Saved</div><div className="v">{saved > 0 ? `${saved}%` : "—"}</div></div>
-              </div>
-              {saved <= 0 ? (
-                <div className="note i"><b>Already compact · </b>This setting couldn't make the file smaller.{lv.raster ? " It's likely mostly text — try Light." : " Try Strong for scanned or image-heavy PDFs."}</div>
-              ) : (
-                <button className="btn pri" onClick={() => saveBlob(pdfBlob(result.bytes), `${base(file.name)}-compressed.pdf`)}>Download compressed PDF</button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-function ToImagesView({ notify }) {
-  const [file, setFile] = useState(null);
-  const [type, setType] = useState("image/jpeg");
-  const [dpi, setDpi] = useState(150);
-  const job = useJob(notify);
-  const go = () => job.run(async (p) => {
-    const blobs = await pdfToImages(file.bytes, file.name, { dpi, type, quality: 0.88 }, p);
-    const ext = type === "image/png" ? "png" : "jpg";
-    if (blobs.length === 1) { saveBlob(blobs[0], `${base(file.name)}.${ext}`); return; }
-    const files = await Promise.all(blobs.map(async (b, i) => ({ name: `${base(file.name)}-page-${String(i + 1).padStart(3, "0")}.${ext}`, data: new Uint8Array(await b.arrayBuffer()) })));
-    saveBlob(new Blob([makeZip(files)], { type: "application/zip" }), `${base(file.name)}-images.zip`);
-    notify(`${blobs.length} images saved as .zip`);
-  });
-  return (
-    <>
-      <SingleFilePicker file={file} setFile={setFile} notify={notify} job={job} />
-      {file && (
-        <div style={{ marginTop: 14 }}>
-          <div className="two">
-            <div className="field"><label htmlFor="pdf-it">Format</label>
-              <select id="pdf-it" value={type} onChange={(e) => setType(e.target.value)}><option value="image/jpeg">JPG</option><option value="image/png">PNG</option></select></div>
-            <div className="field"><label htmlFor="pdf-dpi">Resolution</label>
-              <select id="pdf-dpi" value={dpi} onChange={(e) => setDpi(Number(e.target.value))}>
-                <option value={72}>72 dpi · screen</option><option value={150}>150 dpi · standard</option><option value={300}>300 dpi · print</option>
-              </select></div>
-          </div>
-          {job.busy && <Progress value={job.progress} label="Rendering pages…" />}
-          <button className="btn pri" disabled={job.busy} onClick={go}>{job.busy ? "Working…" : `Convert ${file.pages} page${file.pages === 1 ? "" : "s"}`}</button>
-        </div>
-      )}
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-function FromImagesView({ notify }) {
-  const [files, setFiles] = useState([]);
-  const [fit, setFit] = useState("a4");
-  const job = useJob(notify);
-  const add = (list) => {
-    const imgs = list.filter((f) => f.type.startsWith("image/"));
-    if (imgs.length < list.length) notify("Skipped files that aren't images");
-    setFiles((p) => [...p, ...imgs.map((f) => ({ id: `${Date.now()}-${Math.random()}`, name: f.name, size: f.size, file: f, thumb: URL.createObjectURL(f) }))]);
-  };
-  const remove = (id) => setFiles((p) => {
-    const f = p.find((x) => x.id === id);
-    if (f) URL.revokeObjectURL(f.thumb);
-    return p.filter((x) => x.id !== id);
-  });
-  return (
-    <>
-      <Drop accept="image/*" multiple label="Drop images here or tap to choose" hint="JPG, PNG, WebP… one image per page" onFiles={add} />
-      {files.length > 0 && <FileList files={files} onMove={(i, d) => setFiles((p) => move(p, i, d))} onRemove={remove} />}
-      {files.length > 0 && (
-        <div className="field" style={{ marginTop: 14 }}>
-          <label htmlFor="pdf-fit">Page size</label>
-          <select id="pdf-fit" value={fit} onChange={(e) => setFit(e.target.value)}>
-            <option value="a4">A4 with margins (auto portrait/landscape)</option>
-            <option value="image">Same size as each image</option>
-          </select>
-        </div>
-      )}
-      {job.busy && <Progress value={job.progress} label="Building PDF…" />}
-      <button className="btn pri" style={{ marginTop: 6 }} disabled={!files.length || job.busy}
-        onClick={() => job.run(async (p) => {
-          const out = await imagesToPdf(files.map((f) => f.file), fit, p);
-          saveBlob(pdfBlob(out), "images.pdf");
-          notify(`PDF created · ${files.length} page${files.length === 1 ? "" : "s"} · ${formatBytes(out.length)}`);
-        })}>
-        {files.length ? `Create PDF (${files.length} page${files.length === 1 ? "" : "s"})` : "Add images first"}
-      </button>
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-function TextView({ notify }) {
-  const [file, setFile] = useState(null);
-  const [text, setText] = useState(null);
-  const job = useJob(notify);
-  const go = () => job.run(async (p) => {
-    const pages = await extractText(file.bytes, file.name, p);
-    setText(pages.some((t) => t) ? pages.map((t, i) => (pages.length > 1 ? `--- Page ${i + 1} ---\n${t}` : t)).join("\n\n") : "");
-  });
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); notify("Text copied"); }
-    catch { notify("Copy failed — select the text and copy manually"); }
-  };
-  return (
-    <>
-      <SingleFilePicker file={file} setFile={(f) => { setFile(f); setText(null); }} notify={notify} job={job} />
-      {file && text === null && (
-        <>
-          {job.busy && <Progress value={job.progress} label="Reading text…" />}
-          <button className="btn pri" style={{ marginTop: 14 }} disabled={job.busy} onClick={go}>{job.busy ? "Working…" : "Extract text"}</button>
-        </>
-      )}
-      {text === "" && <div className="note i" style={{ marginTop: 14 }}><b>No selectable text · </b>This PDF is probably scanned pages (images). Reading text from images (OCR) isn't supported yet.</div>}
-      {text && (
-        <div style={{ marginTop: 14 }}>
-          <div className="field" style={{ marginBottom: 10 }}>
-            <label htmlFor="pdf-text">Text · {text.length.toLocaleString()} characters</label>
-            <textarea id="pdf-text" readOnly value={text} style={{ height: 320, fontFamily: "var(--body)", fontSize: 13 }} />
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn pri" onClick={copy}>Copy text</button>
-            <button className="btn gh" style={{ whiteSpace: "nowrap" }} onClick={() => saveBlob(new Blob([text], { type: "text/plain" }), `${base(file.name)}.txt`)}>Download .txt</button>
-          </div>
-        </div>
-      )}
-      <ErrorNote error={job.error} />
-    </>
-  );
-}
-
-const VIEWS = { merge: MergeView, split: SplitView, compress: CompressView, toimg: ToImagesView, fromimg: FromImagesView, text: TextView };
-const INTRO = {
-  merge: "Combine several PDFs into one, in the order you choose.",
-  split: "Pull out page ranges, or split every page into its own file.",
-  compress: "Shrink a PDF for email or upload limits.",
-  toimg: "Save each page as a JPG or PNG image.",
-  fromimg: "Turn photos or scans into a single PDF.",
-  text: "Copy the text out of a PDF.",
-};
 
 export default function PdfTool({ notify }) {
-  const [mode, setMode] = useState("merge");
-  const View = VIEWS[mode];
+  const [id, setId] = useState(() => readParams().get("t") || "");
+  useEffect(() => { writeParams({ t: id || null }); }, [id]);
+  const tool = useMemo(() => TOOLS.find((t) => t.id === id), [id]);
+
+  if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={() => setId("")} />;
+
   return (
-    <div>
-      <div className="modes" role="tablist" aria-label="PDF action">
-        {MODES.map(([k, l]) => <button key={k} role="tab" aria-selected={mode === k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>{l}</button>)}
-      </div>
-      <div className="grid2">
-        <div className="panel rise d1">
-          <div className="ph"><h3>{MODES.find(([k]) => k === mode)[1]}</h3><p>{INTRO[mode]}</p></div>
-          <div className="pb"><View key={mode} notify={notify} /></div>
-        </div>
-        <div className="panel rise d2">
-          <div className="ph"><h3>Private by design</h3><p>Your files are processed on this device.</p></div>
-          <div className="pb">
-            <div className="note i"><b>Nothing is uploaded · </b>Every action runs in your browser, so contracts, IDs and bank statements never leave your device. It also works offline once the page has loaded.</div>
-            <div className="hint" style={{ lineHeight: 1.8 }}>
-              • Password-protected PDFs need the password removed first.<br />
-              • Strong compression turns pages into images, so text is no longer selectable.<br />
-              • Text extraction reads real text only. Scanned pages need OCR, which isn't supported yet.<br />
-              • Very large files (hundreds of pages) can take a while on phones.
-            </div>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      {GROUPS.map((g, gi) => (
+        <section key={g} style={{ marginBottom: 20 }}>
+          <h3 style={{ fontSize: 14, color: "var(--tx3)", margin: "0 0 8px" }}>{g}</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 10 }}>
+            {TOOLS.filter((t) => t.g === gi).map((t) => (
+              <button key={t.id} className="panel" onClick={() => setId(t.id)}
+                style={{ textAlign: "left", padding: 14, cursor: "pointer", color: "var(--tx)", border: "1px solid var(--line)" }}>
+                <div style={{ fontSize: 22 }}>{t.icon}</div>
+                <b>{t.name}</b>
+                <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 2 }}>{t.desc}</div>
+              </button>
+            ))}
           </div>
-        </div>
-      </div>
+        </section>
+      ))}
+      <div className="note i"><b>Privacy · </b>every tool here runs locally in your browser — files are never uploaded.</div>
+      <div className="note w" style={{ marginTop: 10 }}><b>Not available (need a server) · </b>{NOT_AVAILABLE.join(" · ")}</div>
     </div>
   );
 }

@@ -29,11 +29,12 @@ const PasswordTool = lazy(() => import("./tools/PasswordTool.jsx"));
 const PromptTool = lazy(() => import("./tools/PromptTool.jsx"));
 const ImageTool = lazy(() => import("./tools/ImageTool.jsx"));
 const PdfTool = lazy(() => import("./tools/PdfTool.jsx"));
+const BreachTool = lazy(() => import("./tools/BreachTool.jsx"));
 const MyAlerts = lazy(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopify: ShopifyTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }

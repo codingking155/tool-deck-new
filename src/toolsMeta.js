@@ -3,11 +3,12 @@
     section and the FAQPage JSON-LD. */
 
 export const TOOLS = [
-  { id: "utc", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Day-wise UTC wait schedules with live countdowns, weekend highlighting, CSV export — plus an order → notification mode that skips weekends.", pv: "utc",
-    blurb: "Build day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export, plus an order → notification mode that skips weekends. Runs entirely in your browser.",
+  { id: "utc", icon: "🕐", big: true, c: "#F97316", name: "UTC Wait-Time Generator", desc: "Day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export — plus an order → target send wait calculator with an hourly UTC table.", pv: "utc",
+    blurb: "Build day-wise UTC wait schedules with live countdowns, weekend highlighting and CSV export, plus an order → target send calculator that gives the wait between an order time and the next send time with an hourly UTC table. Runs entirely in your browser.",
     faqs: [
       ["How do I convert a UTC time to my local time?", "Enter the UTC start time and your timezone; every row shows the matching local time and date, updated live."],
-      ["Does the schedule skip weekends?", "The order → notification mode moves Saturday and Sunday sends to Monday. The day-wise schedule tints weekend rows so you can spot them."],
+      ["How is the order → target send wait calculated?", "Pick the customer's timezone, the order date and time, and the target send time. The tool finds the next matching local send time after the order (or on a fixed send date you choose) and shows the wait, both UTC timestamps and an hourly table, with daylight-saving handled per row."],
+      ["Does the schedule highlight weekends?", "Yes — the day-wise schedule tints weekend rows so you can spot them."],
       ["Can I export the schedule?", "Yes — copy the whole table or download it as CSV. Nothing you enter is stored anywhere."],
     ] },
   { id: "phone", icon: "📞", c: "#06B6D4", name: "Phone → Country", desc: "Paste any number, instantly see its country, flag, formats and timezone.", pv: "globe",
@@ -91,13 +92,23 @@ export const TOOLS = [
       ["How do I compress an image without losing quality?", "Use Compress and keep quality around 70–80 for JPG or WebP; the difference is rarely visible. PNG is lossless, so switch the output to WebP or JPG, or set a max width, for large savings."],
       ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
       ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
-  { id: "pdf", icon: "📄", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, convert and extract text from PDFs — privately, in your browser.", pv: "chart",
-    blurb: "Merge PDFs, split or extract pages, compress for email, convert PDF pages to JPG/PNG or images to PDF, and copy out the text — all in your browser. Files are never uploaded.",
+    ] },
+  { id: "breach", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "scan",
+    blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
     faqs: [
-      ["Are my PDFs uploaded to a server?", "No. Every action runs in your browser, so the files never leave your device."],
-      ["How much can it compress a PDF?", "Light compression is lossless and keeps text selectable but often saves little. Strong compression turns each page into an image — scans and photo-heavy PDFs often shrink by 50–90%, but text is no longer selectable."],
-      ["How do I split a PDF?", "Choose Split, add the PDF and type ranges like 1-3, 5, 8-. Each range becomes its own PDF, or choose to put the selected pages in one file, or split every page."],
-      ["Can it read text from scanned PDFs?", "Not yet. Text extraction reads the real text inside a PDF. Scanned pages are images and would need OCR."],
+      ["How does the email check work?", "Your address is sent to our server, which looks it up in the XposedOrNot breach database and returns the breaches it appears in. Nothing is stored or logged."],
+      ["Is it safe to type my password here?", "Yes. The password is hashed in your browser and only the first 5 characters of the hash are sent (k-anonymity), so neither we nor the service can see it."],
+      ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
+      ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
+    ] },
+  { id: "pdf",icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
+    blurb: "A set of 16 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop and unlock. Everything runs locally in your browser; files are never uploaded.",
+    faqs: [
+      ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser with no server involved, so your documents stay on your device."],
+      ["How good is PDF to Word?", "It recovers the text as editable paragraphs and page breaks. Layout, images and tables are not reproduced, and scanned PDFs (no selectable text) can't be converted without OCR."],
+      ["Does Compress keep my text selectable?", "No. It re-renders pages as compressed images, which is what makes files much smaller. Use a lower level for better quality."],
+      ["Can Unlock remove a password?", "Only restrictions on editing, printing or copying. A PDF that needs a password to open can't be unlocked here."],
+      ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel, OCR, password protection, signing, redaction and PDF text editing."],
     ] },
 ];
 
@@ -106,7 +117,6 @@ export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F973
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
   "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Validate and format JSON",
-  "Check password strength and breaches", "Generate better AI prompts",
-  "Compress and convert images","Merge, split and compress PDFs",
-  "Compress and convert images", "Merge, split and compress PDFs", "Detect Shopify storefronts",
+  "Check password strength and breaches", "Generate better AI prompts", "Compress and convert images",
+  "Merge, split and compress PDFs", "Detect Shopify storefronts", "Check if your email was in a breach",
 ];

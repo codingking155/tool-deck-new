@@ -31,7 +31,7 @@ export default function ZonePicker({ value, onChange, allowNone }) {
             {results.map((e) => (
               <button key={e.zone} type="button" className="zitem" role="option" aria-selected={e.zone === value}
                 onClick={() => { onChange(e.zone); setOpen(false); }}>
-                <span>{e.flag}</span><span>{e.label}</span><span className="zo">{offsetLabel(e.zone)}</span>
+                <span>{e.flag}</span><span className="zl"><span>{e.label}</span><span className="zz">{e.zone}</span></span><span className="zo">{offsetLabel(e.zone)}</span>
               </button>
             ))}
           </div>
