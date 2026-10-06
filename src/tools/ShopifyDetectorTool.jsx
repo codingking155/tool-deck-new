@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import RecentChecks from '../components/RecentChecks.jsx';
 import { hostOf, addRecent, loadRecent, saveRecent } from '../lib/recentChecks.js';
 import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
@@ -12,8 +12,6 @@ export default function ShopifyDetectorTool() {
   const [error, setError] = useState(null);
   const [showTechnical, setShowTechnical] = useState(false);
   const [copied, setCopied] = useState(false);
-  const abortRef = useRef(null);
-  useEffect(() => () => abortRef.current?.abort(), []);
   const [recent, setRecent] = useState(() => loadRecent(RECENT_KEY));
   useEffect(() => {
     const host = result && hostOf(result.url);
@@ -28,17 +26,6 @@ export default function ShopifyDetectorTool() {
       return;
     }
 
-    if (/\s/.test(trimmed) || !hostOf(trimmed)?.includes('.')) {
-      setError('That does not look like a website address. Try something like example-store.com.');
-      return;
-    }
-
-    // Cancel any in-flight check so a slow older response can't overwrite a newer one.
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    const timer = setTimeout(() => ctrl.abort('timeout'), 20000);
-
     try {
       setLoading(true);
       setError(null);
@@ -51,19 +38,15 @@ export default function ShopifyDetectorTool() {
         {
           headers: { Accept: 'application/json' },
           mode: 'cors',
-          signal: ctrl.signal,
         }
       );
 
       if (!response.ok) {
-        let reason = '';
-        try { const j = await response.json(); reason = j.error || j.message || ''; } catch { /* non-JSON error body */ }
-        throw new Error(reason || (response.status === 429 ? 'Too many checks right now. Please wait a moment and try again.' : 'Failed to check URL. Please try again.'));
+        throw new Error('Failed to check URL. Please try again.');
       }
 
       const data = await response.json();
-      if (ctrl.signal.aborted) return;
-      const confidence = Math.min(1, Math.max(0, Number(data.confidence) || 0));
+      const confidence = data.confidence ?? 0;
       
       let message = '';
       let details = '';
@@ -88,7 +71,7 @@ export default function ShopifyDetectorTool() {
       }
 
       setResult({
-        url: data.final_url || data.input_url || trimmed,
+        url: data.final_url || data.input_url,
         isShopify: data.is_shopify,
         confidence,
         message,
@@ -99,13 +82,9 @@ export default function ShopifyDetectorTool() {
         elapsed_ms: data.elapsed_ms,
       });
     } catch (err) {
-      if (abortRef.current !== ctrl) return; // superseded by a newer check
-      if (ctrl.signal.aborted) setError('The check took too long. Please try again.');
-      else if (err instanceof TypeError) setError('Could not reach the detection service. Check your connection and try again.');
-      else setError(err instanceof Error ? err.message : 'Something went wrong while checking that site.');
+      setError(err instanceof Error ? err.message : 'Something went wrong while checking that site.');
     } finally {
-      clearTimeout(timer);
-      if (abortRef.current === ctrl) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -126,7 +105,7 @@ export default function ShopifyDetectorTool() {
   const handleVisit = () => {
     if (result) {
       const targetUrl = /^https?:\/\//i.test(result.url) ? result.url : `https://${result.url}`;
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      window.open(targetUrl, '_blank');
     }
   };
 
@@ -153,18 +132,25 @@ export default function ShopifyDetectorTool() {
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+          <div style={{ padding: '10px', backgroundColor: 'rgba(255, 138, 42, 0.1)', borderRadius: '8px' }}>
+            <Zap size={20} style={{ color: 'var(--pri)' }} />
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 600 }}>Shopify Detector</h1>
+        </div>
+        <p style={{ color: 'var(--tx3)', fontSize: '14px' }}>
+          Quickly detect if a website is powered by Shopify with instant verification
+        </p>
+      </div>
+
       {/* Form */}
       <form onSubmit={handleSubmit} style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <input
             type="text"
-            inputMode="url"
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            aria-label="Website URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Enter website URL (e.g., example-store.com)"
@@ -208,7 +194,7 @@ export default function ShopifyDetectorTool() {
             {loading ? 'Checking...' : 'Check Now'}
           </button>
         </div>
-        <RecentChecks items={recent} onPick={(h) => { setUrl(h); checkUrl(h); }} onClear={() => { setRecent([]); saveRecent(RECENT_KEY, []); }} />
+        <RecentChecks items={recent} onPick={(h) => setUrl(h)} onClear={() => { setRecent([]); saveRecent(RECENT_KEY, []); }} />
       </form>
 
       {/* Error */}
@@ -344,7 +330,7 @@ export default function ShopifyDetectorTool() {
                       • {signal}
                     </div>
                   ))}
-                  {result.elapsed_ms > 0 && <p style={{ marginTop: '8px', color: 'var(--tx3)' }}>Detection took {result.elapsed_ms}ms</p>}
+                  {result.elapsed_ms && <p style={{ marginTop: '8px', color: 'var(--tx3)' }}>Detection took {result.elapsed_ms}ms</p>}
                 </div>
               )}
             </div>
