@@ -20,7 +20,7 @@ const HEADER_SAMPLE_KEYS = [
 const cache = new Map<string, { at: number; body: unknown }>();
 const TTL = 10 * 60 * 1000;
 
-/* Live endpoint probes: /cart.js, /products.json and robots.txt exist on
+/* Live endpoint probes: /cart.js, /products.json, robots.txt and meta.json exist on
    every Shopify storefront and answer with characteristic content. A page
    can fake MENTIONS of Shopify; it cannot fake the platform answering.
    Absence is not negative evidence (headless stores disable these), and
@@ -46,10 +46,11 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
     } catch { return null; }
   };
 
-  const [cartRaw, prodRaw, robotsRaw] = await Promise.all([
+  const [cartRaw, prodRaw, robotsRaw, metaRaw] = await Promise.all([
     get("/cart.js", 128 * 1024),
     get("/products.json?limit=1", 256 * 1024),
     get("/robots.txt", 32 * 1024),
+    get("/meta.json", 32 * 1024),   // store identity: { myshopify_domain, … }
   ]);
 
   const probes: Record<string, unknown> = {};
@@ -73,6 +74,12 @@ async function probeEndpoints(origin: string, signal: AbortSignal) {
   }
   if (robotsRaw != null) {
     probes.robots = { shopify: /shopify/i.test(robotsRaw) && /sitemap\.xml/i.test(robotsRaw) };
+  }
+  if (metaRaw != null) {
+    try {
+      const j = JSON.parse(metaRaw);
+      if (typeof j?.myshopify_domain === "string") probes.meta = { domain: j.myshopify_domain };
+    } catch { /* not JSON — not a storefront meta endpoint */ }
   }
   return { probes, probeHeaders };
 }
