@@ -1,4 +1,5 @@
-/** Tool registry — the only place a tool is declared. Adding a tool here plus a
+/** Tool registry — the only place a tool is declared. `beta: true` marks a tool that is
+    not fully functional yet: it gets a Beta badge everywhere and is listed last. Adding a tool here plus a
     lazy component in App.jsx is the entire wiring. FAQs feed both the visible
     section and the FAQPage JSON-LD. */
 
@@ -40,13 +41,6 @@ export const TOOLS = [
       ["What do the leak checks tell me?", "The WebRTC check shows whether your browser exposes a public or local address that differs from what websites see. The DNS check lists which DNS servers answer your lookups, so you can tell whether a VPN is handling them or your ISP still is."],
       ["Is my IP address stored?", "No. Addresses are read from the network and shown only to you; this page never logs them."],
     ] },
-  { id: "price", where: "server", cat: "Shopping & web", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
-    blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
-    faqs: [
-      ["How do I track an Amazon price?", "Paste the product link — any format, including app share links. You get the live price, availability and the history recorded so far, and the product keeps being checked automatically."],
-      ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
-      ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
-    ] },
   { id: "json", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "braces",
     blurb: "Validate JSON as you type with the exact line of any error, and auto-fix broken JSON (trailing commas, single quotes, comments, unquoted keys). Beautify or minify, explore a searchable tree, compare two documents, query with JSONPath, and generate TypeScript interfaces, JSON Schema, YAML or CSV. Large IDs are kept exactly. Runs entirely in your browser.",
     faqs: [
@@ -55,14 +49,6 @@ export const TOOLS = [
       ["How does Compare work?", "Paste two versions and you get every added, removed and changed value with its path. Key order is ignored, and arrays of objects with an id, _id, uuid or key field are matched by that field, so a reordered list isn't reported as all changed."],
       ["Can I generate TypeScript types from JSON?", "Yes — Convert → TypeScript interfaces. All items in an array are merged, so fields missing from some items become optional and mixed types become unions. JSON Schema (draft 2020-12) works the same way."],
       ["Is my JSON stored or uploaded?", "No. Everything runs in your browser; nothing is sent anywhere or saved."],
-    ] },
-  { id: "ssl", where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "Check whether a site's HTTPS certificate is trusted right now, and when it expires.", pv: "lock",
-    blurb: "Enter a domain to test a live TLS handshake (is the certificate trusted, unexpired and issued for that name?) and see the latest certificate logged for it in public Certificate Transparency logs: issuer, validity dates, covered names and days to expiry.",
-    faqs: [
-      ["How does the check work?", "Our server opens a real TLS connection to the domain on port 443. If the handshake succeeds, browsers will trust the certificate today. If it fails, you see why: expired, not yet valid, issued for a different name, untrusted issuer or unreachable."],
-      ["Where do the certificate details come from?", "From public Certificate Transparency logs, which every publicly trusted certificate must appear in. The tool shows the most recent unexpired certificate logged for the domain (or its wildcard), with issuer, validity dates and the names it covers."],
-      ["What does 'Days left' mean?", "Days until that certificate expires. Under 30 days is flagged as a warning and under 7 days as critical; most sites renew automatically well before then."],
-      ["Can I check internal or IP-only hosts?", "No. To keep the checker from being used to probe private networks, only public domain names are accepted."],
     ] },
   { id: "password", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "dots",
     blurb: "Check password strength with client-side entropy calculation (charset and length). Verify against HaveIBeenPwned's 700+ million breached passwords using k-anonymity (your password is never sent to any API).",
@@ -105,7 +91,25 @@ export const TOOLS = [
       ["Is the signature legally binding?", "Sign PDF stamps a visual signature, like signing on paper. It is not a certificate-based digital signature, so check whether your use case needs one."],
       ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel/PDF-A, redaction and PDF text editing."],
     ] },
+  /* ── beta: depends on setup that isn't verified end-to-end yet; listed last ── */
+  { id: "price", beta: true, where: "server", cat: "Shopping & web", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
+    blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
+    faqs: [
+      ["How do I track an Amazon price?", "Paste the product link — any format, including app share links. You get the live price, availability and the history recorded so far, and the product keeps being checked automatically."],
+      ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
+      ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
+    ] },
+  { id: "ssl", beta: true, where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "Check whether a site's HTTPS certificate is trusted right now, and when it expires.", pv: "lock",
+    blurb: "Enter a domain to test a live TLS handshake (is the certificate trusted, unexpired and issued for that name?) and see the latest certificate logged for it in public Certificate Transparency logs: issuer, validity dates, covered names and days to expiry.",
+    faqs: [
+      ["How does the check work?", "Our server opens a real TLS connection to the domain on port 443. If the handshake succeeds, browsers will trust the certificate today. If it fails, you see why: expired, not yet valid, issued for a different name, untrusted issuer or unreachable."],
+      ["Where do the certificate details come from?", "From public Certificate Transparency logs, which every publicly trusted certificate must appear in. The tool shows the most recent unexpired certificate logged for the domain (or its wildcard), with issuer, validity dates and the names it covers."],
+      ["What does 'Days left' mean?", "Days until that certificate expires. Under 30 days is flagged as a warning and under 7 days as critical; most sites renew automatically well before then."],
+      ["Can I check internal or IP-only hosts?", "No. To keep the checker from being used to probe private networks, only public domain names are accepted."],
+    ] },
 ];
+
+export const BETA_HINT = "This tool is still being finished — results may sometimes be unavailable or incomplete.";
 
 export const CATEGORIES = ["All", "Time & network", "Shopping & web", "Files & documents", "Developer", "Security"];
 

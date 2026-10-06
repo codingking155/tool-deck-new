@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
 import ToolIcon from "./components/ToolIcon.jsx";
 import { Search, Sun, Moon } from "lucide-react";
-import { TOOLS, tint } from "./toolsMeta.js";
+import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
@@ -224,7 +224,8 @@ export default function App() {
             <div className="tpage" key={tool.id}>
               <nav className="crumb" aria-label="Breadcrumb"><Crumb href="/" nav={nav}>← All tools</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">{tool.name}</span></nav>
               <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
-                <div><h1>{tool.name}</h1><p>{tool.desc}</p></div></div>
+                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>
+              {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
                   <ToolView notify={notify} nav={nav} arg={toolArg} />

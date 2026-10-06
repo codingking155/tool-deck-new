@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
-import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
+import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL, BETA_HINT } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
 import ToolIcon from "../components/ToolIcon.jsx";
@@ -92,7 +92,10 @@ export default function Home({ nav, reduced }) {
             <Preview kind={t.pv} />
             <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}><ToolIcon tool={t} /></div>
             <h2>{t.name}</h2>
-            {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
+            <span className="badges">
+              {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
+              {t.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}
+            </span>
             <p>{t.desc}</p>
             <span className="open" aria-hidden="true">Open tool <i>→</i></span>
           </a>

@@ -799,9 +799,9 @@ table.rt.pt-table{min-width:520px}
   .bento{gap:10px;margin-top:12px}
   .bcard,.bcard.big{display:grid;grid-template-columns:44px 1fr;column-gap:12px;align-items:start;padding:14px}
   .bcard .bic{grid-row:1/4;margin:0}
-  .bcard h2,.bcard .wbadge,.bcard p{grid-column:2}
+  .bcard h2,.bcard .badges,.bcard p{grid-column:2}
   .bcard h2{font-size:16px}
-  .bcard .wbadge{justify-self:start;margin:3px 0 2px}
+  .bcard .badges{justify-self:start}.bcard .badges>*{margin:3px 0 2px}
   .bcard p{margin-top:2px;font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .bcard .open{display:none}
   .crumb{position:sticky;top:0;z-index:15;margin:0 -14px 14px;padding:6px 14px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);white-space:nowrap}
@@ -832,3 +832,9 @@ table.rt.pt-table{min-width:520px}
 /* paired fields: let children shrink, and stack on the narrowest phones */
 .two>*,.three>*{min-width:0}
 @media(max-width:360px){.two,.three{grid-template-columns:1fr}}
+/* Beta tools: badge on cards, tool header and palette */
+.badges{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.badges .wbadge{margin:2px 0 6px}
+.betabadge{display:inline-block;vertical-align:middle;font-family:var(--body);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin:2px 0 6px;
+  color:var(--tx);background:var(--panel2);border:1px dashed var(--line-strong)}
+.thead h1 .betabadge{margin:0 0 0 10px;font-size:10.5px;position:relative;top:-3px}
