@@ -41,10 +41,18 @@ test("unrecognised payload is null, never an empty 'clear' list", () => {
   assert.equal(parseXonAnalytics({}), null);
   assert.equal(parseXonAnalytics(null), null);
   assert.equal(parseXonAnalytics({ ExposedBreaches: null }), null);
+  // Current XON "clean address" reply: 200 with null breaches + an empty summary.
+  assert.deepEqual(parseXonAnalytics({
+    BreachesSummary: { domain: "", site: "", tmpstmp: "" }, PastesSummary: { cnt: 0, domain: "", tmpstmp: "" },
+    ExposedBreaches: null, ExposedPastes: null, BreachMetrics: null, PasteMetrics: null,
+  }), []);
+  assert.equal(parseXonAnalytics({ BreachesSummary: {}, ExposedBreaches: {} }), null);
 });
 
 test("only a genuine 404 'Not found' means clean", () => {
   assert.ok(isXonNotFound(404, { Error: "Not found" }));
+  assert.ok(isXonNotFound(404, { detail: "Not found" }));
+  assert.ok(!isXonNotFound(404, { detail: "Breach not found" }));
   assert.ok(!isXonNotFound(404, {}));
   assert.ok(!isXonNotFound(500, { Error: "Not found" }));
 });
