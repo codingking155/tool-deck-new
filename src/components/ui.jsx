@@ -8,7 +8,7 @@ export const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.te
 /* Small, deliberately un-generic building blocks shared by the shell and the tools.
    Styling lives in styles.css (section 5); these only add structure + behaviour. */
 
-const WHERE_ICON = { device: ShieldCheck, tooldeck: Server, external: Globe2, mixed: SplitSquareHorizontal };
+const WHERE_ICON = { device: ShieldCheck, server: Globe2, tooldeck: Server, external: Globe2, mixed: SplitSquareHorizontal };
 
 /** Where a tool's input is processed — label + icon, explanation on hover/focus and for screen readers. */
 export function PrivacyBadge({ where }) {

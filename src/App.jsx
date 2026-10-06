@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
 import ToolIcon from "./components/ToolIcon.jsx";
-import { Search, Sun, Moon } from "lucide-react";
+import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
+import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
 import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
@@ -168,6 +169,8 @@ export default function App() {
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
   const ToolView = tool ? TOOL_VIEWS[tool.id] : null;
+  const ti = tool ? TOOLS.indexOf(tool) : 0;
+  const prevTool = TOOLS[(ti - 1 + TOOLS.length) % TOOLS.length], nextTool = TOOLS[(ti + 1) % TOOLS.length];
 
   const isHome = route === "/" || route === "/index.html" || route === "";
   const notFound = !tool && !isAlertsPage && !isHome;
@@ -229,10 +232,23 @@ export default function App() {
           )}
           {tool && (
             <div className="tpage" key={tool.id}>
-              <nav className="crumb" aria-label="Breadcrumb"><Crumb href="/" nav={nav}>← All tools</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">{tool.name}</span></nav>
-              <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
-                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>
-              {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
+              <nav className="crumb tcrumb" aria-label="Breadcrumb">
+                <Crumb href="/" nav={nav}><ArrowLeft size={15} aria-hidden="true" />All tools</Crumb>
+                <span className="sep" aria-hidden="true">/</span>
+                <span className="cur" aria-current="page">{tool.cat}</span>
+                <span className="nx">
+                  <Crumb href={`/tool/${prevTool.id}`} nav={nav} aria-label={`Previous tool: ${prevTool.name}`} title={prevTool.name}><ChevronLeft size={16} aria-hidden="true" /></Crumb>
+                  <Crumb href={`/tool/${nextTool.id}`} nav={nav} aria-label={`Next tool: ${nextTool.name}`} title={nextTool.name}><span>Next</span><ChevronRight size={16} aria-hidden="true" /></Crumb>
+                </span>
+              </nav>
+              <div className="thead tv3"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
+                <div className="tmain">
+                  <h1>{tool.name}{tool.beta && <BetaBadge />}</h1>
+                  <p>{tool.desc}</p>
+                  <div className="badges"><PrivacyBadge where={tool.where} /></div>
+                </div>
+              </div>
+              {tool.beta && <p className="betanote"><FlaskConical size={14} aria-hidden="true" />{BETA_HINT}</p>}
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
                   <div className={V3_TOOLS.has(tool.id) ? "v3tool" : undefined}><ToolView notify={notify} nav={nav} arg={toolArg} /></div>
