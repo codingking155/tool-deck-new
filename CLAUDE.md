@@ -4,15 +4,10 @@ Vite + React 18 SPA (`src/`), Supabase Edge Functions (`supabase/functions/`, De
 modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own Vercel project).
 
 ## Commands
-- `npm run check` — quiet tests + build (prints only failures). Run before every commit. Use this, not `npm test`,
-  unless you need per-test names (`npm test`).
-- `npx vite preview --port 4173` to browse a build; `npm run preview:csp` serves it with vercel.json's CSP/security
-  headers (after touching anything that loads/fetches a new origin, update the CSP in vercel.json).
-- e2e: `npm run e2e -- <filter…>` (e.g. `npm run e2e -- pdf ip`) builds like CI, serves with the CSP, runs only the
-  matching scenarios, prints just failures + summary, and stops the server. NEVER run e2e in any task (the
-  owner's rule, to save tokens) — not to verify, debug or before merging — unless the user explicitly asks for it
-  in that session. CI (`.github/workflows/ci.yml`) runs the suite; `npm run check` is the local gate. Raw `p.mouse` drawing must emulate reduced motion
-  (decorative spiders swallow pointerdown).
+- `npm run check` — quiet tests + build; the local gate before every commit (`npm test` only for per-test names).
+- `npm run preview:csp` serves a build with vercel.json's CSP; a new fetched/loaded origin needs a CSP update there.
+- e2e (`npm run e2e -- <filter…>`): NEVER run it unless the user asks in that session — CI runs the suite.
+  Raw `p.mouse` drawing in e2e must emulate reduced motion (decorative spiders swallow pointerdown).
 - Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
 
@@ -32,11 +27,11 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
   Claude-Session lines given by the harness; don't open PRs unless asked.
 
 ## Working efficiently (token use)
-- Read only the files/lines needed; prefer Grep over reading whole files. Don't read `node_modules`, `dist`,
-  `shopify-detector/.next`, lockfiles or fonts.
+- Read only the lines needed; Grep before Read. Build output, deps, lockfiles and fonts are read-blocked in settings.
 - Delegate wide searches or reviews to a subagent so only the conclusion returns.
-- Don't schedule recurring check-ins or PR subscriptions unless asked; stop them once the PR is green.
-- Keep final replies short; put detail in commit messages / PR descriptions.
-- Long jobs: run in the background and wait for the completion notice once; don't poll, `sleep`-loop or stream
-  logs with Monitor. Read outputs through `tail`/`grep`, never whole logs.
-- Debug flaky tests by capturing the failing locator + a screenshot on the first failure, not by re-running blindly.
+- No recurring check-ins or PR subscriptions unless asked.
+- Long jobs: background them and wait for the one completion notice; no polling, sleep loops or Monitor log
+  streams. Read output via `tail`/`grep`.
+- Screenshots only for a visual change: at most one, of the element (`locator.screenshot`), never full-page.
+- Flaky test: capture the failing locator + one screenshot on the first failure; don't re-run blindly.
+- Keep replies short; detail goes in commit messages / PR descriptions.
