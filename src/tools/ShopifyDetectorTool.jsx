@@ -1,9 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import RecentChecks from '../components/RecentChecks.jsx';
-import { hostOf, addRecent, loadRecent, saveRecent } from '../lib/recentChecks.js';
+import React, { useState, useCallback } from 'react';
 import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
-
-const RECENT_KEY = "toolDeck.shopifyDetectorRecent";
 
 export default function ShopifyDetectorTool() {
   const [url, setUrl] = useState('');
@@ -12,12 +8,6 @@ export default function ShopifyDetectorTool() {
   const [error, setError] = useState(null);
   const [showTechnical, setShowTechnical] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [recent, setRecent] = useState(() => loadRecent(RECENT_KEY));
-  useEffect(() => {
-    const host = result && hostOf(result.url);
-    if (!host) return;
-    setRecent((r) => { const next = addRecent(r, { host, label: result.isShopify ? "Shopify" : "Not Shopify" }); saveRecent(RECENT_KEY, next); return next; });
-  }, [result]);
 
   const checkUrl = useCallback(async (urlToCheck) => {
     const trimmed = urlToCheck.trim();
@@ -95,10 +85,9 @@ export default function ShopifyDetectorTool() {
 
   const handleCopy = () => {
     if (result) {
-      // Only confirm once the write actually succeeded (it can be refused).
-      (navigator.clipboard ? navigator.clipboard.writeText(result.url) : Promise.reject(new Error('no clipboard')))
-        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
-        .catch(() => setCopied(false));
+      navigator.clipboard.writeText(result.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -111,24 +100,23 @@ export default function ShopifyDetectorTool() {
 
   const getStatusIcon = () => {
     if (!result) return null;
-    if (result.isShopify) return <CheckCircle size={24} style={{ color: 'var(--good)' }} />;
-    if (result.confidence > 0.3) return <AlertCircle size={24} style={{ color: 'var(--warn)' }} />;
-    return <XCircle size={24} style={{ color: 'var(--bad)' }} />;
+    if (result.isShopify) return <CheckCircle className="w-6 h-6" style={{ color: '#00A56A' }} />;
+    if (result.confidence > 0.3) return <AlertCircle className="w-6 h-6" style={{ color: '#FFC453' }} />;
+    return <XCircle className="w-6 h-6" style={{ color: '#D72C0D' }} />;
   };
 
-  /* plain values: this project has no Tailwind, so utility class names never applied */
-  // Theme tokens, not fixed pastels: a light tint stays readable under
-  // var(--tx) text in both the dark (default) and light themes.
-  const statusToken = () => (result.isShopify ? '--good' : result.confidence > 0.3 ? '--warn' : '--bad');
-
   const getStatusColor = () => {
-    if (!result) return undefined;
-    return `var(${statusToken()})`;
+    if (!result) return '';
+    if (result.isShopify) return 'text-[#00A56A]';
+    if (result.confidence > 0.3) return 'text-[#FFC453]';
+    return 'text-[#D72C0D]';
   };
 
   const getStatusBg = () => {
-    if (!result) return undefined;
-    return `color-mix(in srgb, var(${statusToken()}) 14%, transparent)`;
+    if (!result) return '';
+    if (result.isShopify) return 'bg-[#E6F7F1]';
+    if (result.confidence > 0.3) return 'bg-[#FFF8E6]';
+    return 'bg-[#FFF0ED]';
   };
 
   return (
@@ -194,7 +182,6 @@ export default function ShopifyDetectorTool() {
             {loading ? 'Checking...' : 'Check Now'}
           </button>
         </div>
-        <RecentChecks items={recent} onPick={(h) => setUrl(h)} onClear={() => { setRecent([]); saveRecent(RECENT_KEY, []); }} />
       </form>
 
       {/* Error */}
@@ -272,7 +259,7 @@ export default function ShopifyDetectorTool() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', marginBottom: '16px', fontSize: '12px', fontFamily: 'monospace' }}>
             <Globe size={14} style={{ color: 'var(--tx3)' }} />
             <span style={{ wordBreak: 'break-all' }}>{result.url}</span>
-            {result.shop_domain && <span style={{ color: 'var(--good)', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
+            {result.shop_domain && <span style={{ color: '#008060', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
           </div>
 
           {/* Message */}
@@ -286,7 +273,7 @@ export default function ShopifyDetectorTool() {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
                 <span style={{ fontWeight: 500 }}>Detection Confidence</span>
-                <span style={{ fontWeight: 600, color: 'var(--good)' }}>{Math.round(result.confidence * 100)}%</span>
+                <span style={{ fontWeight: 600, color: '#008060' }}>{Math.round(result.confidence * 100)}%</span>
               </div>
               <div style={{ height: '8px', backgroundColor: 'var(--panel2)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div

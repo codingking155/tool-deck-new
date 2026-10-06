@@ -197,31 +197,6 @@ await scenario("IP: WebRTC leak check flags a public address that differs from t
   await p.route("https://api.ipify.org/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS, body: '{"ip":"203.0.113.9"}' }));
 } });
 
-await scenario("Shopify Store Detector: recent checks are saved per host, reusable, persistent and clearable", async (p) => {
-  await p.goto(`${BASE}/tool/shopifydetector`);
-  await p.getByPlaceholder(/Enter website URL/).fill("https://www.Demo-Store.com/products/x");
-  await p.getByRole("button", { name: "Check Now" }).click();
-  const chip = p.locator(".pillrow .pill", { hasText: "demo-store.com" });
-  await chip.waitFor({ timeout: 15000 });
-  assert.match(await chip.innerText(), /Shopify/);
-  await p.reload();
-  await chip.waitFor({ timeout: 15000 });
-  await p.getByPlaceholder(/Enter website URL/).fill("");
-  await chip.click();
-  assert.equal(await p.getByPlaceholder(/Enter website URL/).inputValue(), "demo-store.com");
-  await p.getByRole("button", { name: "Clear" }).click();
-  assert.equal(await chip.count(), 0);
-}, { mock: async (p) => {
-  await p.route("https://api.shopifyornot.in/**", (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS,
-    body: JSON.stringify({ is_shopify: true, confidence: 97, final_url: "https://demo-store.com/", detected_signals: ["cdn.shopify.com"], shop_domain: "demo.myshopify.com", elapsed_ms: 120 }) }));
-} });
-
-const fireInstallEvent = (p) => p.evaluate(() => {
-  const e = new Event("beforeinstallprompt", { cancelable: true });
-  e.prompt = () => { window.__installPrompted = true; };
-  e.userChoice = Promise.resolve({ outcome: "accepted" });
-  window.dispatchEvent(e);
-});
 const installBox = (p) => p.getByRole("region", { name: "Install ToolDeck" });
 
 await scenario("Install prompt: appears once for a new user after a delay, 'Not now' really closes it, and it never returns", async (p) => {
