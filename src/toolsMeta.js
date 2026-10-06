@@ -53,11 +53,19 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
+  { id: "image", icon: "🖼️", c: "#14B8A6", name: "Image Compressor & Converter", desc: "Compress, resize, crop, convert, rotate, watermark, edit, meme and blur images — in your browser, nothing uploaded.", pv: "image",
+    blurb: "Nine image tools in one: compress, resize, crop, convert (JPG, PNG, WebP, AVIF), rotate & flip, watermark, photo editor, meme maker and blur/redact. Batch up to 40 images and download them as a ZIP. Everything runs locally in your browser, so your photos never leave your device.",
+    faqs: [
+      ["Are my images uploaded anywhere?", "No. Every tool runs on your device using the browser's canvas — files are never sent to a server."],
+      ["How do I compress an image without losing quality?", "Use Compress and keep quality around 70–80 for JPG or WebP; the difference is rarely visible. PNG is lossless, so switch the output to WebP or JPG, or set a max width, for large savings."],
+      ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
+      ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
+    ] },
 ];
 
 export const tint = (hex, a) => hex + a; /* hex + alpha suffix, e.g. tint('#F97316','22') */
 
 export const ROTATE = [
   "Generate UTC wait-time schedules", "Find a phone number's country", "Check whether a site runs Shopify",
-  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts",
+  "Test your internet speed", "Check if IPv6 is enabled", "Track Amazon prices", "Detect Shopify storefronts", "Compress and convert images",
 ];
