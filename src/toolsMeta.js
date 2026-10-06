@@ -36,7 +36,7 @@ export const TOOLS = [
   { id: "ip", where: "server", cat: "Time & network", icon: "🌐", c: "#8B5CF6", name: "My IP & IPv6 Test", desc: "Public IPv4/IPv6, ISP, and honest IPv6 guidance with enable steps.", pv: "packets",
     blurb: "See your public IPv4 and IPv6 addresses, ISP, and browser details, with honest guidance for enabling IPv6 on Android, iPhone, Windows, macOS and routers — plus WebRTC and DNS leak checks to see whether a VPN is really hiding you.",
     faqs: [
-      ["How do I check if IPv6 is enabled?", "Run the check; if a public IPv6 address is detected, your connection is dual-stack. If not, the panel shows how to enable it per device."],
+      ["How do I check if IPv6 is enabled?", "Open this tool — it checks automatically. It asks an IPv6-only server for your address, so if one is detected, your connection is dual-stack. If not, the panel shows how to enable it per device."],
       ["Does IPv6 make the internet faster?", "Not by itself. IPv6 gives a far larger address space and can improve direct connectivity, but speed depends on your ISP, router and device."],
       ["What do the leak checks tell me?", "The WebRTC check shows whether your browser exposes a public or local address that differs from what websites see. The DNS check lists which DNS servers answer your lookups, so you can tell whether a VPN is handling them or your ISP still is."],
       ["Is my IP address stored?", "No. Addresses are read from the network and shown only to you; this page never logs them."],
