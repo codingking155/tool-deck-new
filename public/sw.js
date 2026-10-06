@@ -1,6 +1,6 @@
 /* ToolDeck BLR service worker — app-shell + runtime caching.
    Bump CACHE when you deploy new assets. */
-const CACHE = "tooldeck-v6";
+const CACHE = "tooldeck-v5";
 const MAX_ENTRIES = 80;
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 

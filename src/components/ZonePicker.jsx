@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useId } from "react";
 import { ZONES, searchZones, canonicalZone } from "../lib/timezones.js";
 import { offsetLabel } from "../lib/time.js";
-import { Globe2, Ban } from "lucide-react";
 
 /** `id` names the trigger button; `labelledBy` is the id of the visible field label. */
 export default function ZonePicker({ value, onChange, allowNone, id, labelledBy }) {
@@ -28,7 +27,7 @@ export default function ZonePicker({ value, onChange, allowNone, id, labelledBy 
   return (
     <div className="zwrap" ref={ref}>
       <button type="button" ref={btn} id={btnId} aria-labelledby={labelledBy ? `${labelledBy} ${btnId}` : undefined} className="zbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setOpen(!open); setQ(""); setAct(0); }}>
-        <span className="zflag" aria-hidden="true">{sel ? sel.flag : <Globe2 size={16} />}</span>
+        <span>{sel ? sel.flag : "🌐"}</span>
         <span className="nm">{sel ? sel.label : allowNone ? "None (optional)" : "Select timezone"}</span>
         <span className="off">{value ? offsetLabel(value) : ""}</span>
       </button>
@@ -42,12 +41,12 @@ export default function ZonePicker({ value, onChange, allowNone, id, labelledBy 
               else if (e.key === "Enter" && results[act]) { e.preventDefault(); pick(results[act].zone); }
             }} />
           <div className="zlist" role="listbox" id={listId} ref={list}>
-            {allowNone && <button type="button" className="zitem" onClick={() => pick("")}><Ban size={15} aria-hidden="true" /><span>None</span></button>}
+            {allowNone && <button type="button" className="zitem" onClick={() => pick("")}>🚫 <span>None</span></button>}
             {results.length === 0 && <div className="zempty">No match for “{q}”.</div>}
             {results.map((e, i) => (
               <button key={e.zone} id={`${listId}-${i}`} data-active={i === act} type="button" className="zitem" role="option" aria-selected={e.zone === value} tabIndex={-1}
                 onClick={() => pick(e.zone)}>
-                <span aria-hidden="true">{e.flag}</span><span className="zl"><span>{e.label}</span><span className="zz">{e.zone}</span></span><span className="zo">{offsetLabel(e.zone)}</span>
+                <span>{e.flag}</span><span className="zl"><span>{e.label}</span><span className="zz">{e.zone}</span></span><span className="zo">{offsetLabel(e.zone)}</span>
               </button>
             ))}
           </div>

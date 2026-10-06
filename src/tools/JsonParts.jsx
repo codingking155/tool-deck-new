@@ -1,11 +1,14 @@
 import { memo, useState, useMemo, useDeferredValue, useEffect } from "react";
-import { Search, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, TextSearch, Plus, Minus, PenLine } from "lucide-react";
 import { BigNum, isContainer, formatPath, stringify, diffJSON } from "../lib/jsonCore.js";
-import { CopyButton, StatusBadge, Notice } from "../components/ui.jsx";
 
 const CHUNK = 100;
 const SEARCH_NODE_CAP = 2000000;
 const ROW_CAP = 5000; // "Expand all" on a big document would otherwise mount ~1M rows
+
+async function copyText(text, notify, what) {
+  try { await navigator.clipboard.writeText(text); notify(`${what} copied`); }
+  catch { notify("Copy failed — select the text and copy manually"); }
+}
 
 function entriesOf(v) {
   return Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v);
@@ -96,55 +99,44 @@ export const JsonTree = memo(function JsonTree({ value, notify, onQuery }) {
   const toggle = (p, open) => setOver((m) => new Map(m).set(p, open));
   const expandAll = () => { setOver(new Map()); setDepthOpen(Infinity); };
   const collapseAll = () => { setOver(new Map()); setDepthOpen(1); };
-  const selValue = (v) => (isContainer(v) ? stringify(v, 2) : v instanceof BigNum ? v.raw : typeof v === "string" ? v : String(v));
 
   return (
-    <div className="jt-wrap">
+    <div>
       <div className="jt-bar">
-        <div className="jt-search">
-          <Search size={15} aria-hidden="true" />
-          <label htmlFor="jt-q" className="sr-only">Search keys and values</label>
-          <input id="jt-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search keys and values…" spellCheck={false} autoCapitalize="off" />
-        </div>
-        <button type="button" className="btn gh sm" onClick={expandAll}><ChevronsUpDown size={15} aria-hidden="true" />Expand all</button>
-        <button type="button" className="btn gh sm" onClick={collapseAll}><ChevronsDownUp size={15} aria-hidden="true" />Collapse</button>
+        <label htmlFor="jt-q" className="sr-only">Search keys and values</label>
+        <input id="jt-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search keys and values…" spellCheck={false} />
+        <button className="pill" onClick={expandAll}>Expand all</button>
+        <button className="pill" onClick={collapseAll}>Collapse</button>
       </div>
-      <div className="jt-count" aria-live="polite">
-        {match && <>
+      {match && (
+        <div className="hint" style={{ margin: "-4px 0 8px" }}>
           {match.hits.size ? `${match.hits.size.toLocaleString()} match${match.hits.size === 1 ? "" : "es"}` : "No matches"}
           {match.capped ? " · very large document, searched the first 2,000,000 values" : ""}
-        </>}
-      </div>
-      <div className="jt-path">
-        {sel ? (
-          <>
-            <span className="jt-path-l">Path</span>
-            <code>{sel.p}</code>
-            <span className="jt-path-a">
-              <CopyButton text={sel.p} label="Copy path" className="btn gh sm" notify={notify} toast="Path copied" />
-              <CopyButton text={() => selValue(sel.v)} label="Copy value" className="btn gh sm" notify={notify} toast="Value copied" />
-              {onQuery && <button type="button" className="btn gh sm" onClick={() => onQuery(sel.p)}><TextSearch size={15} aria-hidden="true" />Query</button>}
-            </span>
-          </>
-        ) : <span className="jt-path-e">Select a row to see its path and copy it or its value.</span>}
-      </div>
+        </div>
+      )}
+      {sel && (
+        <div className="jt-path">
+          <code>{sel.p}</code>
+          <button className="pill" onClick={() => copyText(sel.p, notify, "Path")}>Copy path</button>
+          <button className="pill" onClick={() => copyText(isContainer(sel.v) ? stringify(sel.v, 2) : sel.v instanceof BigNum ? sel.v.raw : typeof sel.v === "string" ? sel.v : String(sel.v), notify, "Value")}>Copy value</button>
+          {onQuery && <button className="pill" onClick={() => onQuery(sel.p)}>Query</button>}
+        </div>
+      )}
       <div className="jt" role="list" aria-label="JSON tree">
         {rows.map((r) => (r.more ? (
-          <div key={`${r.p}#more`} className="jt-row more" role="listitem" style={{ "--d": r.depth }}>
-            <button type="button" className="jt-more" onClick={() => setShown((m) => new Map(m).set(r.p, (m.get(r.p) ?? CHUNK) + CHUNK * 5))}>
+          <div key={`${r.p}#more`} className="jt-row" role="listitem" style={{ paddingLeft: 8 + r.depth * 16 + 22 }}>
+            <button className="jt-more" onClick={() => setShown((m) => new Map(m).set(r.p, (m.get(r.p) ?? CHUNK) + CHUNK * 5))}>
               Show more · {r.left.toLocaleString()} hidden
             </button>
           </div>
         ) : (
-          <div key={r.p} className={`jt-row${sel?.p === r.p ? " sel" : ""}`} style={{ "--d": r.depth }}
+          <div key={r.p} className={`jt-row${sel?.p === r.p ? " sel" : ""}`} style={{ paddingLeft: 8 + r.depth * 16 }}
             role="listitem" aria-current={sel?.p === r.p || undefined}>
             {r.leaf ? <span className="jt-car" aria-hidden="true" /> : (
-              <button type="button" className="jt-car" onClick={() => toggle(r.p, !r.open)} aria-expanded={r.open} aria-label={`${r.open ? "Collapse" : "Expand"} ${r.k ?? "root"}`}>
-                {r.open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
-              </button>
+              <button className="jt-car" onClick={() => toggle(r.p, !r.open)} aria-expanded={r.open} aria-label={`${r.open ? "Collapse" : "Expand"} ${r.k ?? "root"}`}>{r.open ? "▾" : "▸"}</button>
             )}
-            <button type="button" className="jt-sel" onClick={() => setSel(r)} title={r.p}>
-              {r.k !== null && <><span className={`jt-k${typeof r.k === "number" ? " idx" : ""}`}><Hl text={String(r.k)} q={dq} /></span><span className="jt-colon">:&nbsp;</span></>}
+            <button className="jt-sel" onClick={() => setSel(r)} title={r.p}>
+              {r.k !== null && <><span className={`jt-k${typeof r.k === "number" ? " idx" : ""}`}><Hl text={String(r.k)} q={dq} /></span><span>:&nbsp;</span></>}
               {r.leaf ? <Leaf v={r.v} q={dq} /> : <span className="jt-meta">{r.arr ? `[${r.count}]` : `{${r.count}}`}</span>}
             </button>
           </div>
@@ -160,52 +152,34 @@ const preview = (v) => {
   const s = v === undefined ? "" : stringify(v, 0);
   return s.length > 160 ? `${s.slice(0, 160)}…` : s;
 };
-const KIND = {
-  added: ["+", "ok", "Added", Plus],
-  removed: ["−", "bad", "Removed", Minus],
-  changed: ["~", "warn", "Changed", PenLine],
-};
+const KIND = { added: ["+", "chip act", "Added"], removed: ["−", "chip wk", "Removed"], changed: ["~", "chip up", "Changed"] };
 
 export const JsonDiff = memo(function JsonDiff({ a, b, notify }) {
   const result = useMemo(() => diffJSON(a, b), [a, b]);
   const { changes, truncated } = result;
   const counts = changes.reduce((c, x) => ({ ...c, [x.kind]: (c[x.kind] || 0) + 1 }), {});
   const report = () => changes.map((c) => `${KIND[c.kind][0]} ${formatPath(c.path)}${c.kind !== "added" ? `  ${preview(c.from)}` : ""}${c.kind !== "removed" ? `${c.kind === "changed" ? " →" : ""}  ${preview(c.to)}` : ""}`).join("\n");
-  if (!changes.length) {
-    return (
-      <Notice tone="ok" title="Identical" className="jd-same" role="status">
-        Both documents have the same structure and values (key order is ignored).
-      </Notice>
-    );
-  }
+  if (!changes.length) return <div className="note i" style={{ marginTop: 12 }}><b>Identical · </b>Both documents have the same structure and values (key order is ignored).</div>;
   return (
     <div>
       <div className="jd-sum">
-        <span className="sr-only" role="status">{["added", "removed", "changed"].map((k) => `${counts[k] || 0} ${k}`).join(", ")}</span>
-        {["added", "removed", "changed"].map((k) => (
-          <StatusBadge key={k} tone={counts[k] ? KIND[k][1] : ""} icon={KIND[k][3]}>{(counts[k] || 0).toLocaleString()} {KIND[k][2].toLowerCase()}</StatusBadge>
-        ))}
-        {truncated && <StatusBadge>showing first {changes.length.toLocaleString()}</StatusBadge>}
-        <CopyButton text={report} label="Copy report" className="btn gh sm jd-copy" notify={notify} toast="Diff copied" />
+        {["added", "removed", "changed"].map((k) => counts[k] ? <span key={k} className={KIND[k][1]}>{counts[k].toLocaleString()} {KIND[k][2].toLowerCase()}</span> : null)}
+        {truncated && <span className="chip done">showing first {changes.length.toLocaleString()}</span>}
+        <button className="pill" style={{ marginLeft: "auto" }} onClick={() => copyText(report(), notify, "Diff")}>Copy report</button>
       </div>
-      <ol className="jd-list">
-        {changes.slice(0, 500).map((c, i) => {
-          const [, tone, word, Icon] = KIND[c.kind];
-          return (
-            <li className={`jd-row ${tone}`} key={i}>
-              <div className="jd-h">
-                <span className={`jd-k ${tone}`}><Icon size={12} aria-hidden="true" strokeWidth={2.6} />{word}</span>
-                <code>{formatPath(c.path)}</code>
-              </div>
-              <div className="jd-v">
-                {c.kind !== "added" && <del><span className="sr-only">was </span>{preview(c.from)}</del>}
-                {c.kind === "changed" && <span className="jd-arrow" aria-hidden="true"> → </span>}
-                {c.kind !== "removed" && <ins><span className="sr-only">{c.kind === "changed" ? "now " : ""}</span>{preview(c.to)}</ins>}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      <div className="jd-list">
+        {changes.slice(0, 500).map((c, i) => (
+          <div className="jd-row" key={i}>
+            <span className={KIND[c.kind][1]} style={{ marginRight: 8 }}>{KIND[c.kind][2].toUpperCase()}</span>
+            <code>{formatPath(c.path)}</code>
+            <div className="jd-v">
+              {c.kind !== "added" && <del>{preview(c.from)}</del>}
+              {c.kind === "changed" && " → "}
+              {c.kind !== "removed" && <ins>{preview(c.to)}</ins>}
+            </div>
+          </div>
+        ))}
+      </div>
       {changes.length > 500 && <div className="hint">Showing 500 of {changes.length.toLocaleString()} — use Copy report for all.</div>}
       <div className="hint">Arrays of objects with a unique <code>id</code>, <code>_id</code>, <code>uuid</code> or <code>key</code> are matched by it, so reordering or inserting items isn't reported as every item changing.</div>
     </div>

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, ArrowRight, ShieldCheck, Globe2, UserX, CornerDownLeft, SearchX } from "lucide-react";
-import { TOOLS, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
-import { searchTools, highlightRuns } from "../lib/toolSearch.js";
+import { useState, useEffect } from "react";
+import { Search } from "lucide-react";
+import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL, BETA_HINT } from "../toolsMeta.js";
+import { tiltHandlers } from "../components/Ambient.jsx";
+import { useCountUp } from "../hooks/index.js";
 import ToolIcon from "../components/ToolIcon.jsx";
-import { PrivacyBadge, BetaBadge, EmptyState, MOD_KEY } from "../components/ui.jsx";
 
 /* Tiny animated illustration in each card's corner — one per tool, drawn in the
    tool's own hue (--cc) on the theme tokens so it reads in light and dark. */
@@ -44,149 +44,71 @@ function Preview({ kind }) {
   return <div className="preview" aria-hidden="true"><svg viewBox="0 0 112 58" width="112" height="58">{art}</svg></div>;
 }
 
-/* flagship + stable tools first, Beta last; registry order otherwise */
-const ORDERED = [...TOOLS].sort((a, b) => (b.big ? 1 : 0) - (a.big ? 1 : 0) || (a.beta ? 1 : 0) - (b.beta ? 1 : 0));
+/* Owns its own per-frame count-up so the animation re-renders one number, not the whole grid. */
+function Stat({ target, reduced, suffix = "", label }) {
+  const v = useCountUp(target, reduced);
+  return <div className="stat"><b>{v}{suffix}</b><span>{label}</span></div>;
+}
+
 const ON_DEVICE = TOOLS.filter((t) => t.where === "device").length;
-const COUNTS = Object.fromEntries(CATEGORIES.map((c) => [c, c === "All" ? TOOLS.length : TOOLS.filter((t) => t.cat === c).length]));
-const plain = (e) => e.metaKey || e.ctrlKey || e.shiftKey || e.button;
 
-function Name({ text, hl }) {
-  if (!hl?.length) return text;
-  return highlightRuns(text, hl).map((r, i) => (r.hit ? <mark key={i} className="hl">{r.text}</mark> : <span key={i}>{r.text}</span>));
-}
-
-/* Card → tool: name the clicked icon so the View Transition glides it into the tool header. */
-function openTool(e, nav, id) {
-  if (plain(e)) return;
-  e.preventDefault();
-  const ic = e.currentTarget.querySelector(".bic,.cic");
-  if (ic) ic.style.viewTransitionName = "tool-ic";
-  nav(`/tool/${id}`);
-}
-
-export default function Home({ nav, recent = [], openPalette }) {
+export default function Home({ nav, reduced }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
-  const [local, setLocal] = useState(false);
-  const inputRef = useRef(null);
-  const gridRef = useRef(null);
-
-  /* "/" focuses the launcher from anywhere on Home (unless typing in a field) */
-  useEffect(() => {
-    const f = (e) => {
-      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
-      const tag = (e.target.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
-      e.preventDefault(); inputRef.current?.focus();
-    };
-    window.addEventListener("keydown", f);
-    return () => window.removeEventListener("keydown", f);
-  }, []);
-
-  const list = useMemo(() => searchTools(ORDERED, q).filter((r) => (cat === "All" || r.tool.cat === cat) && (!local || r.tool.where === "device")), [q, cat, local]);
-  const recentTools = recent.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).slice(0, 5);
-  const filtered = q.trim() || cat !== "All" || local;
-  const top = q.trim() && list[0]?.tool;
-
+  const [ri, setRi] = useState(0);
+  useEffect(() => { if (reduced) return; const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, [reduced]);
+  const needle = q.trim().toLowerCase();
+  const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (!needle || `${t.name} ${t.desc} ${t.cat}`.toLowerCase().includes(needle)));
+  const th = tiltHandlers(reduced);
   return (
-    <div className="home">
-      <section className="hero" aria-labelledby="hero-h">
-        <p className="kicker"><span className="live" aria-hidden="true" />ToolDeck · {TOOLS.length} utilities · no sign-up</p>
-        <h1 id="hero-h">Useful tools.<br /><span className="dim">Zero friction.</span></h1>
-        <p className="lede">Time zones, networks, files, code and security — fast, focused utilities that open instantly. Most run entirely in your browser; nothing you type is stored.</p>
-        <div className="finder">
-          <div className="searchbar">
-            <span className="ic" aria-hidden="true"><Search size={19} strokeWidth={2.2} /></span>
-            <input ref={inputRef} type="search" placeholder="What do you need to do?" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Search tools" aria-describedby="tool-count" enterKeyHint="go" autoComplete="off" spellCheck={false}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && list.length) nav(`/tool/${list[0].tool.id}`);
-                else if (e.key === "Escape") setQ("");
-                else if (e.key === "ArrowDown" && list.length) { e.preventDefault(); gridRef.current?.querySelector(".bcard")?.focus(); }
-              }} />
-            <span className="sb-r" aria-hidden="true">
-              {top ? <><CornerDownLeft size={13} />open <b>{top.name.split(" ")[0]}</b></> : <><kbd className="kbd">/</kbd>or<kbd className="kbd">{MOD_KEY}K</kbd></>}
-            </span>
-          </div>
-          <div className="trust">
-            <span className="t-dev"><ShieldCheck aria-hidden="true" />{ON_DEVICE} tools never upload</span>
-            <span className="t-key"><UserX aria-hidden="true" />No account, no tracking cookies</span>
-            <span className="t-net"><Globe2 aria-hidden="true" />Network use is always labelled</span>
-          </div>
+    <>
+      <section className="hero">
+        <h1>All the everyday tools you need, in one <em>intelligent workspace</em>.</h1>
+        <div className="rotator"><span key={ri}>{ROTATE[ri]}</span></div>
+        <div className="stats rise d3">
+          <Stat target={TOOLS.length} reduced={reduced} label="tools inside" />
+          <Stat target={240} reduced={reduced} suffix="+" label="dial codes indexed" />
+          <Stat target={ON_DEVICE} reduced={reduced} label="fully on-device" />
         </div>
       </section>
-
-      {recentTools.length > 0 && !filtered && (
-        <section className="shelf" aria-labelledby="recent-h">
-          <div className="shelf-h"><h2 id="recent-h">Jump back in</h2></div>
-          <div className="recent">
-            {recentTools.map((t) => (
-              <a key={t.id} href={`/tool/${t.id}`} className="rchip" style={{ "--cc": t.c }} onClick={(e) => openTool(e, nav, t.id)}>
-                <span className="cic" aria-hidden="true"><ToolIcon tool={t} size={15} /></span>{t.name}
-              </a>
-            ))}
+      <div className="finder">
+          <div className="searchbar rise d2">
+            <span className="ic" aria-hidden="true"><Search size={18} strokeWidth={2.2} /></span>
+            <input type="search" placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Search tools" aria-describedby="tool-count" enterKeyHint="go"
+              onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); else if (e.key === "Escape") setQ(""); }} />
+            <kbd>Ctrl K</kbd>
           </div>
-        </section>
-      )}
-
-      <div className="catbar">
-        <div className="seg" role="group" aria-label="Filter tools by category">
-          {CATEGORIES.map((c) => (
-            <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(c)}>{c}<span className="n" aria-hidden="true">{COUNTS[c]}</span></button>
-          ))}
-        </div>
-        <button type="button" className="pill" aria-pressed={local} onClick={() => setLocal((v) => !v)} title={WHERE_LABEL.device[1]} aria-label="On-device only">
-          <ShieldCheck size={14} aria-hidden="true" /><span className="pl">On-device only</span>
-        </button>
-        <span className="meta" id="tool-count" role="status">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools`}</span>
+      <div className="pillrow catrow" role="group" aria-label="Filter tools by category">
+        {CATEGORIES.map((c) => (
+          <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}>{c}</button>
+        ))}
       </div>
-
-      <section className="bento" aria-label="Tools" ref={gridRef}
-        onKeyDown={(e) => {
-          /* arrow keys walk the grid like a launcher; Up from the first card returns to search */
-          if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
-          const cards = [...gridRef.current.querySelectorAll(".bcard")];
-          const i = cards.indexOf(document.activeElement);
-          if (i === -1) return;
-          const cols = getComputedStyle(gridRef.current).gridTemplateColumns.split(" ").length;
-          const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
-          const j = i + step;
-          e.preventDefault();
-          if (j < 0) { inputRef.current?.focus(); return; }
-          cards[Math.min(j, cards.length - 1)]?.focus();
-        }}>
-        {list.map(({ tool: t, hl }) => (
-          <a key={t.id} href={`/tool/${t.id}`} className={`bcard ${t.big && !filtered ? "big" : ""}`} style={{ "--cc": t.c }}
-            onClick={(e) => openTool(e, nav, t.id)}>
-            <div className="btop">
-              <div className="bic" aria-hidden="true"><ToolIcon tool={t} size={20} /></div>
-              <Preview kind={t.pv} />
-            </div>
-            <h2><Name text={t.name} hl={hl} /></h2>
+      </div>
+      <p id="tool-count" className="sr-only" role="status">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools shown`}</p>
+      <section className="bento" aria-label="Tools">
+        {list.map((t, i) => (
+          <a key={t.id} href={`/tool/${t.id}`} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th}
+            onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(`/tool/${t.id}`); }}
+            style={{ borderTop: `2px solid ${tint(t.c, "66")}`, "--cc": t.c }}>
+            <Preview kind={t.pv} />
+            <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}><ToolIcon tool={t} /></div>
+            <h2>{t.name}</h2>
+            <span className="badges">
+              {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
+              {t.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}
+            </span>
             <p>{t.desc}</p>
-            <div className="bfoot">
-              <PrivacyBadge where={t.where} />
-              {t.beta && <BetaBadge />}
-              <ArrowRight className="go" size={16} aria-hidden="true" />
-            </div>
+            <span className="open" aria-hidden="true">Open tool <i>→</i></span>
           </a>
         ))}
         {list.length === 0 && (
-          <EmptyState icon={SearchX} title={`No tool matches “${q.trim() || cat}”`}
-            actions={<>
-              <button type="button" className="btn gh" onClick={() => { setQ(""); setCat("All"); setLocal(false); }}>Clear search and filters</button>
-              <button type="button" className="btn qt" onClick={openPalette}>Open command search</button>
-            </>}>
-            Try a task instead of a name — “compress”, “timezone”, “certificate”.
-          </EmptyState>
+          <div className="empty" style={{ gridColumn: "1/-1" }}>
+            No tool matches “{q.trim() || cat}”{cat !== "All" ? ` in ${cat}` : ""}.
+            <div><button type="button" className="linkbtn" onClick={() => { setQ(""); setCat("All"); }}>Clear search and filters</button></div>
+          </div>
         )}
       </section>
-
-      <section className="legend" aria-label="Where your data goes">
-        <div><h3><PrivacyBadge where="device" /></h3><p>Processed entirely in your browser — files, passwords and text never leave this device.</p></div>
-        <div><h3><PrivacyBadge where="tooldeck" /></h3><p>Sent to ToolDeck's own server only to perform the check, then discarded. Nothing is logged against you.</p></div>
-        <div><h3><PrivacyBadge where="external" /></h3><p>Measures against a third-party network service, such as a speed-test edge or an IP lookup. Clearly labelled on every tool.</p></div>
-      </section>
-    </div>
+    </>
   );
 }

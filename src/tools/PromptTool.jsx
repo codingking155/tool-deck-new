@@ -1,14 +1,10 @@
-import { useState, useMemo, useRef } from "react";
-import { Square, Mail, Code2, FileText, Megaphone, GraduationCap, Download, Check, Plus, Sparkles } from "lucide-react";
+import { useState, useMemo } from "react";
 import { saveBlob } from "../lib/zip.js";
-import { CopyButton, Notice, EmptyState } from "../components/ui.jsx";
-import "./css/prompt.css";
 
 const PRESETS = {
-  blank: { label: "Blank", icon: Square, role: "", task: "", context: "", audience: "", tone: "", format: "", length: "", constraints: "", example: "" },
+  blank: { label: "Blank", role: "", task: "", context: "", audience: "", tone: "", format: "", length: "", constraints: "", example: "" },
   email: {
     label: "Email",
-    icon: Mail,
     role: "an experienced business communication writer",
     task: "Write an email to a customer apologising for a delayed order and offering a 10% discount code.",
     context: "The order shipped 5 days late because of a warehouse issue that is now fixed.",
@@ -21,7 +17,6 @@ const PRESETS = {
   },
   code: {
     label: "Code",
-    icon: Code2,
     role: "a senior software engineer",
     task: "Write a function that removes duplicate objects from an array by their `id` field, keeping the first occurrence.",
     context: "JavaScript (ES2022), runs in the browser. Arrays can hold up to 100k items.",
@@ -34,7 +29,6 @@ const PRESETS = {
   },
   summary: {
     label: "Summarise",
-    icon: FileText,
     role: "an expert analyst",
     task: "Summarise the text I paste below.",
     context: "[Paste the text here]",
@@ -47,7 +41,6 @@ const PRESETS = {
   },
   marketing: {
     label: "Marketing",
-    icon: Megaphone,
     role: "a direct-response copywriter",
     task: "Write 5 headline options for a product landing page.",
     context: "Product: a browser toolkit with a UTC scheduler, speed test, price tracker and more. Free, no sign-up.",
@@ -60,7 +53,6 @@ const PRESETS = {
   },
   learn: {
     label: "Explain",
-    icon: GraduationCap,
     role: "a patient teacher",
     task: "Explain how public-key encryption works.",
     context: "",
@@ -73,23 +65,17 @@ const PRESETS = {
   },
 };
 
-/* [key, label, placeholder, multiline, essential, short chip name] */
 const FIELDS = [
-  ["task", "Task — what do you want?", "e.g. Write a product description for…", true, true, "Task"],
-  ["context", "Context / input", "Background, data or text the AI needs", true, true, "Context"],
-  ["format", "Desired output format", "e.g. bullet list, table, JSON, code block", false, true, "Format"],
-  ["role", "Role — who should the AI act as?", "e.g. a senior data analyst", false, false, "Role"],
-  ["audience", "Audience", "e.g. beginners, executives, customers", false, false, "Audience"],
-  ["tone", "Tone / style", "e.g. friendly, formal, concise", false, false, "Tone"],
-  ["length", "Length", "e.g. under 200 words, 5 items", false, false, "Length"],
-  ["constraints", "Constraints / rules", "Things to do or avoid", true, false, "Rules"],
-  ["example", "Example of a good answer", "Paste a sample output to imitate", true, false, "Example"],
+  ["role", "Role — who should the AI act as?", "e.g. a senior data analyst", false],
+  ["task", "Task — what do you want?", "e.g. Write a product description for…", true],
+  ["context", "Context / input", "Background, data or text the AI needs", true],
+  ["audience", "Audience", "e.g. beginners, executives, customers", false],
+  ["tone", "Tone / style", "e.g. friendly, formal, concise", false],
+  ["format", "Output format", "e.g. bullet list, table, JSON, code block", false],
+  ["length", "Length", "e.g. under 200 words, 5 items", false],
+  ["constraints", "Constraints / rules", "Things to do or avoid", true],
+  ["example", "Example of a good answer (optional)", "Paste a sample output to imitate", true],
 ];
-const ESSENTIAL = FIELDS.filter((x) => x[4]);
-const OPTIONAL = FIELDS.filter((x) => !x[4]);
-/* Chip order mirrors how the prompt is assembled. */
-const CHIP_ORDER = ["role", "task", "context", "audience", "tone", "format", "length", "constraints", "example"];
-const STYLES = [["plain", "Plain text"], ["markdown", "Markdown"], ["xml", "XML tags"]];
 
 function buildPrompt(f, style, extras) {
   const v = (k) => f[k].trim();
@@ -152,32 +138,17 @@ const EXTRAS = [
   ["review", "After answering, review your work and fix any mistakes."],
 ];
 
-function Field({ k, label, ph, multi, value, onChange, required }) {
-  return (
-    <div className="field">
-      <label htmlFor={`pg-${k}`}>{label}{required && <span className="pg-req"> · required</span>}</label>
-      {multi
-        ? <textarea id={`pg-${k}`} className={k === "task" ? "pg-ta tall" : "pg-ta"} value={value} onChange={onChange} placeholder={ph} aria-required={required || undefined} />
-        : <input id={`pg-${k}`} value={value} onChange={onChange} placeholder={ph} />}
-    </div>
-  );
-}
-
 export default function PromptTool({ notify }) {
   const [preset, setPreset] = useState("email");
   const [f, setF] = useState(() => ({ ...PRESETS.email }));
   const [style, setStyle] = useState("plain");
   const [extras, setExtras] = useState({});
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef(null);
 
   const extraLines = EXTRAS.filter(([k]) => extras[k]).map(([, line]) => line);
   const prompt = useMemo(() => buildPrompt(f, style, extraLines), [f, style, extraLines.join("|")]);
   const words = prompt ? prompt.trim().split(/\s+/).length : 0;
   const tokens = Math.ceil(prompt.length / 4);
   const missing = ["role", "context", "format"].filter((k) => !f[k].trim());
-  const filled = (k) => !!f[k].trim();
-  const optFilled = OPTIONAL.filter(([k]) => filled(k)).length + extraLines.length;
 
   const edited = FIELDS.some(([k]) => f[k] !== PRESETS[preset][k]);
   const pick = (k) => {
@@ -186,116 +157,75 @@ export default function PromptTool({ notify }) {
   };
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
-  /* Chips jump to their field, opening "More options" first when needed. */
-  const focusField = (k) => {
-    const essential = ESSENTIAL.some(([x]) => x === k);
-    if (!essential && moreRef.current && !moreRef.current.open) { moreRef.current.open = true; setMoreOpen(true); }
-    requestAnimationFrame(() => document.getElementById(`pg-${k}`)?.focus());
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(prompt); notify("Prompt copied"); }
+    catch { notify("Copy failed — select the text and copy manually"); }
   };
-
   const download = () => saveBlob(new Blob([prompt], { type: "text/plain" }), "prompt.txt");
-  const fieldMeta = Object.fromEntries(FIELDS.map((x) => [x[0], x]));
 
   return (
-    <div className="pg">
-      <div className="pg-tpl">
-        <span className="pg-eyebrow" id="pg-tpl-l">Start from</span>
-        <div className="modes pg-modes" role="group" aria-label="Start from a template">
-          {Object.entries(PRESETS).map(([k, p]) => {
-            const Icon = p.icon;
-            return (
-              <button key={k} type="button" aria-pressed={preset === k} className={preset === k ? "on" : ""} onClick={() => pick(k)}>
-                {Icon && <Icon size={15} aria-hidden="true" />}{p.label}
-              </button>
-            );
-          })}
-        </div>
+    <div>
+      <div className="modes" role="group" aria-label="Start from a template">
+        {Object.entries(PRESETS).map(([k, p]) => (
+          <button key={k} type="button" aria-pressed={preset === k} className={preset === k ? "on" : ""} onClick={() => pick(k)}>{p.label}</button>
+        ))}
       </div>
 
-      <div className="pg-grid">
-        <section className="pg-ess" aria-labelledby="pg-ess-h">
-          <div className="pg-sech">
-            <h2 id="pg-ess-h">Essentials</h2>
-            <p>Only the task is required. Every field you fill makes the answer more precise.</p>
-          </div>
-          {ESSENTIAL.map(([k, label, ph, multi]) => (
-            <Field key={k} k={k} label={label} ph={ph} multi={multi} value={f[k]} onChange={set(k)} required={k === "task"} />
-          ))}
-        </section>
-
-        <aside className="pg-out" aria-labelledby="pg-out-h">
-          <div className="pg-out-h">
-            <h2 id="pg-out-h">Your prompt</h2>
-            <div className="seg pg-style" role="group" aria-label="Structure">
-              {STYLES.map(([k, l]) => (
-                <button key={k} type="button" aria-pressed={style === k} onClick={() => setStyle(k)}>{l}</button>
-              ))}
-            </div>
-          </div>
-          <ul className="pg-chips" aria-label="Prompt sections">
-            {CHIP_ORDER.map((k) => {
-              const on = filled(k);
-              const name = fieldMeta[k][5];
-              return (
-                <li key={k}>
-                  <button type="button" className={`pg-chip${on ? " on" : ""}`} onClick={() => focusField(k)} title={on ? `Edit ${name}` : `Add ${name}`}>
-                    {on ? <Check size={12} aria-hidden="true" strokeWidth={2.8} /> : <Plus size={12} aria-hidden="true" strokeWidth={2.4} />}
-                    {name}<span className="sr-only">{on ? " (filled, edit)" : " (empty, add)"}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {prompt ? (
-            <>
-              <pre className="pg-pre" tabIndex={0} aria-label="Generated prompt">{prompt}</pre>
-              <div className="pg-count" aria-live="polite">{words.toLocaleString()} words · ~{tokens.toLocaleString()} tokens · {prompt.length.toLocaleString()} characters</div>
-              <div className="pg-acts">
-                <CopyButton text={() => prompt} label="Copy prompt" done="Copied" className="btn pri" notify={notify} toast="Prompt copied" />
-                <button type="button" className="btn gh" onClick={download}><Download size={15} aria-hidden="true" />Download .txt</button>
+      <div className="grid2">
+        <div className="panel rise d1">
+          <div className="ph"><h2>Describe what you need</h2><p>Only the task is required. Every field you fill makes the answer more precise.</p></div>
+          <div className="pb">
+            {FIELDS.map(([k, label, ph, multi]) => (
+              <div className="field" key={k}>
+                <label htmlFor={`pg-${k}`}>{label}</label>
+                {multi
+                  ? <textarea id={`pg-${k}`} value={f[k]} onChange={set(k)} placeholder={ph} style={{ height: k === "task" ? 90 : 80 }} />
+                  : <input id={`pg-${k}`} value={f[k]} onChange={set(k)} placeholder={ph} />}
               </div>
-              <p className="pg-where">Paste it into ChatGPT, Claude, Gemini or any other assistant.</p>
-              {missing.length > 0 && (
-                <Notice tone="i" title="Tip" className="pg-tip">
-                  Adding {missing.join(", ")} usually gives a noticeably better answer.
-                </Notice>
-              )}
-            </>
-          ) : (
-            <EmptyState icon={Sparkles} title="Describe the task to generate a prompt.">
-              Your prompt builds here, live, as you fill in the fields.
-            </EmptyState>
-          )}
-        </aside>
-
-        <details className="more pg-more" ref={moreRef} open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
-          <summary>
-            More options
-            <span className="pg-more-s">Role, audience, tone, length, rules, example, extra instructions</span>
-            {optFilled > 0 && <span className="pg-more-n">{optFilled} set</span>}
-          </summary>
-          <div className="pg-more-b">
-            {OPTIONAL.map(([k, label, ph, multi]) => (
-              <Field key={k} k={k} label={label} ph={ph} multi={multi} value={f[k]} onChange={set(k)} />
             ))}
-            <fieldset className="pg-x">
-              <legend>Extra instructions</legend>
+            <fieldset className="field" style={{ border: 0, padding: 0, margin: "0 0 14px", minWidth: 0 }}>
+              <legend style={{ padding: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--tx2)", marginBottom: 6 }}>Extra instructions</legend>
               {EXTRAS.map(([k, line]) => (
-                <label key={k} className="pg-xr">
-                  <input type="checkbox" checked={!!extras[k]} onChange={(e) => setExtras((x) => ({ ...x, [k]: e.target.checked }))} />
-                  <span>{line}</span>
+                <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", textTransform: "none", letterSpacing: 0, fontWeight: 500, fontSize: 13, color: "var(--tx2)", margin: "6px 0", cursor: "pointer" }}>
+                  <input type="checkbox" checked={!!extras[k]} onChange={(e) => setExtras((x) => ({ ...x, [k]: e.target.checked }))} style={{ width: 18, height: 18, minHeight: 0, flexShrink: 0, margin: 0 }} />
+                  {line}
                 </label>
               ))}
             </fieldset>
           </div>
-        </details>
-      </div>
-
-      {prompt && (
-        <div className="pg-dock">
-          <CopyButton text={() => prompt} label="Copy prompt" done="Copied" className="btn pri" notify={notify} toast="Prompt copied" />
         </div>
-      )}
+
+        <div className="panel rise d2">
+          <div className="ph"><h2>Your prompt</h2><p>Paste it into ChatGPT, Claude, Gemini or any other assistant.</p></div>
+          <div className="pb">
+            <div className="field">
+              <label htmlFor="pg-style">Structure</label>
+              <select id="pg-style" value={style} onChange={(e) => setStyle(e.target.value)}>
+                <option value="plain">Plain text</option>
+                <option value="markdown">Markdown sections</option>
+                <option value="xml">XML tags</option>
+              </select>
+            </div>
+            {prompt ? (
+              <>
+                <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--mono)", fontSize: 12.5, lineHeight: 1.6, background: "var(--panel2)", border: "1px solid var(--line)", borderRadius: 12, padding: 14, margin: "0 0 12px", maxHeight: 520, overflow: "auto", color: "var(--tx)" }}>{prompt}</pre>
+                <div className="hint" style={{ marginBottom: 12 }}>{words} words · ~{tokens} tokens</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button className="btn pri" onClick={copy}>Copy prompt</button>
+                  <button className="btn gh" onClick={download} style={{ whiteSpace: "nowrap" }}>Download .txt</button>
+                </div>
+                {missing.length > 0 && (
+                  <div className="note i" style={{ marginTop: 14 }}>
+                    <b>Tip · </b>Adding {missing.join(", ")} usually gives a noticeably better answer.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty">Describe the task to generate a prompt.</div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

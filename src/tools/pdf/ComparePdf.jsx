@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LoaderCircle } from "lucide-react";
-import { Notice } from "../../components/ui.jsx";
-import { FilePick, Shell, Progress, fraction, readFile } from "./shared.jsx";
+import { FilePick, Shell, readFile } from "./shared.jsx";
 import { diffWords, tokenize, diffStats, pixelDiff } from "../../lib/compare.js";
 
 const MAX_VISUAL_PAGES = 40;
@@ -13,10 +11,10 @@ function Overlay({ diff }) {
     c.width = diff.width; c.height = diff.height;
     c.getContext("2d")?.putImageData(new ImageData(diff.overlay, diff.width, diff.height), 0, 0);
   }, [diff]);
-  return <canvas ref={ref} className="pdfc-img" aria-label="Differences highlighted" role="img" />;
+  return <canvas ref={ref} style={{ width: "100%", display: "block", borderRadius: 6, border: "1px solid var(--line)" }} />;
 }
 
-export default function ComparePdf({ notify, onBack, icon }) {
+export default function ComparePdf({ notify, onBack }) {
   const [a, setA] = useState(null), [b, setB] = useState(null);
   const [busy, setBusy] = useState("");
   const [res, setRes] = useState(null);
@@ -82,65 +80,60 @@ export default function ComparePdf({ notify, onBack, icon }) {
   const page = res?.pages[sel];
 
   return (
-    <Shell icon={icon} wide title="Compare PDF" desc="See what changed between two versions — text differences and a visual overlay." onBack={onBack}>
-      <div className="pdfc-pair">
+    <Shell title="🆚 Compare PDF" desc="See what changed between two versions — text differences and a visual overlay." onBack={onBack}>
+      <div className="two">
         <FilePick label="Original (A)" file={a} onFile={(f) => { setA(f); setRes(null); closeDocs(); }} />
         <FilePick label="Revised (B)" file={b} onFile={(f) => { setB(f); setRes(null); closeDocs(); }} />
       </div>
-      <div className="pdfw-act">
-        <button className="btn pri" disabled={!a || !b || !!busy} onClick={run}>
-          {busy ? <><LoaderCircle className="spin" aria-hidden="true" />Working…</> : "Compare"}
-        </button>
-        {!busy && (!a || !b) && <p className="hint">Choose both versions to compare them. Both stay on this device.</p>}
-        {busy && <Progress label={busy} value={fraction(busy)} />}
-      </div>
+      <button className="btn" style={{ width: "100%" }} disabled={!a || !b || !!busy} onClick={run}>{busy || "Compare"}</button>
 
       {res && (
-        <section className="pdfw-out" aria-label="Comparison">
-          <Notice tone="i" role="status" title={changedPages === 0 ? "No differences found" : `${changedPages} of ${res.pages.length} page${res.pages.length > 1 ? "s" : ""} differ`}>
-            <span className="pdfc-add">+{tot.added} words added</span>, <span className="pdfc-del">−{tot.removed} removed</span>
+        <div style={{ marginTop: 16 }}>
+          <div className="note i">
+            <b>{changedPages === 0 ? "No differences found" : `${changedPages} of ${res.pages.length} page${res.pages.length > 1 ? "s" : ""} differ`} · </b>
+            <span style={{ color: "var(--good)" }}>+{tot.added} words added</span>, <span style={{ color: "var(--bad)" }}>−{tot.removed} removed</span>
             {res.pagesA !== res.pagesB && ` · A has ${res.pagesA} pages, B has ${res.pagesB}`}
             {res.visualCapped && ` · visual comparison covers the first ${MAX_VISUAL_PAGES} pages`}
-          </Notice>
+          </div>
 
-          <div className="pdfw-sechead"><h3 className="pdfw-label" id="pdfc-pages">Pages</h3><span className="hint pdfc-key"><i className="pdfc-dot" aria-hidden="true" /> changed</span></div>
-          <div className="pdfc-pages" role="group" aria-labelledby="pdfc-pages">
+          <div className="pillrow" style={{ marginTop: 12 }}>
             {res.pages.map((p, i) => {
               const diff = p.changed || (p.pct ?? 0) > 0.05 || p.onlyIn;
-              return <button key={i} type="button" className={`pill pdfc-page${diff ? " is-diff" : ""}`} aria-pressed={sel === i} onClick={() => setSel(i)}
-                aria-label={`Page ${i + 1}, ${p.onlyIn ? `only in ${p.onlyIn}` : diff ? "changed" : "no changes"}${p.pct != null ? `, ${p.pct.toFixed(1)}% pixels differ` : ""}`}>
-                {diff && <i className="pdfc-dot" aria-hidden="true" />}{i + 1}{p.pct != null ? ` · ${p.pct.toFixed(1)}%` : ""}</button>;
+              return <button key={i} className="pill" aria-pressed={sel === i} onClick={() => setSel(i)}
+                aria-label={`Page ${i + 1}, ${p.onlyIn ? `only in ${p.onlyIn}` : diff ? "changed" : "no changes"}${p.pct != null ? `, ${p.pct.toFixed(1)}% pixels differ` : ""}`}
+                style={{ borderColor: sel === i ? "var(--pri2)" : undefined, color: diff ? "var(--warn)" : undefined }}>
+                {i + 1}{p.pct != null ? ` · ${p.pct.toFixed(1)}%` : ""}</button>;
             })}
           </div>
 
-          <div className="modes pdfc-view" role="group" aria-label="View">
-            <button type="button" aria-pressed={view === "text"} className={view === "text" ? "on" : ""} onClick={() => setView("text")}>Text changes</button>
-            <button type="button" aria-pressed={view === "visual"} className={view === "visual" ? "on" : ""} onClick={() => setView("visual")}>Visual overlay</button>
+          <div className="modes" role="group" aria-label="View" style={{ marginTop: 12 }}>
+            <button aria-pressed={view === "text"} className={view === "text" ? "on" : ""} onClick={() => setView("text")}>Text changes</button>
+            <button aria-pressed={view === "visual"} className={view === "visual" ? "on" : ""} onClick={() => setView("visual")}>Visual overlay</button>
           </div>
 
           {view === "text" && page && (
-            <div className="pdfc-text" aria-label={`Text changes on page ${sel + 1}`} role="region">
-              {page.onlyIn && <Notice tone="w">This page exists only in {page.onlyIn}.</Notice>}
-              {page.ops.length === 0 ? <span className="pdfc-none">No selectable text on this page (scanned or image-only) — use the visual overlay.</span> :
+            <div className="panel" style={{ padding: 14, lineHeight: 1.8, fontSize: 14 }}>
+              {page.onlyIn && <div className="note w" style={{ marginBottom: 8 }}>This page exists only in {page.onlyIn}.</div>}
+              {page.ops.length === 0 ? <span style={{ color: "var(--tx3)" }}>No selectable text on this page (scanned or image-only) — use the visual overlay.</span> :
                 page.ops.map((o, i) => o.t === "eq" ? <span key={i}>{o.w} </span>
-                  : o.t === "add" ? <ins key={i} className="pdfc-ins">{o.w} </ins>
-                  : <del key={i} className="pdfc-rm">{o.w} </del>)}
+                  : o.t === "add" ? <span key={i} style={{ background: "color-mix(in srgb, var(--good) 18%, transparent)", color: "var(--good)", borderRadius: 3 }}>{o.w} </span>
+                  : <span key={i} style={{ background: "color-mix(in srgb, var(--bad) 15%, transparent)", color: "var(--bad)", textDecoration: "line-through", borderRadius: 3 }}>{o.w} </span>)}
             </div>
           )}
 
           {view === "visual" && (
-            !imgs ? <p className="hint" role="status">Rendering page {sel + 1}…</p>
-            : imgs.err ? <Notice tone="w" role="status">Couldn't render page {sel + 1} for the visual overlay. Try another page or run Compare again.</Notice> : (
-              <div className="pdfc-vis">
-                {[["A", imgs.ia && <img src={imgs.ia.url} alt={`Page ${sel + 1} of the original`} className="pdfc-img" />],
-                  ["B", imgs.ib && <img src={imgs.ib.url} alt={`Page ${sel + 1} of the revision`} className="pdfc-img" />],
+            !imgs ? <div className="hint" style={{ marginTop: 12 }}>Rendering page {sel + 1}…</div>
+            : imgs.err ? <div className="note w" style={{ marginTop: 12 }}>Couldn't render page {sel + 1} for the visual overlay. Try another page or run Compare again.</div> : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginTop: 4 }}>
+                {[["A", imgs.ia && <img src={imgs.ia.url} alt="" style={{ width: "100%", borderRadius: 6, border: "1px solid var(--line)" }} />],
+                  ["B", imgs.ib && <img src={imgs.ib.url} alt="" style={{ width: "100%", borderRadius: 6, border: "1px solid var(--line)" }} />],
                   ["Differences", imgs.p.diff ? <Overlay diff={imgs.p.diff} /> : null]].map(([t, el]) => (
-                  <figure key={t} className="pdfc-fig"><figcaption>{t}</figcaption>{el || <p className="hint">Not available for this page.</p>}</figure>
+                  <div key={t}><div className="hint" style={{ marginBottom: 4 }}>{t}</div>{el || <div className="hint">Not available for this page.</div>}</div>
                 ))}
               </div>
             )
           )}
-        </section>
+        </div>
       )}
     </Shell>
   );

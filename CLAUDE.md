@@ -12,11 +12,8 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
 
 ## Conventions
-- Theme: dark is default, `.light` class on `.app`; use tokens only (semantic `--surface/--text-*/--brand/--success…`
-  or legacy aliases `--tx/--panel/--line/--good/--warn/--bad`), never hard-coded colours. See `docs/DESIGN_SYSTEM.md`.
-- Global primitives live in `src/styles.css`; tool-only CSS goes in `src/tools/css/<tool>.css`, imported by the tool
-  (ships with its lazy chunk). Shared UI: `src/components/ui.jsx` (PrivacyBadge, Notice, CopyButton, EmptyState…).
-- `tool.where` is the privacy taxonomy: `device | tooldeck | external | mixed` (labels in `WHERE_LABEL`).
+- Theme: dark is default, `.light` class on `.app`; use the `--tx/--panel/--line/--good/--warn/--bad` tokens,
+  never hard-coded colours (text on fixed pastel backgrounds broke dark mode before).
 - Price Tracker shows REAL data only. No sample/seeded/fallback prices; if no live price, show
   "Unable to retrieve the latest price right now."
 - Never put secrets in frontend code. Provider keys live in Supabase secrets.

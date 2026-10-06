@@ -1,8 +1,6 @@
-import { useState, useMemo, useEffect, useRef, useId } from "react";
-import { Check, Minus, RotateCw, ChevronDown, Network, MapPin, Clock, Monitor } from "lucide-react";
-import IpLeakPanel, { DiagStatus } from "./IpLeakPanel.jsx";
-import { Notice, StatusBadge, CopyButton, describeError } from "../components/ui.jsx";
-import "./css/ip.css";
+import { useState, useMemo, useEffect, useRef } from "react";
+import IpLeakPanel from "./IpLeakPanel.jsx";
+import { copyText } from "../components/chrome.jsx";
 
 function parseUA() {
   const ua = navigator.userAgent;
@@ -10,14 +8,6 @@ function parseUA() {
   const os = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Unknown";
   const device = /Mobi|Android|iPhone/.test(ua) ? "Mobile" : "Desktop";
   return { browser, os, device };
-}
-
-/* read-only facts the browser already knows — nothing leaves the page */
-function localFacts() {
-  let tz = null;
-  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { /* very old browsers */ }
-  const c = typeof navigator !== "undefined" ? navigator.connection : null;
-  return { tz, effective: c?.effectiveType || null, lang: typeof navigator !== "undefined" ? navigator.language : null };
 }
 
 const IPV6_TIPS = [
@@ -52,78 +42,15 @@ async function lookupGeo() {
   return null;
 }
 
-const Na = () => <span className="ipt-na">Unavailable</span>;
-
-function Fact({ icon: Icon, k, children, loading }) {
+function Row({ k, children, copy, notify }) {
   return (
-    <div className="kv ipt-fact">
-      <span className="k"><Icon size={14} aria-hidden="true" />{k}</span>
-      <span className="v">{loading ? <span className="skel ipt-sk-v" /> : (children || <Na />)}</span>
+    <div className="kv" style={{ padding: "10px 0", alignItems: "center", gap: 10 }}>
+      <span className="k">{k}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span className="v hl" style={{ overflowWrap: "anywhere", textAlign: "right" }}>{children}</span>
+        {copy && <button className="pill" style={{ minHeight: 28, padding: "3px 9px" }} onClick={() => copyText(copy, notify, `${k} copied.`)} aria-label={`Copy ${k}`}>Copy</button>}
+      </span>
     </div>
-  );
-}
-
-function HeroIp({ st, v4, v6, notify }) {
-  if (st === "loading") return (
-    <div className="ipt-ipblock" aria-hidden="true">
-      <span className="skel ipt-sk-ip" />
-      <span className="skel ipt-sk-alt" />
-    </div>
-  );
-  if (st === "blocked") return <div className="ipt-ipblock"><p className="ipt-ip is-na">Unavailable</p></div>;
-  const primary = v4 || v6;
-  const pv = v4 ? "IPv4" : "IPv6";
-  return (
-    <div className="ipt-ipblock">
-      <div className="ipt-iprow">
-        <span className="ipt-ip mono">{primary}</span>
-        <span className="ipt-ver">{pv}</span>
-      </div>
-      <div className="ipt-iprow alt">
-        {v4 && v6
-          ? <><span className="ipt-ver">IPv6</span><span className="ipt-alt mono">{v6}</span></>
-          : <span className="ipt-alt-none">{v4 ? "No IPv6 address on this connection" : "No IPv4 address detected"}</span>}
-      </div>
-      <div className="actions ipt-copy">
-        <CopyButton text={primary} label={`Copy ${pv}`} className="btn sm" notify={notify} toast={`${pv} address copied.`} />
-        {v4 && v6 && <CopyButton text={v6} label="Copy IPv6" className="btn gh sm" notify={notify} toast="IPv6 address copied." />}
-      </div>
-    </div>
-  );
-}
-
-function Availability({ st, v4, v6 }) {
-  if (st === "loading") return <div className="ipt-badges" aria-hidden="true"><span className="skel ipt-sk-badge" /><span className="skel ipt-sk-badge" /></div>;
-  if (st === "blocked") return (
-    <div className="ipt-badges"><StatusBadge>IPv4 unknown</StatusBadge><StatusBadge>IPv6 unknown</StatusBadge></div>
-  );
-  return (
-    <div className="ipt-badges">
-      {v4 ? <StatusBadge tone="ok" icon={Check}>IPv4 available</StatusBadge> : <StatusBadge icon={Minus}>IPv4 not detected</StatusBadge>}
-      {v6 ? <StatusBadge tone="ok" icon={Check}>IPv6 available</StatusBadge> : <StatusBadge icon={Minus}>IPv6 unavailable</StatusBadge>}
-      {v4 && v6 && <StatusBadge tone="info">Dual stack</StatusBadge>}
-    </div>
-  );
-}
-
-function TipList({ tips, openTip, setOpenTip, mine }) {
-  const uid = useId().replace(/:/g, "");
-  return (
-    <ul className="ipt-tips">
-      {tips.map(([k, v]) => {
-        const open = openTip === k;
-        return (
-          <li key={k} className={open ? "open" : ""}>
-            <button type="button" className="ipt-tip" onClick={() => setOpenTip(open ? null : k)} aria-expanded={open} aria-controls={`${uid}-${k.replace(/\W/g, "")}`}>
-              <span className="tn">{k}</span>
-              {k === mine && <StatusBadge tone="brand">Your device</StatusBadge>}
-              <ChevronDown size={16} aria-hidden="true" className="chev" />
-            </button>
-            <div className="ipt-tipbody" id={`${uid}-${k.replace(/\W/g, "")}`} hidden={!open}>{v}</div>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -132,9 +59,8 @@ export default function IpTool({ notify }) {
   const [v4, setV4] = useState(null);
   const [v6, setV6] = useState(null);
   const [geo, setGeo] = useState(null);
-  const [openTip, setOpenTip] = useState(null);
+  const [openTip, setOpenTip] = useState(-1);
   const ua = useMemo(parseUA, []);
-  const local = useMemo(localFacts, []);
   const run = useRef(0);
 
   const check = async () => {
@@ -153,107 +79,79 @@ export default function IpTool({ notify }) {
     if (g && g.ip) { if (g.ip.includes(":")) ip6 = ip6 || g.ip; else ip4 = ip4 || g.ip; }
     setV4(ip4); setV6(ip6); setGeo(g);
     setSt(ip4 || ip6 ? "done" : "blocked");
-    const tip = OS_TIP[ua.os];
-    setOpenTip(!ip6 && tip ? tip : null);
+    const tip = IPV6_TIPS.findIndex(([k]) => k === OS_TIP[ua.os]);
+    setOpenTip(!ip6 && tip >= 0 ? tip : -1);
   };
   useEffect(() => { check(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the user's own platform first, then the rest */
-  const mine = OS_TIP[ua.os];
-  const tips = useMemo(() => [...IPV6_TIPS].sort((x, y) => (y[0] === mine) - (x[0] === mine)), [mine]);
-  const loading = st === "loading";
-  const done = st === "done";
+  const tips = useMemo(() => {
+    const mine = OS_TIP[ua.os];
+    return [...IPV6_TIPS].sort((x, y) => (y[0] === mine) - (x[0] === mine));
+  }, [ua.os]);
+  const tipIndex = (k) => IPV6_TIPS.findIndex(([n]) => n === k);
   const v6on = !!v6;
   const where = geo && [geo.city, geo.region, geo.country].filter(Boolean).join(", ");
-  const err = st === "blocked" ? describeError(new Error("Failed to fetch"), { service: "the IP lookup services" }) : null;
-  const tzDiffers = geo?.tz && local.tz && geo.tz !== local.tz;
-  const v6Status = loading ? "busy" : st === "blocked" ? "unknown" : v6on ? "safe" : "na";
 
   return (
-    <div className="ipt">
-      <section className="panel ipt-hero" aria-labelledby="ipt-hero-h" aria-busy={loading}>
-        <div className="ipt-hero-grid">
-          <div className="ipt-hero-main">
-            <h2 id="ipt-hero-h" className="eyebrow">Your public IP</h2>
-            <HeroIp st={st} v4={v4} v6={v6} notify={notify} />
-            <Availability st={st} v4={v4} v6={v6} />
-          </div>
-          <div className="ipt-facts">
-            {st === "blocked"
-              ? <Notice tone="off" title={err.title}
-                  actions={<button type="button" className="btn sm" onClick={check}><RotateCw size={14} aria-hidden="true" />Try again</button>}>
-                  {err.hint} A content blocker, firewall or strict privacy setting can also stop these lookups.
-                </Notice>
-              : <>
-                <Fact icon={Network} k="ISP / network" loading={loading}>
-                  {geo && (geo.org || geo.asn) ? [geo.org, geo.asn].filter(Boolean).join(" · ") : null}
-                </Fact>
-                <Fact icon={MapPin} k="Approx. location" loading={loading}>{where || null}</Fact>
-                <Fact icon={Clock} k="IP time zone" loading={loading}>{geo?.tz || null}</Fact>
-                {done && !geo && <p className="hint">The ISP and location lookup is unavailable right now — your addresses above are unaffected.</p>}
+    <>
+    <div className="grid2">
+      <div className="panel rise d1">
+        <div className="ph"><h2>Your connection</h2><p>Public addresses are read from the network — nothing is stored.</p></div>
+        <div className="pb">
+          {st === "loading" && <><div className="skel" style={{ height: 44, marginBottom: 10 }} /><div className="skel" style={{ height: 44, marginBottom: 10 }} /><div className="skel" style={{ height: 44 }} /></>}
+          {st === "blocked" && <div className="empty" style={{ textAlign: "left" }}>
+            Couldn't reach the IP lookup services. A content blocker, firewall or offline connection is the usual cause.
+            <div className="kv" style={{ padding: "12px 0 0", borderBottom: 0 }}><span className="k">Browser / OS</span><span className="v">{ua.browser} · {ua.os} · {ua.device}</span></div>
+            <div style={{ marginTop: 14 }}><button className="btn gh" onClick={check}>Retry</button></div>
+          </div>}
+          {st === "done" && (
+            <>
+              <Row k="Public IPv4" copy={v4} notify={notify}>{v4 || "Not detected"}</Row>
+              <Row k="Public IPv6" copy={v6} notify={notify}>{v6 || "Not detected"}</Row>
+              <div className="kv" style={{ padding: "10px 0" }}><span className="k">IPv6</span>
+                <span className="v" style={{ color: v6on ? "var(--good)" : "var(--warn)" }}>{v6on ? (v4 ? "✓ Working — dual stack" : "✓ Working — IPv6 only") : "✗ Not available on this connection"}</span></div>
+              {geo && <>
+                <div className="kv" style={{ padding: "10px 0" }}><span className="k">ISP / Org</span><span className="v">{geo.org || "—"}{geo.asn ? ` · ${geo.asn}` : ""}</span></div>
+                {where && <div className="kv" style={{ padding: "10px 0" }}><span className="k">Approx. location</span><span className="v">{where}</span></div>}
+                {geo.tz && <div className="kv" style={{ padding: "10px 0" }}><span className="k">IP time zone</span><span className="v">{geo.tz}</span></div>}
               </>}
-          </div>
-        </div>
-        <div className="ipt-hero-foot">
-          <p className="hint">Location is estimated from the public IP and can be far from where you actually are. This page does not store your address.</p>
-          {!loading && st !== "blocked" && (
-            <button type="button" className="btn gh sm" onClick={check}><RotateCw size={14} aria-hidden="true" />Re-check</button>
+              {!geo && <div className="kv" style={{ padding: "10px 0" }}><span className="k">ISP / location</span><span className="v" style={{ color: "var(--tx2)" }}>Lookup unavailable right now</span></div>}
+              <div className="kv" style={{ padding: "10px 0" }}><span className="k">Browser / OS</span><span className="v">{ua.browser} · {ua.os} · {ua.device}</span></div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn gh" onClick={check}>Re-check</button>
+              </div>
+              <div className="note i" style={{ marginTop: 12 }}>Location is estimated from the public IP and can be far from where you actually are. This page does not store your address.</div>
+            </>
           )}
         </div>
-        <p className="sr-only" role="status" aria-live="polite">
-          {loading ? "" : st === "blocked" ? err.title : `Public IP found${v6on ? ", IPv6 available" : ", IPv6 unavailable"}.`}
-        </p>
-      </section>
-
-      <div className="ipt-diag">
-        <section className="panel ipt-sec" aria-labelledby="ipt-v6-h">
-          <div className="ipt-sechead">
-            <h2 id="ipt-v6-h">IPv6 support</h2>
-            <DiagStatus s={v6Status} label={v6on ? "Working" : undefined} />
-          </div>
-          <div className="pb">
-            {loading && <div className="ipt-skblock" aria-hidden="true"><span className="skel" /><span className="skel" /></div>}
-            {done && v6on && (
-              <Notice tone="ok" title={v4 ? "Working — dual stack" : "Working — IPv6 only"}>
-                Sites that support IPv6 can reach you directly over it{v4 ? ", and IPv4 still works for everything else" : ""}.
-              </Notice>
-            )}
-            {done && !v6on && (
-              <Notice tone="i" title="IPv6 isn't available on this connection">
-                Usually your ISP or router hasn't enabled IPv6 for your plan. A VPN or a router with IPv6 switched off can also hide it.
-                Your device settings are rarely the cause — start with the router{mine ? `, then ${mine}` : ""}.
-              </Notice>
-            )}
-            {st === "blocked" && <p className="ipt-p">IPv6 couldn't be tested because the lookup services were unreachable.</p>}
-            <p className="ipt-p">
-              IPv6 gives a vastly larger address space and can improve direct connectivity on compatible networks. It does not
-              automatically make your internet faster — availability depends on your ISP, router and device.
-            </p>
-            <h3 className="ipt-h3">How to enable IPv6</h3>
-            <TipList tips={tips} openTip={openTip} setOpenTip={setOpenTip} mine={mine} />
-          </div>
-        </section>
-
-        <section className="panel ipt-sec" aria-labelledby="ipt-br-h">
-          <div className="ipt-sechead">
-            <h2 id="ipt-br-h">Browser &amp; network details</h2>
-            <span className="ipt-local"><Monitor size={13} aria-hidden="true" />Read on this device</span>
-          </div>
-          <div className="pb">
-            <div className="kv"><span className="k">Browser</span><span className="v">{ua.browser}</span></div>
-            <div className="kv"><span className="k">Operating system</span><span className="v">{ua.os}</span></div>
-            <div className="kv"><span className="k">Device type</span><span className="v">{ua.device}</span></div>
-            <div className="kv"><span className="k">Device time zone</span><span className="v">{local.tz || <Na />}</span></div>
-            {local.lang && <div className="kv"><span className="k">Language</span><span className="v">{local.lang}</span></div>}
-            {local.effective && <div className="kv"><span className="k">Connection estimate</span><span className="v">{local.effective.toUpperCase()}</span></div>}
-            {tzDiffers && (
-              <p className="hint">Your device's time zone differs from your IP's ({geo.tz}). That's normal on a VPN, a mobile network or while travelling.</p>
-            )}
-          </div>
-        </section>
       </div>
-
-      <IpLeakPanel v4={v4} v6={v6} />
+      <div className="panel rise d2">
+        <div className="ph"><h2>{st === "done" ? (v6on ? "IPv6 is working" : "IPv6 is off — how to enable it") : "About IPv6"}</h2></div>
+        <div className="pb">
+          {st === "done" && !v6on && <div className="note w" style={{ marginBottom: 12 }}>
+            <b>Why it's off · </b>usually your ISP or router hasn't enabled IPv6 for your plan. A VPN or a router with IPv6
+            switched off can also hide it. Your device settings are rarely the cause — start with the router{OS_TIP[ua.os] ? `, then ${OS_TIP[ua.os]}` : ""}.
+          </div>}
+          <div className="note i"><b>The honest version · </b>IPv6 gives a vastly larger address space and can improve direct
+            connectivity on compatible networks. It does not automatically make your internet faster — availability depends on
+            your ISP, router and device.</div>
+          {tips.map(([k, v]) => {
+            const i = tipIndex(k);
+            const mine = k === OS_TIP[ua.os];
+            return (
+              <div key={k} style={{ borderBottom: "1px solid var(--line2)" }}>
+                <button className="cpitem" style={{ padding: "11px 4px" }} onClick={() => setOpenTip(openTip === i ? -1 : i)} aria-expanded={openTip === i}>
+                  <b style={{ fontSize: 13.5 }}>{k}{mine && <span className="chip up" style={{ marginLeft: 8 }}>YOUR DEVICE</span>}</b><span className="d">{openTip === i ? "−" : "+"}</span>
+                </button>
+                {openTip === i && <div className="hint" style={{ padding: "0 4px 12px" }}>{v}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
+    <IpLeakPanel v4={v4} v6={v6} />
+    </>
   );
 }

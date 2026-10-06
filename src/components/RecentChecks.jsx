@@ -1,24 +1,18 @@
-import { History, X } from "lucide-react";
-import "../tools/css/recent.css";
-
-/** Quiet chips of recent lookups (kept on this device). items: [{ host, label }] — `host` is the value re-run on pick. */
-export default function RecentChecks({ items, onPick, onClear, title = "Recent checks" }) {
+export default function RecentChecks({ items, onPick, onClear }) {
   if (!items.length) return null;
   return (
-    <div className="rchecks">
-      <div className="rc-h">
-        <span className="rc-t"><History size={13} aria-hidden="true" />{title}<span className="rc-dev"> · saved on this device only</span></span>
-        <button type="button" className="linkbtn rc-clear" onClick={onClear}><X size={12} aria-hidden="true" />Clear</button>
+    <div style={{ marginTop: 12 }}>
+      <div className="hint" style={{ margin: "0 0 6px", display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>Recent checks (saved on this device only)</span>
+        <button type="button" className="linkbtn" style={{ margin: 0 }} onClick={onClear}>Clear</button>
       </div>
-      <ul className="rc-list" aria-label={title}>
+      <div className="pillrow">
         {items.map((e) => (
-          <li key={e.host}>
-            <button type="button" className="rc-chip" onClick={() => onPick(e.host)} title={e.label || e.host}>
-              <span className="rc-v">{e.host}</span>{e.label ? <span className="rc-l">{e.label}</span> : null}
-            </button>
-          </li>
+          <button key={e.host} type="button" className="pill" onClick={() => onPick(e.host)} title={e.label || e.host}>
+            {e.host}{e.label ? <span style={{ color: "var(--tx3)", marginLeft: 6 }}>{e.label}</span> : null}
+          </button>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

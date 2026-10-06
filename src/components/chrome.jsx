@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { Check, Link2 } from "lucide-react";
-import { CopyButton } from "./ui.jsx";
 
 /* Stays mounted so screen readers pick up the live region — toggling the whole
    element in and out of the DOM means the announcement is never heard. */
 export function Toast({ msg }) {
   return (
     <div className={`toast ${msg ? "show" : ""}`} role="status" aria-live="polite" aria-atomic="true">
-      {msg && <span className="tic" aria-hidden="true"><Check size={13} strokeWidth={3} /></span>}
       {msg}
     </div>
   );
@@ -27,34 +24,23 @@ export async function copyText(text, notify, ok) {
 }
 
 export function ShareLink({ notify }) {
-  return (
-    <CopyButton text={() => window.location.href} label="Share link" done="Link copied" icon={false}
-      notify={notify} toast="Link copied — it reopens this exact result." title="Copy a link that reproduces this result"
-      className="btn gh sharebtn" />
-  );
+  const copy = () => copyText(window.location.href, notify, "Link copied — it reopens this exact result.");
+  return <button type="button" className="btn gh" onClick={copy} title="Copy a link that reproduces this result">🔗 Share link</button>;
 }
-ShareLink.Icon = Link2;
 
 export function FaqSection({ tool }) {
-  const [open, setOpen] = useState(-1);
+  const [open, setOpen] = useState(0);
   return (
-    <section className="faqwrap" aria-labelledby="faq-h">
-      <div>
-        <h2 className="faqh" id="faq-h">Questions</h2>
-        <p>About {tool.name}</p>
-      </div>
-      <div>
-        {tool.faqs.map(([q, a], i) => (
-          <div className="faqitem" key={q}>
-            <h3 className="faqqh">
-              <button className="faqq" aria-expanded={open === i} aria-controls={`faq-a-${i}`} onClick={() => setOpen(open === i ? -1 : i)}>
-                <span>{q}</span><span className="faqsign" aria-hidden="true" />
-              </button>
-            </h3>
-            <div className="faqa" id={`faq-a-${i}`} hidden={open !== i}>{a}</div>
-          </div>
-        ))}
-      </div>
+    <section className="faqwrap rise d4" aria-label="Frequently asked questions">
+      <h2 className="faqh">Frequently asked</h2>
+      {tool.faqs.map(([q, a], i) => (
+        <div className="faqitem" key={q}>
+          <button className="faqq" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}>
+            <span>{q}</span><span className="faqsign" aria-hidden="true">{open === i ? "−" : "+"}</span>
+          </button>
+          {open === i && <div className="faqa">{a}</div>}
+        </div>
+      ))}
     </section>
   );
 }
