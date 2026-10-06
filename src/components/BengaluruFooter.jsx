@@ -55,6 +55,15 @@ export default function BengaluruFooter({ reduced, theme }) {
   const tapRef = useRef(0);
   const flyTimer = useRef(null);
   useEffect(() => () => clearTimeout(flyTimer.current), []);
+  /* the skyline's loops only run while the footer is on screen (CSS pauses .footer:not(.inview)) */
+  const footRef = useRef(null);
+  useEffect(() => {
+    const el = footRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { el?.classList.add("inview"); return; }
+    const io = new IntersectionObserver(([e]) => el.classList.toggle("inview", e.isIntersecting), { rootMargin: "120px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const visitors = useVisitCount();
   const day = theme === "light";
 
@@ -84,7 +93,7 @@ export default function BengaluruFooter({ reduced, theme }) {
   const glass = day ? "rgba(176,205,224,.85)" : "rgba(253,230,138,.55)";
 
   return (
-    <footer className="footer">
+    <footer className="footer" ref={footRef}>
       <div className="skywrap">
         <svg className="sky" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Illustrated Bengaluru skyline with a metro train, an auto-rickshaw and the airport tower">
           <defs>

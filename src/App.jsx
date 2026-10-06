@@ -5,7 +5,7 @@ import ToolIcon from "./components/ToolIcon.jsx";
 import { TOOLS, BETA_HINT } from "./toolsMeta.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
-import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
+import { PrivacyBadge, BetaBadge, MOD_KEY } from "./components/ui.jsx";
 import { readRecent, pushRecent } from "./lib/recentTools.js";
 import LocalClock from "./components/LocalClock.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
@@ -261,7 +261,7 @@ export default function App() {
               <span className="lname"><b>ToolDeck</b><small>BLR · UTILITY OS</small></span>
             </a>
             <button type="button" className="launch" onClick={() => setCp(true)} aria-label="Search tools (Ctrl or Command K)" aria-keyshortcuts="Control+K Meta+K">
-              <Search size={16} aria-hidden="true" /><span>Search tools…</span><kbd className="kbd" aria-hidden="true">⌘K</kbd>
+              <Search size={16} aria-hidden="true" /><span>Search tools…</span><kbd className="kbd" aria-hidden="true">{MOD_KEY}K</kbd>
             </button>
             <HeaderClock />
             <button className="hbtn ibtn" onClick={toggleTheme} title="Toggle theme (Ctrl/Cmd+/)" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>

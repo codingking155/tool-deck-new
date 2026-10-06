@@ -1,3 +1,4 @@
+import { Download, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { OFFER_DELAY_MS, wasOffered, markOffered, decideOffer, isStandalone, isIOSDevice } from "../lib/installPrompt.js";
 
@@ -43,24 +44,23 @@ export default function InstallPrompt() {
 
   if (!kind) return null;
   return (
-    <div role="region" aria-label="Install ToolDeck" className="note i"
-      style={{ position: "fixed", bottom: 20, left: 20, right: 20, maxWidth: 420, margin: "0 auto", zIndex: 50, boxShadow: "0 10px 30px rgba(0,0,0,.2)" }}>
-      <button type="button" className="rowcopy" aria-label="Close" onClick={() => setKind(null)}
-        style={{ position: "absolute", top: 8, right: 8, fontSize: 14 }}>✕</button>
-      <b>{kind === "ios" ? "Add ToolDeck to your Home Screen" : "Install ToolDeck"}</b>
-      <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--tx2)" }}>
-        {kind === "ios"
-          ? <>Tap <b>Share</b>, then <b>Add to Home Screen</b>, for a faster experience.</>
-          : "Add to your home screen for a faster experience."}
-      </p>
-      {kind === "native" ? (
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button type="button" className="btn pri" onClick={install} style={{ flex: 1 }}>Install</button>
-          <button type="button" className="btn gh" onClick={() => setKind(null)} style={{ flex: 1 }}>Not now</button>
-        </div>
-      ) : (
-        <button type="button" className="btn gh" onClick={() => setKind(null)} style={{ marginTop: 10, width: "100%", fontSize: 12 }}>Got it</button>
-      )}
+    <div role="region" aria-label="Install ToolDeck" className="installp">
+      <span className="ip-mark" aria-hidden="true"><Download size={18} /></span>
+      <div className="ip-body">
+        <b>{kind === "ios" ? "Add ToolDeck to your Home Screen" : "Install ToolDeck"}</b>
+        <p>{kind === "ios"
+          ? <>Tap <b>Share</b>, then <b>Add to Home Screen</b> — tools open instantly, even offline.</>
+          : "Opens instantly from your home screen, even offline."}</p>
+        {kind === "native" ? (
+          <div className="actions">
+            <button type="button" className="btn pri auto sm" onClick={install}>Install</button>
+            <button type="button" className="btn qt sm" onClick={() => setKind(null)}>Not now</button>
+          </div>
+        ) : (
+          <div className="actions"><button type="button" className="btn gh sm" onClick={() => setKind(null)}>Got it</button></div>
+        )}
+      </div>
+      <button type="button" className="btn qt ico sm ip-x" aria-label="Close" onClick={() => setKind(null)}><X size={16} aria-hidden="true" /></button>
     </div>
   );
 }

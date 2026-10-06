@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { ShieldCheck, Server, Globe2, SplitSquareHorizontal, Copy, Check, Info, AlertTriangle, OctagonAlert, CircleCheck, WifiOff, FlaskConical } from "lucide-react";
 import { WHERE_LABEL, BETA_HINT } from "../toolsMeta.js";
 
+/** Platform modifier label for shortcut hints. */
+export const MOD_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "") ? "⌘" : "Ctrl ";
+
 /* Small, deliberately un-generic building blocks shared by the shell and the tools.
    Styling lives in styles.css (section 5); these only add structure + behaviour. */
 

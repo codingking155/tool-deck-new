@@ -3,7 +3,7 @@ import { Search, ArrowRight, ShieldCheck, Globe2, UserX, CornerDownLeft, SearchX
 import { TOOLS, CATEGORIES, WHERE_LABEL } from "../toolsMeta.js";
 import { searchTools, highlightRuns } from "../lib/toolSearch.js";
 import ToolIcon from "../components/ToolIcon.jsx";
-import { PrivacyBadge, BetaBadge, EmptyState } from "../components/ui.jsx";
+import { PrivacyBadge, BetaBadge, EmptyState, MOD_KEY } from "../components/ui.jsx";
 
 /* Tiny animated illustration in each card's corner — one per tool, drawn in the
    tool's own hue (--cc) on the theme tokens so it reads in light and dark. */
@@ -105,7 +105,7 @@ export default function Home({ nav, recent = [], openPalette }) {
                 else if (e.key === "ArrowDown" && list.length) { e.preventDefault(); gridRef.current?.querySelector(".bcard")?.focus(); }
               }} />
             <span className="sb-r" aria-hidden="true">
-              {top ? <><CornerDownLeft size={13} />open <b>{top.name.split(" ")[0]}</b></> : <><kbd className="kbd">/</kbd>or<kbd className="kbd">⌘K</kbd></>}
+              {top ? <><CornerDownLeft size={13} />open <b>{top.name.split(" ")[0]}</b></> : <><kbd className="kbd">/</kbd>or<kbd className="kbd">{MOD_KEY}K</kbd></>}
             </span>
           </div>
           <div className="trust">
