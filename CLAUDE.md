@@ -9,9 +9,9 @@ modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own V
 - `npx vite preview --port 4173` to browse a build; `npm run preview:csp` serves it with vercel.json's CSP/security
   headers (run e2e against that after touching anything that loads/fetches a new origin, then update the CSP).
 - e2e: `npm run e2e -- <filter…>` (e.g. `npm run e2e -- pdf ip`) builds like CI, serves with the CSP, runs only the
-  matching scenarios, prints just failures + summary, and stops the server. Don't run e2e locally by default: CI
-  (`.github/workflows/ci.yml`) runs the whole suite on every PR and push to main. Run it only when asked, or to
-  debug a scenario CI reports failing (then filter to that scenario). Raw `p.mouse` drawing must emulate reduced motion
+  matching scenarios, prints just failures + summary, and stops the server. NEVER run e2e in any task (the
+  owner's rule, to save tokens) — not to verify, debug or before merging — unless the user explicitly asks for it
+  in that session. CI (`.github/workflows/ci.yml`) runs the suite; `npm run check` is the local gate. Raw `p.mouse` drawing must emulate reduced motion
   (decorative spiders swallow pointerdown).
 - Edge functions have no local runner; type-check with Deno in a scratch copy (esm.sh is blocked here).
 - Deploy: `.github/workflows/supabase-deploy.yml` (needs repo secrets) — see `docs/PRICE_TRACKER.md`.
