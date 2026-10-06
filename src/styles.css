@@ -595,7 +595,7 @@ table.rt.pt-table{min-width:520px}
 .imgdrop span{font-size:11.5px;color:var(--tx3)}
 .imgdrop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .imglist{display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:520px;overflow-y:auto}
-.imgrow{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--line2);border-radius:12px;background:var(--panel)}
+.imgrow{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--line2);border-radius:12px;background:var(--panel)}
 .imgrow .th{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:none;background:var(--line2)}
 .imgrow .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--tx3)}
 .imgrow .meta b{font-size:13px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -608,3 +608,9 @@ table.rt.pt-table{min-width:520px}
 .field input[type=range]{height:28px;accent-color:var(--pri2)}
 .field input[type=color]{height:44px;cursor:pointer}
 @media (max-width:560px){.imgrow{flex-wrap:wrap}.imgrow .act{width:100%}.imgrow .act .btn{flex:1}}
+.imgrow .meta{flex:1 1 140px}
+.imgcmp{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.imgcmp figure{margin:0;display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--tx3)}
+.imgcmp img{width:100%;max-height:300px;object-fit:contain;border-radius:8px;background:var(--line2)}
+.imgregion .box{cursor:grab;touch-action:none}
+.imgregion .box:active{cursor:grabbing}

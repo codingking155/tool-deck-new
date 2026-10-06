@@ -11,7 +11,7 @@ const MODES = [
 
 const DEFAULTS = {
   compress: { q: 70, fmt: "auto", max: "" },
-  resize: { mode: "px", width: "", height: "", pct: 50, keep: true },
+  resize: { mode: "px", width: 1280, height: "", pct: 50, keep: true },
   crop: { aspect: "1:1", zoom: 1, panX: 50, panY: 50 },
   convert: { to: "image/jpeg", bg: "#ffffff" },
   rotate: { angle: 90, flipH: false, flipV: false },
@@ -24,6 +24,15 @@ const DEFAULTS = {
 const SUFFIX = { compress: "-compressed", resize: "-resized", crop: "-cropped", convert: "-converted", rotate: "-rotated",
   watermark: "-watermarked", editor: "-edited", meme: "-meme", blur: "-blurred" };
 const MAX_FILES = 40;
+const RESIZE_PRESETS = [["Custom", "", ""], ["Instagram post 1080×1080", 1080, 1080], ["Story 1080×1920", 1080, 1920], ["HD 1280 wide", 1280, ""], ["Full HD 1920 wide", 1920, ""], ["Thumbnail 300 wide", 300, ""], ["Email 600 wide", 600, ""]];
+/** Why Apply is pointless right now, or "" when it will change something. */
+function noopReason(mode, o) {
+  if (mode === "resize" && o.mode === "px" && !Number(o.width) && !Number(o.height)) return "Enter a width or height.";
+  if (mode === "editor" && !Object.values(o).some(Boolean)) return "Move a slider to adjust the photo.";
+  if (mode === "watermark" && !o.text.trim()) return "Enter watermark text.";
+  if (mode === "meme" && !o.top.trim() && !o.bottom.trim()) return "Enter top or bottom text.";
+  return "";
+}
 const MAX_PIXELS = 100e6;
 
 async function loadBitmap(file) {
@@ -222,6 +231,10 @@ function Options({ mode, o, set, canAvif }) {
   if (mode === "resize") return <>
     <div className="field"><label htmlFor="orm">Resize by</label>
       <select id="orm" value={o.mode} onChange={(e) => set("mode", e.target.value)}><option value="px">Pixels</option><option value="pct">Percentage</option></select></div>
+    <div className="field"><label htmlFor="orp">Preset</label>
+      <select id="orp" value="" onChange={(e) => { const p = RESIZE_PRESETS[Number(e.target.value)]; if (p) { set("mode", "px"); set("width", p[1]); set("height", p[2]); set("keep", p[1] !== "" && p[2] !== ""); } }}>
+        {RESIZE_PRESETS.map((p, i) => <option key={p[0]} value={i === 0 ? "" : i}>{i === 0 ? "Choose a preset…" : p[0]}</option>)}
+      </select></div>
     {o.mode === "pct" ? <Range id="opct" label="Scale" value={o.pct} min={1} max={200} unit="%" onChange={(v) => set("pct", v)} /> : <>
       <div className="field"><label htmlFor="orw">Width (px)</label><input id="orw" type="number" min="1" value={o.width} onChange={(e) => set("width", e.target.value)} /></div>
       <div className="field"><label htmlFor="orh">Height (px)</label><input id="orh" type="number" min="1" value={o.height} onChange={(e) => set("height", e.target.value)} /></div>
@@ -292,21 +305,38 @@ function Options({ mode, o, set, canAvif }) {
   return null;
 }
 
-/** Live outline over the first image for the modes that pick a region. */
-function RegionPreview({ item, mode, o }) {
+/** Live outline over the first image; drag it to move the crop window / blur box. */
+function RegionPreview({ item, mode, o, set }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
   if (!item || (mode !== "crop" && mode !== "blur")) return null;
   const r = mode === "crop"
     ? (() => { const c = cropRect(item.w, item.h, o); return { l: (c.x / item.w) * 100, t: (c.y / item.h) * 100, w: (c.w / item.w) * 100, h: (c.h / item.h) * 100 }; })()
     : { l: o.x, t: o.y, w: Math.min(o.w, 100 - o.x), h: Math.min(o.h, 100 - o.y) };
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const down = (e) => { e.currentTarget.setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, l: r.l, t: r.t, px: o.panX, py: o.panY }; };
+  const move = (e) => {
+    const d = drag.current; if (!d) return;
+    const box = ref.current.getBoundingClientRect();
+    const dx = ((e.clientX - d.x) / box.width) * 100, dy = ((e.clientY - d.y) / box.height) * 100;
+    if (mode === "blur") { set("x", Math.round(clamp(d.l + dx, 0, 100 - Math.min(o.w, 100)))); set("y", Math.round(clamp(d.t + dy, 0, 100 - Math.min(o.h, 100)))); }
+    else {
+      const freeX = 100 - r.w, freeY = 100 - r.h;
+      if (freeX > 0) set("panX", Math.round(clamp(d.px + (dx / freeX) * 100, 0, 100)));
+      if (freeY > 0) set("panY", Math.round(clamp(d.py + (dy / freeY) * 100, 0, 100)));
+    }
+  };
   return (
-    <div className="imgregion" style={{ aspectRatio: `${item.w} / ${item.h}` }}>
-      <img src={item.src} alt="" />
-      <div className="box" style={{ left: `${r.l}%`, top: `${r.t}%`, width: `${r.w}%`, height: `${r.h}%` }} />
+    <div className="imgregion" ref={ref} style={{ aspectRatio: `${item.w} / ${item.h}` }}>
+      <img src={item.src} alt="" draggable={false} />
+      <div className="box" style={{ left: `${r.l}%`, top: `${r.t}%`, width: `${r.w}%`, height: `${r.h}%` }}
+        onPointerDown={down} onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} />
     </div>
   );
 }
 
 function FileRow({ item, onRemove, onSave }) {
+  const [cmp, setCmp] = useState(false);
   const r = item.res;
   const saved = r ? Math.round((1 - r.blob.size / item.file.size) * 100) : 0;
   return (
@@ -323,9 +353,14 @@ function FileRow({ item, onRemove, onSave }) {
       </div>
       {r && <img className="th" src={r.url} alt="Result" />}
       <div className="act">
+        {r && <button className="btn gh" onClick={() => setCmp((v) => !v)} aria-pressed={cmp}>Compare</button>}
         {r && <button className="btn gh" onClick={() => onSave(item)}>Download</button>}
         <button className="btn gh" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.file.name}`}>✕</button>
       </div>
+      {r && cmp && <div className="imgcmp">
+        <figure><img src={item.src} alt="Original" /><figcaption>Original · {fmtBytes(item.file.size)}</figcaption></figure>
+        <figure><img src={r.url} alt="Result" /><figcaption>Result · {fmtBytes(r.blob.size)}</figcaption></figure>
+      </div>}
     </div>
   );
 }
@@ -336,6 +371,7 @@ export default function ImageTool({ notify }) {
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [stale, setStale] = useState(false);
   const idRef = useRef(0);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -345,13 +381,13 @@ export default function ImageTool({ notify }) {
 
   useEffect(() => () => itemsRef.current.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }), []);
 
-  const setOpt = useCallback((k, v) => setOpts((p) => ({ ...p, [mode]: { ...p[mode], [k]: v } })), [mode]);
+  const setOpt = useCallback((k, v) => { setStale(true); setOpts((p) => ({ ...p, [mode]: { ...p[mode], [k]: v } })); }, [mode]);
 
   const clearResults = useCallback(() => setItems((arr) => arr.map((i) => {
     if (i.res?.url) URL.revokeObjectURL(i.res.url);
     return { ...i, res: null, err: null };
   })), []);
-  const changeMode = (m) => { if (m !== mode) { setMode(m); clearResults(); } };
+  const changeMode = (m) => { if (m !== mode) { setMode(m); clearResults(); setStale(false); } };
 
   const addFiles = useCallback(async (list) => {
     const files = [...list].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(f.name));
@@ -379,7 +415,7 @@ export default function ImageTool({ notify }) {
   const clearAll = () => { items.forEach((i) => { URL.revokeObjectURL(i.src); if (i.res?.url) URL.revokeObjectURL(i.res.url); }); setItems([]); };
 
   const run = async () => {
-    setBusy(true);
+    setBusy(true); setStale(false);
     const o = opts[mode];
     for (const it of itemsRef.current) {
       setItems((a) => a.map((x) => (x.id === it.id ? { ...x, busy: true, err: null } : x)));
@@ -406,6 +442,8 @@ export default function ImageTool({ notify }) {
     notify(`Zipped ${files.length} image${files.length > 1 ? "s" : ""}.`);
   };
 
+  const why = noopReason(mode, opts[mode]);
+  const GIF = items.some((i) => i.file.type === "image/gif");
   const totalIn = done.reduce((s, i) => s + i.file.size, 0), totalOut = done.reduce((s, i) => s + i.res.blob.size, 0);
 
   return (
@@ -420,8 +458,11 @@ export default function ImageTool({ notify }) {
           <div className="ph"><h3>{MODES.find((m) => m[0] === mode)[1]} options</h3><p>Applied to every image in the list.</p></div>
           <div className="pb">
             <Options mode={mode} o={opts[mode]} set={setOpt} canAvif={canAvif} />
-            <RegionPreview item={items[0]} mode={mode} o={opts[mode]} />
-            <button className="btn pri" style={{ marginTop: 12 }} disabled={!items.length || busy} onClick={run}>
+            <RegionPreview item={items[0]} mode={mode} o={opts[mode]} set={setOpt} />
+            {GIF && <div className="hint">GIF animation isn't kept — only the first frame is processed.</div>}
+            {stale && <div className="note w" style={{ marginTop: 10, marginBottom: 0 }}>Options changed — results below are outdated. Apply again to refresh.</div>}
+            {why && <div className="hint">{why}</div>}
+            <button className="btn pri" style={{ marginTop: 12 }} disabled={!items.length || busy || !!why} onClick={run}>
               {busy ? "Working…" : items.length ? `Apply to ${items.length} image${items.length > 1 ? "s" : ""}` : "Add images first"}
             </button>
           </div>
