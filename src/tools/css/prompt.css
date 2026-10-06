@@ -64,7 +64,7 @@
   .pg-modes button{justify-content:center;min-height:44px}
   .pg-style{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
   .pg-style button{min-height:40px;justify-content:center}
-  .pg-chip{height:36px;padding:0 12px 0 10px}
+  .pg-chip{height:44px;padding:0 12px 0 10px}
   .pg-xr{min-height:44px}
   .pg-more-s{display:none}
   .pg-acts{flex-wrap:wrap}

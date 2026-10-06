@@ -236,7 +236,7 @@ export default function JsonTool({ notify }) {
             <div className="jx-ph-a">
               {undo !== null && <button type="button" className="btn qt sm" onClick={() => { setInput(undo); setUndo(null); setApplied(null); }}><Undo2 size={15} aria-hidden="true" />Undo</button>}
               <button type="button" className="btn qt sm" onClick={openA}><FolderOpen size={15} aria-hidden="true" />Open file</button>
-              <input ref={fileA} type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
+              <input ref={fileA} type="file" aria-label="Open JSON file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
               <button type="button" className="btn qt sm" onClick={loadExample}><FileJson size={15} aria-hidden="true" />Sample</button>
             </div>
           </header>
@@ -284,7 +284,7 @@ export default function JsonTool({ notify }) {
               <div className="jx-ph-a">
                 <button type="button" className="btn qt sm" onClick={() => { const a = input; setInput(inputB); setInputB(a); }}><ArrowLeftRight size={15} aria-hidden="true" />Swap A and B</button>
                 <button type="button" className="btn qt sm" onClick={() => fileB.current?.click()}><FolderOpen size={15} aria-hidden="true" />Open file</button>
-                <input ref={fileB} type="file" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
+                <input ref={fileB} type="file" aria-label="Open JSON file for B" accept=".json,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInputB); e.target.value = ""; }} />
               </div>
             </header>
             <CodeEditor id="json-b" label="JSON to compare" value={inputB} onChange={(e) => setInputB(e.target.value)} height={440}
