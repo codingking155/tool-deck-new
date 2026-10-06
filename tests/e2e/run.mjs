@@ -35,6 +35,8 @@ async function scenario(name, fn, { mock } = {}) {
   page.on("console", (m) => { if (m.type() === "error" && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   // The real internet is blocked; scenarios add specific mocks afterwards (later routes take precedence).
   await page.route((url) => /^https?:$/.test(url.protocol) && !url.href.startsWith(BASE), (r) => r.abort());
+  // Vercel Speed Insights' script only exists on Vercel; locally the SPA fallback serves index.html, which throws when run.
+  await page.route("**/_vercel/**", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
   try {
     if (mock) await mock(page);
     await fn(page);
