@@ -424,13 +424,21 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 /* skip link + FAQ */
 .skiplink{position:absolute;left:12px;top:-52px;z-index:200;background:var(--pri);color:#2A1500;font-weight:700;font-family:var(--body);padding:9px 14px;border-radius:10px;transition:top .2s;text-decoration:none;font-size:13px}
 .skiplink:focus{top:12px}
-.faqwrap{margin-top:34px;max-width:820px}
-.faqh{font-family:var(--disp);font-size:16px;font-weight:700;margin-bottom:12px}
-.faqitem{border:1px solid var(--line2);border-radius:12px;background:var(--glass);backdrop-filter:blur(8px);margin-bottom:8px;overflow:hidden}
-.faqq{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;background:none;border:0;color:var(--tx);font-family:var(--body);font-size:14px;font-weight:600;text-align:left;padding:14px 16px;cursor:pointer}
+/* FAQ — secondary two-column accordion (heading left, questions right) */
+.faqwrap{margin-top:48px;padding-top:24px;border-top:1px solid var(--line);display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px}
+@media(max-width:820px){.faqwrap{grid-template-columns:1fr;gap:12px}}
+.faqh{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:-.015em}
+.faqh+p{font-size:12.5px;color:var(--tx3);margin-top:4px}
+.faqitem{border-bottom:1px solid var(--line2)}
+.faqitem:first-child{border-top:1px solid var(--line2)}
+.faqqh{font:inherit;letter-spacing:0}
+.faqq{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;background:none;border:0;color:var(--tx);font:500 14px var(--body);text-align:left;padding:12px 0;min-height:48px;cursor:pointer}
 .faqq:hover{color:var(--pri2)}
-.faqsign{font-family:var(--mono);color:var(--pri2);font-size:17px;flex-shrink:0;line-height:1}
-.faqa{padding:0 16px 15px;color:var(--tx2);font-size:13.5px;line-height:1.6;animation:fadein .25s both}
+.faqsign{width:16px;height:16px;flex:none;position:relative;color:var(--tx3)}
+.faqsign::before,.faqsign::after{content:"";position:absolute;left:3px;right:3px;top:7.25px;height:1.5px;background:currentColor;border-radius:1px;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.faqsign::after{transform:rotate(90deg)}
+.faqq[aria-expanded=true] .faqsign::after{transform:rotate(0)}
+.faqa{padding:0 0 14px;color:var(--tx2);font-size:13.5px;line-height:1.65;max-width:68ch;animation:fadein .25s both}
 
 /* 3D flourishes — icons float, logo flips, gauge lifts */
 .thead{perspective:900px}
