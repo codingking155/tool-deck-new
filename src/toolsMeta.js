@@ -89,8 +89,8 @@ export const TOOLS = [
       ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
-  { id: "pdf", kw: "pdf merge split compress rotate watermark convert word jpg sign protect unlock ocr page numbers", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
-    blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
+  { id: "pdf", kw: "pdf merge split compress rotate watermark convert word jpg sign protect unlock ocr page numbers sheaf studio", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
+    blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock, plus Sheaf studio, a visual workspace with drag-to-reorder pages and live previews. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
       ["How good is PDF to Word?", "It recovers the text as editable paragraphs and page breaks. Layout, images and tables are not reproduced, and scanned PDFs (no selectable text) can't be converted without OCR."],

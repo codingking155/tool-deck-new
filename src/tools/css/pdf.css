@@ -223,3 +223,22 @@
   .pdfh-card:hover .pdfh-go{transform:translateY(-50%)}
 }
 .pdfs-nav+.hint{margin:-4px 0 var(--s3)}
+
+/* Sheaf studio entry (toolkit home + per-tool link) and framed studio */
+.pdfh-studio{display:flex;gap:14px;align-items:flex-start;width:100%;margin:0 0 24px;padding:16px;text-align:left;cursor:pointer;color:var(--tx);font:inherit;
+  background:color-mix(in srgb,var(--good) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--good) 30%,var(--line));border-radius:var(--r-lg);transition:border-color var(--dur-1),transform var(--dur-1) var(--ease)}
+.pdfh-studio:hover{border-color:color-mix(in srgb,var(--good) 55%,var(--line));transform:translateY(-1px)}
+.pdfh-sic{flex:none;width:40px;height:40px;border-radius:11px;display:grid;place-items:center;color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent);border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
+.pdfh-sic svg{width:20px;height:20px}
+.pdfh-stx{flex:1;min-width:0}
+.pdfh-stx b{display:block;font-size:15px;font-weight:600}
+.pdfh-stx b i{font:600 10.5px var(--mono);font-style:normal;margin-left:6px;padding:1px 7px;border-radius:var(--r-pill);color:var(--good);border:1px solid currentColor;vertical-align:1px}
+.pdfh-stx small{display:block;margin-top:4px;font-size:12.5px;line-height:1.5;color:var(--tx3)}
+.pdfh-sgo{flex:none;align-self:center;width:18px;height:18px;color:var(--tx3);transition:transform var(--dur-2) var(--ease),color var(--dur-2)}
+.pdfh-studio:hover .pdfh-sgo{transform:translateX(3px);color:var(--good)}
+.pdfw-studio{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;font-size:12.5px;color:var(--tx3)}
+.sheaf-wrap{max-width:1400px;margin:0 auto}
+.sheaf-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.sheaf-t{flex:1;min-width:0;font-size:13px;color:var(--tx3)}
+.sheaf-frame{display:block;width:100%;height:max(620px,calc(100vh - 170px));border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface)}
+@media(prefers-reduced-motion:reduce){.pdfh-studio:hover{transform:none}}

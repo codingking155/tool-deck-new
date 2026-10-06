@@ -2,13 +2,14 @@ import { useState, useRef, useMemo, useEffect, useId, lazy, Suspense } from "rea
 import {
   Merge, Scissors, FileMinus, FileOutput, ListOrdered, RotateCw, Minimize2, Wrench, ScanText, Images, ImageDown, FileText,
   Droplets, Hash, Crop, Signature, GitCompareArrows, Lock, LockOpen, Search, ChevronRight, ChevronUp, ChevronDown, X, FileUp,
-  Download, FolderInput, Gauge, Repeat, PencilLine, ShieldCheck, Check, LoaderCircle, RotateCcw,
+  Download, FolderInput, Gauge, Repeat, PencilLine, ShieldCheck, Check, LoaderCircle, RotateCcw, Layers,
 } from "lucide-react";
 import { Notice, EmptyState } from "../components/ui.jsx";
 import { SubHead, LocalNote, Progress, kb } from "./pdf/shared.jsx";
 const SignPdf = lazy(() => import("./pdf/SignPdf.jsx"));
 const ComparePdf = lazy(() => import("./pdf/ComparePdf.jsx"));
 const OcrPdf = lazy(() => import("./pdf/OcrPdf.jsx"));
+const SheafStudio = lazy(() => import("./pdf/SheafStudio.jsx"));
 const qpdfOps = async () => {
   const [ops, wasm, script] = await Promise.all([import("../lib/qpdf.js"), import("@jspawn/qpdf-wasm/qpdf.wasm?url"), import("@jspawn/qpdf-wasm/qpdf.js?url")]);
   return { ...ops, rt: { factory: await ops.browserQpdfFactory(script.default), env: { locateFile: (f) => (f.endsWith(".wasm") ? wasm.default : f) } } };
@@ -123,6 +124,11 @@ const TOOLS = [
     run: async ([f], o) => { const q = await qpdfOps(); return [pdf(await q.unlockPdf(f.bytes, o.password || "", q.rt), `${base(f)}-unlocked.pdf`)]; } },
 ];
 
+/* ToolDeck tool id -> the same tool in Sheaf, the visual studio (public/sheaf). */
+const SHEAF = { merge: "merge", split: "split", remove: "remove", extract: "extract", organize: "organize", compress: "compress",
+  jpg2pdf: "img2pdf", pdf2jpg: "pdf2jpg", rotate: "rotate", numbers: "pagenum", watermark: "watermark", crop: "crop",
+  protect: "protect", unlock: "unlock", sign: "sign" };
+
 const NOT_AVAILABLE = [
   "Word / PowerPoint / Excel / HTML to PDF", "PDF to PowerPoint / Excel / PDF/A",
   "Redact PDF", "Edit PDF text",
@@ -216,7 +222,7 @@ function PageThumbs({ file, spec, ordered, onChange }) {
   );
 }
 
-function Workspace({ tool, notify, onBack, onOpen }) {
+function Workspace({ tool, notify, onBack, onOpen, onStudio }) {
   const [files, setFiles] = useState([]);
   const [opts, setOpts] = useState({});
   const [busy, setBusy] = useState("");
@@ -282,6 +288,12 @@ function Workspace({ tool, notify, onBack, onOpen }) {
   return (
     <div className="pdfw">
       <SubHead icon={tool.ico} title={tool.name} desc={tool.desc} onBack={onBack} />
+      {SHEAF[tool.id] && (
+        <div className="pdfw-studio">
+          <button type="button" className="btn gh sm" onClick={() => onStudio(SHEAF[tool.id])}><Layers size={15} aria-hidden="true" />Open in visual editor</button>
+          <span>Drag pages and see changes live in Sheaf studio</span>
+        </div>
+      )}
       <div className="panel">
         <div className="pb">
           <div className={`pdfw-drop${drag ? " is-over" : ""}${files.length ? " is-compact" : ""}`}
@@ -424,13 +436,20 @@ export default function PdfTool({ notify }) {
   useEffect(() => {
     if (!id && from.current) { cards.current[from.current]?.focus(); from.current = ""; }
   }, [id]);
+  const studio = id === "sheaf" || id.startsWith("sheaf:");
+
+  if (studio) return (
+    <Suspense fallback={<div className="pdfw"><p className="sr-only" role="status">Loading Sheaf studio…</p><div className="skel pdfw-skel" aria-hidden="true" /></div>}>
+      <SheafStudio tool={id.slice(6)} onBack={back} />
+    </Suspense>
+  );
 
   if (tool?.Custom) return (
     <Suspense fallback={<div className="pdfw"><p className="sr-only" role="status">Loading {tool.name}…</p><div className="skel pdfw-skel" aria-hidden="true" /></div>}>
       <tool.Custom notify={notify} onBack={back} icon={tool.ico} />
     </Suspense>
   );
-  if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={back} onOpen={setId} />;
+  if (tool) return <Workspace key={tool.id} tool={tool} notify={notify} onBack={back} onOpen={setId} onStudio={(x) => setId(`sheaf:${x}`)} />;
 
   const q = query.trim().toLowerCase();
   const match = (t) => !q || (t.name + " " + t.short + " " + t.desc + " " + GROUPS[t.g].name).toLowerCase().includes(q);
@@ -447,6 +466,14 @@ export default function PdfTool({ notify }) {
         <LocalNote />
       </div>
       <p className="sr-only" aria-live="polite">{q ? `${shown.length} tool${shown.length === 1 ? "" : "s"} match` : ""}</p>
+      {!q && (
+        <button type="button" className="pdfh-studio" onClick={() => setId("sheaf")}>
+          <span className="pdfh-sic" aria-hidden="true"><Layers /></span>
+          <span className="pdfh-stx"><b>Sheaf studio <i>New</i></b>
+            <small>A visual workspace for 15 of these tools: drag pages to reorder, rotate or delete them, see watermarks, page numbers, crops and signatures live on the page, then keep working on the result.</small></span>
+          <ChevronRight className="pdfh-sgo" aria-hidden="true" />
+        </button>
+      )}
       {GROUPS.map((g, gi) => {
         const items = shown.filter((t) => t.g === gi);
         if (!items.length) return null;
