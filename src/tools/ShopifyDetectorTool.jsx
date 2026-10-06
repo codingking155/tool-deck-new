@@ -1,16 +1,32 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Zap, Globe, CheckCircle, XCircle, AlertCircle, ChevronDown, Copy, ExternalLink, CheckCheck, Loader2 } from 'lucide-react';
+import { Zap, CheckCircle, XCircle, AlertCircle, ShieldAlert, Copy, ExternalLink, CheckCheck, Loader2, Check } from 'lucide-react';
 
 const TIMEOUT_MS = 30000;
-const soft = (c) => `color-mix(in srgb, ${c} 12%, transparent)`;
+const EXAMPLES = ['allbirds.com', 'gymshark.com', 'wikipedia.org'];
 
 /* verdict → what we show. "blocked" = the site refused to serve us the page and nothing else proved it either way */
 const VIEW = {
-  yes: { color: 'var(--good)', Icon: CheckCircle, title: 'Shopify store detected' },
-  uncertain: { color: 'var(--warn)', Icon: AlertCircle, title: 'Possibly Shopify' },
-  blocked: { color: 'var(--warn)', Icon: AlertCircle, title: "Couldn't see the page" },
-  no: { color: 'var(--tx2)', Icon: XCircle, title: 'Not a Shopify store' },
+  yes: { Icon: CheckCircle, title: 'Shopify store detected' },
+  uncertain: { Icon: AlertCircle, title: 'Possibly Shopify' },
+  blocked: { Icon: ShieldAlert, title: "Couldn't see the page" },
+  no: { Icon: XCircle, title: 'Not a Shopify store' },
 };
+
+const hostOf = (u) => { try { return new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, ''); } catch { return u; } };
+
+/* Confidence ring: the verdict's accent fills the share of the circle the server is sure of. */
+function Ring({ pct, Icon }) {
+  const v = Math.min(100, Math.max(0, Math.round(pct)));
+  return (
+    <div className="sd-ring" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v} aria-label="Detection confidence">
+      <svg className="sd-ring-svg" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="27" className="sd-ring-track" />
+        {v > 0 && <circle cx="32" cy="32" r="27" className="sd-ring-fill" pathLength="100" strokeDasharray={`${v} 100`} />}
+      </svg>
+      {v > 0 ? <b>{v}<small>%</small></b> : <Icon size={22} aria-hidden="true" />}
+    </div>
+  );
+}
 
 function describe(data) {
   const pct = data.confidence_pct ?? Math.round((data.confidence ?? 0) * 100);
@@ -19,7 +35,7 @@ function describe(data) {
   const signals = data.detected_signals || [];
   let kind = verdict, details = '';
   if (verdict === 'yes') {
-    details = [data.shop_domain && `Shop domain: ${data.shop_domain}`, signals.length && `${signals.length} Shopify signal${signals.length === 1 ? '' : 's'} detected`].filter(Boolean).join(' • ');
+    details = pct >= 90 ? 'This website runs on Shopify — several independent signals agree.' : 'This website runs on Shopify.';
   } else if (verdict === 'uncertain' && blocked && pct < 25) {
     kind = 'blocked';
     details = "The site blocked our check (bot protection or rate limiting) and nothing else confirmed the platform. Try again later, or open it in a browser.";
@@ -39,7 +55,6 @@ export default function ShopifyDetectorTool({ notify }) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showTechnical, setShowTechnical] = useState(false);
   const [copied, setCopied] = useState(false);
   const ctrl = useRef(null);
   const copyTimer = useRef(0);
@@ -62,7 +77,6 @@ export default function ShopifyDetectorTool({ notify }) {
       setLoading(true);
       setError(null);
       setResult(null);
-      setShowTechnical(false);
 
       // Our own shopify-check edge function (same response shape as before)
       const base = import.meta.env.VITE_SUPABASE_URL;
@@ -126,155 +140,89 @@ export default function ShopifyDetectorTool({ notify }) {
   };
 
   const view = result ? VIEW[result.kind] || VIEW.no : null;
-  const actionBtn = { display: 'flex', alignItems: 'center', gap: '4px' };
+  const tryExample = (ex) => { setUrl(ex); checkUrl(ex); };
 
   return (
-    <div className="panel" style={{ padding: 20 }}>
-      {/* Form */}
-      <form onSubmit={handleSubmit} noValidate style={{ marginBottom: 0 }}>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="field" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
-            <label htmlFor="shopify-url">Website URL</label>
-            <input
-              id="shopify-url"
-              type="text"
-              inputMode="url"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g. example-store.com"
-              disabled={loading}
-              aria-invalid={!!error}
-              aria-describedby={error ? 'shopify-error' : undefined}
-            />
-          </div>
-          <button type="submit" className="btn pri" disabled={loading} style={{ width: 'auto' }}>
-            {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />}
-            {loading ? 'Checking...' : 'Check Now'}
-          </button>
+    <div className="panel sd">
+      <form onSubmit={handleSubmit} noValidate className="sd-form">
+        <div className="field">
+          <label htmlFor="shopify-url">Website URL</label>
+          <input
+            id="shopify-url"
+            type="text"
+            inputMode="url"
+            enterKeyHint="go"
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="e.g. example-store.com"
+            disabled={loading}
+            aria-invalid={!!error}
+            aria-describedby={error ? 'shopify-error' : 'shopify-hint'}
+          />
         </div>
+        <button type="submit" className="btn pri" disabled={loading}>
+          {loading ? <Loader2 size={16} className="sd-spin" aria-hidden="true" /> : <Zap size={16} aria-hidden="true" />}
+          {loading ? 'Checking…' : 'Check store'}
+        </button>
       </form>
+      {!result && !loading && !error && (
+        <p id="shopify-hint" className="sd-try">Try
+          {EXAMPLES.map((ex) => <button key={ex} type="button" className="pill" onClick={() => tryExample(ex)}>{ex}</button>)}
+        </p>
+      )}
 
-      {/* Error */}
       {error && (
-        <div id="shopify-error" role="alert" className="note e" style={{ color: 'var(--tx)', margin: '16px 0 0' }}>
-          {error}
-        </div>
+        <div id="shopify-error" role="alert" className="note e sd-gap">{error}</div>
       )}
 
-      {/* Result */}
-      <div aria-live="polite">
-      {result && (
-        <div style={{
-          padding: '20px',
-          backgroundColor: 'var(--panel2)',
-          border: '1px solid var(--line)',
-          borderRadius: '12px',
-          marginTop: '16px',
-          color: 'var(--tx)',
-        }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ padding: '12px', backgroundColor: soft(view.color), borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <view.Icon className="w-6 h-6" style={{ color: view.color }} aria-hidden="true" />
+      <div aria-live="polite" aria-busy={loading}>
+        {loading && (
+          <div className="sd-result sd-loading" aria-hidden="true">
+            <div className="sd-head"><div className="skel sd-skel-ring" /><div style={{ flex: 1 }}><div className="skel" style={{ height: 20, width: '55%' }} /><div className="skel" style={{ height: 12, width: '80%', marginTop: 10 }} /></div></div>
+            <div className="sd-stats">{[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ height: 54 }} />)}</div>
+          </div>
+        )}
+        {result && !loading && (
+          <section className={`sd-result sd-${result.kind}`} aria-label="Detection result">
+            <div className="sd-head">
+              <Ring pct={result.kind === 'blocked' ? 0 : result.pct} Icon={view.Icon} />
+              <div className="sd-verdict">
+                <h2><view.Icon size={18} aria-hidden="true" />{view.title}</h2>
+                <p>{result.details}</p>
               </div>
-              <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 600, color: view.color }}>{view.title}</h2>
-                {result.pct > 0 && result.kind !== 'blocked' && (
-                  <p style={{ fontSize: '12px', color: 'var(--tx3)', marginTop: '4px' }}>
-                    Confidence: {Math.round(result.pct)}%
-                  </p>
-                )}
+              <div className="sd-actions">
+                <button type="button" className="pill" onClick={handleCopy} aria-label="Copy URL">
+                  {copied ? <CheckCheck size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+                <button type="button" className="pill" onClick={handleVisit} aria-label={`Visit ${hostOf(result.url)} in a new tab`}>
+                  <ExternalLink size={14} aria-hidden="true" />Visit
+                </button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="button" className="pill" onClick={handleCopy} style={actionBtn}>
-                {copied ? <CheckCheck size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-              <button type="button" className="pill" onClick={handleVisit} style={actionBtn}>
-                <ExternalLink size={14} aria-hidden="true" />
-                Visit
-              </button>
-            </div>
-          </div>
 
-          {/* URL */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', marginBottom: '16px', fontSize: '12px', fontFamily: 'var(--mono)' }}>
-            <Globe size={14} style={{ color: 'var(--tx3)' }} aria-hidden="true" />
-            <span style={{ wordBreak: 'break-all' }}>{result.url}</span>
-            {result.shop_domain && <span style={{ color: 'var(--good)', fontWeight: 600, marginLeft: 'auto' }}>{result.shop_domain}</span>}
-          </div>
+            <dl className="sd-stats">
+              <div className="wide"><dt>Website</dt><dd title={result.url}>{hostOf(result.url)}</dd></div>
+              <div className="wide"><dt>Store domain</dt><dd title={result.shop_domain || undefined}>{result.shop_domain || '—'}</dd></div>
+              <div><dt>Signals found</dt><dd>{result.signals.length}</dd></div>
+              <div><dt>Checked in</dt><dd>{result.elapsed_ms != null ? `${(result.elapsed_ms / 1000).toFixed(result.elapsed_ms < 10000 ? 2 : 1)} s` : '—'}</dd></div>
+            </dl>
 
-          {/* Message */}
-          <div style={{ padding: '12px', backgroundColor: soft(view.color), border: `1px solid ${view.color}`, borderRadius: '6px', marginBottom: '16px' }}>
-            <p style={{ fontWeight: 600, color: 'var(--tx)' }}>{view.title}</p>
-            {result.details && <p style={{ fontSize: '12px', color: 'var(--tx2)', marginTop: '4px' }}>{result.details}</p>}
-          </div>
-
-          {/* Confidence Meter */}
-          {result.verdict === 'yes' && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '12px' }}>
-                <span style={{ fontWeight: 500 }}>Detection Confidence</span>
-                <span style={{ fontWeight: 600, color: 'var(--good)' }}>{Math.round(result.pct)}%</span>
-              </div>
-              <div style={{ height: '8px', backgroundColor: 'var(--panel2)', borderRadius: '4px', overflow: 'hidden' }}
-                role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(result.pct)} aria-label="Detection confidence">
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${Math.min(100, Math.max(0, result.pct))}%`,
-                    background: result.pct > 70 ? 'var(--good)' : result.pct > 30 ? 'var(--warn)' : 'var(--bad)',
-                    transition: 'width 0.8s ease',
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Technical Details */}
-          {result.signals.length > 0 && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowTechnical(!showTechnical)}
-                aria-expanded={showTechnical}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  backgroundColor: 'var(--panel2)',
-                  color: 'var(--tx)',
-                  border: '1px solid var(--line)',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                }}
-              >
-                <span>Technical Signals</span>
-                <ChevronDown size={16} aria-hidden="true" style={{ transform: showTechnical ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
-              </button>
-              {showTechnical && (
-                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: 'var(--bg)', borderRadius: '6px', fontSize: '12px' }}>
+            {result.signals.length > 0 && (
+              <div className="sd-signals">
+                <h3>What we found <span>{result.signals.length}</span></h3>
+                <ul>
                   {result.signals.map((signal, i) => (
-                    <div key={i} style={{ padding: '4px 0', borderBottom: i < result.signals.length - 1 ? '1px solid var(--line)' : 'none' }}>
-                      • {signal}
-                    </div>
+                    <li key={i} style={{ '--i': i }}><Check size={14} aria-hidden="true" />{signal}</li>
                   ))}
-                  {result.elapsed_ms != null && <p style={{ marginTop: '8px', color: 'var(--tx3)' }}>Detection took {result.elapsed_ms}ms</p>}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

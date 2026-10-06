@@ -268,6 +268,17 @@ await scenario("Shell: unknown routes show a not-found page; malformed share lin
   assert.equal(await p.getByText("Something went wrong in this tool").count(), 0);
 });
 
+await scenario("Shopify: detected result shows the confidence ring, stats and every signal", async (p) => {
+  await p.goto(`${BASE}/tool/shopifydetector`);
+  await p.fill("#shopify-url", "neelsonline.com");
+  await p.getByRole("button", { name: /check store/i }).click();
+  await p.getByRole("heading", { name: "Shopify store detected" }).waitFor();
+  assert.equal(await p.getByRole("meter", { name: "Detection confidence" }).getAttribute("aria-valuenow"), "98");
+  assert.match(await p.locator(".sd-stats").innerText(), /neelsonline\.myshopify\.com/);
+  assert.equal(await p.locator(".sd-signals li").count(), 3);
+}, { mock: (p) => p.route(/shopify-check/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: CORS,
+  body: JSON.stringify({ verdict: "yes", is_shopify: true, confidence_pct: 98, shop_domain: "neelsonline.myshopify.com", final_url: "https://neelsonline.com/", detected_signals: ["Shopify CDN assets loaded", "Shopify JavaScript object", "powered-by response header"], elapsed_ms: 727 }) })) });
+
 await scenario("Phone: validity and line type from libphonenumber", async (p) => {
   await p.goto(`${BASE}/tool/phone?n=${encodeURIComponent("+44 20 7183 8750")}`);
   await p.getByText("Valid number · Landline").waitFor({ timeout: 15000 });
