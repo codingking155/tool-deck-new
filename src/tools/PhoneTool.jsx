@@ -3,6 +3,7 @@ import { analyzeNumber, validityText } from "../lib/phoneCheck.js";
 import { detectPhone } from "../lib/phone.js";
 import { fmtLocal, offsetLabel } from "../lib/time.js";
 import { useNow, readParams, writeParams } from "../hooks/index.js";
+import "./css/phone.css";
 
 export default function PhoneTool({ notify }) {
   const [input, setInput] = useState(() => readParams().get("n") || "");

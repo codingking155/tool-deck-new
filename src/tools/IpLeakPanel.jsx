@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { collectIceCandidates, webrtcVerdict, runDnsLeakTest, dnsVerdict, DNS_PROVIDER } from "../lib/leak.js";
+import "./css/ip.css";
 
 const LEVEL = {
   ok:      { color: "var(--good)", title: "No WebRTC leak found", text: "WebRTC only exposed the public address websites already see (and hid any local address behind a random .local name)." },

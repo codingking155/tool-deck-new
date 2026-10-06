@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Zap, CheckCircle, XCircle, AlertCircle, ShieldAlert, Copy, ExternalLink, CheckCheck, Loader2, Check } from 'lucide-react';
+import "./css/shopify.css";
 
 const TIMEOUT_MS = 30000;
 const EXAMPLES = ['allbirds.com', 'gymshark.com', 'wikipedia.org'];

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createAlertsApi } from "./api.js";
+import "./alerts.css";
 
 function money(n, currency = "INR") {
   if (n == null) return "—";

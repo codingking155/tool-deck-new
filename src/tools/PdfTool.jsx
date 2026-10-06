@@ -9,6 +9,7 @@ const qpdfOps = async () => {
 const pdfOps = () => import("../lib/pdf.js");
 import { readParams, writeParams } from "../hooks/index.js";
 import { parseRanges } from "../lib/pdfRanges.js";
+import "./css/pdf.css";
 
 const PAGES = { key: "pages", label: "Pages (e.g. 1-3, 5, 8-)", type: "text", ph: "1-3, 5" };
 const base = (f) => f.name.replace(/\.[^.]+$/, "");

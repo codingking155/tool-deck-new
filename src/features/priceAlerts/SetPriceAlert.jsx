@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createAlertsApi } from "./api.js";
 import { validateAlertInput } from "../../../shared/priceAlertsCore/validation.mjs";
+import "./alerts.css";
 
 function money(n, currency = "INR") {
   try { return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", { style: "currency", currency }).format(Number(n)); }

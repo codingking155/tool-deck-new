@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
+import { flushSync } from "react-dom";
+import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, RotateCcw, FlaskConical } from "lucide-react";
 import ToolIcon from "./components/ToolIcon.jsx";
-import { Search, Sun, Moon } from "lucide-react";
-import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
-import { fmtUtc } from "./lib/time.js";
+import { TOOLS, BETA_HINT } from "./toolsMeta.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
-import { Particles, CursorGlow } from "./components/Ambient.jsx";
+import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
+import { readRecent, pushRecent } from "./lib/recentTools.js";
 import LocalClock from "./components/LocalClock.jsx";
 import CommandPalette from "./components/CommandPalette.jsx";
 import InstallPrompt from "./components/InstallPrompt.jsx";
@@ -48,6 +49,7 @@ const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool, ytdownloader: YtDownloaderTool,
 };
+const TOOL_IDS = TOOLS.map((t) => t.id);
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
 
@@ -68,60 +70,121 @@ class ToolErrorBoundary extends Component {
   render() {
     if (!this.state.err) return this.props.children;
     return (
-      <div className="panel" style={{ padding: 22 }}>
-        <div className="note w" role="alert"><b>Something went wrong in this tool.</b> Your files and inputs never left this device. Reset the tool to start again.
-          <details style={{ marginTop: 6 }}><summary>Technical detail</summary><code>{String(this.state.err?.message || this.state.err)}</code></details></div>
-        <button className="btn gh" style={{ marginTop: 12 }} onClick={() => { window.history.replaceState(null, "", window.location.pathname); this.setState({ err: null }); }}>
-          Reset this tool
-        </button>
+      <div className="panel errpanel" role="alert">
+        <h2>Something went wrong in this tool.</h2>
+        <p>Your files and inputs never left this device. Resetting clears the settings in the address bar and starts the tool fresh.</p>
+        <div className="actions">
+          <button className="btn auto" onClick={() => { window.history.replaceState(null, "", window.location.pathname); this.setState({ err: null }); }}>
+            <RotateCcw size={15} aria-hidden="true" />Reset this tool
+          </button>
+          <a className="btn gh" href="/">Browse all tools</a>
+        </div>
+        <details><summary>Technical detail</summary><code>{String(this.state.err?.message || this.state.err)}</code></details>
       </div>
     );
   }
 }
 
-/* Owns the 1 s tick so only the clocks re-render, not the whole app. */
-function HeaderClocks() {
+/* Owns the 1 s tick so only the clock re-renders, not the whole app. */
+function HeaderClock() {
   const now = useNow(1000);
-  return <><LocalClock now={now} /><div className="uclock utcchip" title="Live UTC">{fmtUtc(now)} UTC</div></>;
+  return <LocalClock now={now} />;
+}
+
+/* Header gains a hairline once the page scrolls — toggled on the element, no React state. */
+function useScrolledClass(ref) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const f = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => el.classList.toggle("scrolled", window.scrollY > 4)); };
+    f();
+    window.addEventListener("scroll", f, { passive: true });
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", f); };
+  }, [ref]);
 }
 
 /* Real links (middle-click, crawlable) that route in-app on a plain click. */
-function Crumb({ href, nav, children }) {
-  return <a href={href} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(href); }}>{children}</a>;
+function Crumb({ href, nav, children, ...rest }) {
+  return <a href={href} {...rest} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(href); }}>{children}</a>;
 }
 
 function NotFound({ nav }) {
   return (
-    <div className="panel notfound">
+    <div className="notfound">
       <h1>Page not found</h1>
       <p>There's no tool at <code>{window.location.pathname}</code>. It may have been renamed or removed.</p>
-      <button className="btn" onClick={() => nav("/")}>Browse all tools</button>
+      <button className="btn pri" onClick={() => nav("/")}>Browse all tools</button>
     </div>
   );
 }
 
+/* Skeleton shaped like the common two-column workspace, so the swap-in doesn't jump. */
 function ToolFallback() {
   return (
-    <div style={{ padding: "40px 20px" }}>
-      <div className="grid2" aria-hidden="true">
-        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
-        <div className="skel" style={{ height: 280, borderRadius: 18 }} />
+    <div aria-busy="true" aria-label="Loading tool">
+      <div className="tskel" aria-hidden="true">
+        <div className="skel" />
+        <div className="skel" />
       </div>
-      <div className="skel" style={{ height: 120, borderRadius: 18, marginTop: 20 }} />
-      <p style={{ textAlign: "center", color: "var(--tx3)", fontSize: "13px", marginTop: 16 }}>Loading tool...</p>
+    </div>
+  );
+}
+
+function ToolShell({ tool, nav, notify, arg, route }) {
+  const ToolView = TOOL_VIEWS[tool.id];
+  const i = TOOLS.indexOf(tool);
+  const prev = TOOLS[(i - 1 + TOOLS.length) % TOOLS.length];
+  const next = TOOLS[(i + 1) % TOOLS.length];
+  return (
+    <div className="tpage" key={tool.id} style={{ "--tool-accent": tool.c }}>
+      <nav className="crumb" aria-label="Breadcrumb">
+        <Crumb href="/" nav={nav}><ArrowLeft size={15} aria-hidden="true" />All tools</Crumb>
+        <span className="sep" aria-hidden="true">/</span>
+        <span className="cur" aria-current="page">{tool.cat}</span>
+        <span className="nx">
+          <Crumb href={`/tool/${prev.id}`} nav={nav} aria-label={`Previous tool: ${prev.name}`} title={prev.name}><ChevronLeft size={16} aria-hidden="true" /></Crumb>
+          <Crumb href={`/tool/${next.id}`} nav={nav} aria-label={`Next tool: ${next.name}`} title={next.name}><span>Next</span><ChevronRight size={16} aria-hidden="true" /></Crumb>
+        </span>
+      </nav>
+      <header className="thead">
+        <div className="tic" style={{ "--cc": tool.c }} aria-hidden="true"><ToolIcon tool={tool} size={24} /></div>
+        <div className="tmain">
+          <h1>{tool.name}{tool.beta && <BetaBadge />}</h1>
+          <p>{tool.desc}</p>
+          <div className="badges"><PrivacyBadge where={tool.where} /></div>
+        </div>
+      </header>
+      {tool.beta && <p className="betanote"><FlaskConical size={14} aria-hidden="true" />{BETA_HINT}</p>}
+      <ToolErrorBoundary resetKey={route}>
+        <Suspense fallback={<ToolFallback />}>
+          <ToolView notify={notify} nav={nav} arg={arg} />
+        </Suspense>
+      </ToolErrorBoundary>
+      {tool.faqs && <FaqSection tool={tool} />}
     </div>
   );
 }
 
 export default function App() {
-  const [route, nav] = useRoute();
+  const [route, rawNav] = useRoute();
   const [theme, setTheme] = useState(initialTheme);
   const [toast, setToast] = useState("");
   const [cp, setCp] = useState(false);
+  const [recent, setRecent] = useState(() => readRecent(TOOL_IDS));
   const timer = useRef(null);
+  const hdrRef = useRef(null);
   const reduced = useReducedMotion();
   const notify = useCallback((m) => { setToast(m); clearTimeout(timer.current); timer.current = setTimeout(() => setToast(""), 2600); }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
+  useScrolledClass(hdrRef);
+
+  /* Spatial continuity: when the browser supports View Transitions, the tool's icon
+     glides from wherever it was clicked into the tool header. Plain nav otherwise. */
+  const nav = useCallback((href) => {
+    if (reduced || typeof document.startViewTransition !== "function" || !href.startsWith("/tool/")) { rawNav(href); return; }
+    document.startViewTransition(() => flushSync(() => rawNav(href)));
+  }, [rawNav, reduced]);
 
   /* Keyboard shortcuts: Cmd/Ctrl+K for search, Cmd/Ctrl+/ for theme */
   useEffect(() => {
@@ -132,13 +195,13 @@ export default function App() {
     };
     window.addEventListener("keydown", f);
     return () => window.removeEventListener("keydown", f);
-  }, [nav]);
+  }, []);
 
   const toggleTheme = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
   useEffect(() => {
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode / storage full — theme still applies this session */ }
     document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#FBF7F1" : "#07090F");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#F6F2EB" : "#0A0B0E");
   }, [theme]);
 
   const isAlertsPage = route === "/tool/price/alerts";
@@ -154,66 +217,66 @@ export default function App() {
         const nextIdx = direction === "left"
           ? (currentToolIndex + 1) % TOOLS.length
           : (currentToolIndex - 1 + TOOLS.length) % TOOLS.length;
-        nav(`/tool/${TOOLS[nextIdx].id}`);
+        rawNav(`/tool/${TOOLS[nextIdx].id}`);
         notify(`Switched to ${TOOLS[nextIdx].name}`);
       }
     }
-  }, [route, toolId, nav, notify]));
+  }, [route, toolId, rawNav, notify]));
   /* anything after /tool/<id>/ is handed to the tool as `arg` */
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
-  const ToolView = tool ? TOOL_VIEWS[tool.id] : null;
 
   const isHome = route === "/" || route === "/index.html" || route === "";
   const notFound = !tool && !isAlertsPage && !isHome;
 
+  /* remember opened tools on this device for the launcher's Recent group */
+  useEffect(() => { if (tool) setRecent(pushRecent(tool.id)); }, [tool]);
+
   useDocumentMeta(tool, notFound);
 
   return (
-    <div className={`app ${theme === "light" ? "light" : ""}`}>
+    <div className={`app ${theme === "light" ? "light" : ""} ${isHome ? "is-home" : "is-tool"}`}>
       <a href="#main" className="skiplink">Skip to content</a>
       <div className="aurora" aria-hidden="true" /><div className="gridbg" aria-hidden="true" />
-      <Particles reduced={reduced} theme={theme} /><CursorGlow reduced={reduced} />
-      <CornerWebs size={300} spider={true} zIndex={5} theme={theme} />
+      {isHome && <CornerWebs size={260} spider={true} zIndex={5} theme={theme} />}
       <OverscrollSpider height={150} zIndex={4} theme={theme} />
       <CrawlingSpiders theme={theme} reduced={reduced} />
       <div className="shell">
-        <header className="hdr">
-          <a className="logo" href="/" onClick={(e) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-            e.preventDefault();
-            /* coin-flip the mark, then go home */
-            const mark = e.currentTarget.querySelector(".logomark");
-            if (reduced || !mark) { nav("/"); return; }
-            if (!mark.classList.contains("spin")) {
-              mark.classList.add("spin");
-              setTimeout(() => { mark.classList.remove("spin"); nav("/"); }, 700);
-            }
-          }} aria-label="ToolDeck — all tools">
-            <span className="logomark" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="26" height="26"><path className="bolt" d="M 27 6 L 13.5 27 L 22 27 L 17.5 42 L 33.5 20.5 L 24.5 20.5 Z" /><path className="boltline" d="M 27 6 L 13.5 27 L 22 27 L 19.7 34.6" fill="none" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" /></svg>
-            </span>
-            <span className="lname">ToolDeck <small>everyday utilities</small></span>
-          </a>
-          <div className="sp" />
-          <HeaderClocks />
-          <div className="hbtns">
-            <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
-              <Search size={17} strokeWidth={2.2} aria-hidden="true" /><span className="hlabel">Search</span><kbd className="hlabel">Ctrl K</kbd>
+        <header className="hdr" ref={hdrRef}>
+          <div className="hdr-in">
+            <a className="logo" href="/" onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+              e.preventDefault();
+              /* coin-flip the mark, then go home */
+              const mark = e.currentTarget.querySelector(".logomark");
+              if (reduced || !mark || isHome) { rawNav("/"); return; }
+              if (!mark.classList.contains("spin")) {
+                mark.classList.add("spin");
+                setTimeout(() => { mark.classList.remove("spin"); rawNav("/"); }, 380);
+              }
+            }} aria-label="ToolDeck — all tools">
+              <span className="logomark" aria-hidden="true">
+                <svg viewBox="0 0 48 48"><path className="bolt" d="M 27 6 L 13.5 27 L 22 27 L 17.5 42 L 33.5 20.5 L 24.5 20.5 Z" /><path className="boltline" d="M 27 6 L 13.5 27 L 22 27 L 19.7 34.6" fill="none" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" /></svg>
+              </span>
+              <span className="lname"><b>ToolDeck</b><small>BLR · UTILITY OS</small></span>
+            </a>
+            <button type="button" className="launch" onClick={() => setCp(true)} aria-label="Search tools (Ctrl or Command K)" aria-keyshortcuts="Control+K Meta+K">
+              <Search size={16} aria-hidden="true" /><span>Search tools…</span><kbd className="kbd" aria-hidden="true">⌘K</kbd>
             </button>
+            <HeaderClock />
             <button className="hbtn ibtn" onClick={toggleTheme} title="Toggle theme (Ctrl/Cmd+/)" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
-              <span className="themeic" key={theme}>{theme === "dark" ? <Sun size={18} strokeWidth={2.2} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.2} aria-hidden="true" />}</span>
+              <span className="themeic" key={theme}>{theme === "dark" ? <Sun size={17} strokeWidth={2.1} aria-hidden="true" /> : <Moon size={17} strokeWidth={2.1} aria-hidden="true" />}</span>
             </button>
           </div>
         </header>
 
         <main id="main">
-          {isHome && <Home nav={nav} reduced={reduced} />}
-          {notFound && <NotFound nav={nav} />}
+          {isHome && <Home nav={nav} reduced={reduced} recent={recent} openPalette={() => setCp(true)} />}
+          {notFound && <NotFound nav={rawNav} />}
           {isAlertsPage && (
             <div className="tpage">
               <nav className="crumb" aria-label="Breadcrumb">
-                <Crumb href="/tool/price" nav={nav}>← Price tracker</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">My alerts</span>
+                <Crumb href="/tool/price" nav={rawNav}><ArrowLeft size={15} aria-hidden="true" />Price tracker</Crumb><span className="sep" aria-hidden="true">/</span><span className="cur" aria-current="page">My alerts</span>
               </nav>
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
@@ -222,24 +285,11 @@ export default function App() {
               </ToolErrorBoundary>
             </div>
           )}
-          {tool && (
-            <div className="tpage" key={tool.id}>
-              <nav className="crumb" aria-label="Breadcrumb"><Crumb href="/" nav={nav}>← All tools</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">{tool.name}</span></nav>
-              <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
-                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>
-              {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
-              <ToolErrorBoundary resetKey={route}>
-                <Suspense fallback={<ToolFallback />}>
-                  <ToolView notify={notify} nav={nav} arg={toolArg} />
-                </Suspense>
-              </ToolErrorBoundary>
-              {tool.faqs && <FaqSection tool={tool} />}
-            </div>
-          )}
+          {tool && <ToolShell tool={tool} nav={rawNav} notify={notify} arg={toolArg} route={route} />}
         </main>
       </div>
       <BengaluruFooter reduced={reduced} theme={theme} />
-      <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />
+      <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} theme={theme} recent={recent} notify={notify} />
       <InstallPrompt />
       <Toast msg={toast} />
       <SpeedInsights />

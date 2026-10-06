@@ -5,6 +5,7 @@ import { lookupPrice, UNAVAILABLE } from "../features/priceTracker/api.js";
 import PriceChart from "../features/priceTracker/PriceChart.jsx";
 import { parseProductUrl } from "../../shared/priceTrackerCore/amazonUrl.mjs";
 import { priceStats } from "../../shared/priceTrackerCore/series.mjs";
+import "./css/price.css";
 
 /* The alert dialog (and its validation core) only loads when someone opens it. */
 const SetPriceAlert = lazy(() => import("../features/priceAlerts/SetPriceAlert.jsx"));

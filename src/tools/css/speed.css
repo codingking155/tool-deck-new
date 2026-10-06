@@ -1,0 +1,80 @@
+/* gauge */
+.gauge{position:relative;width:230px;height:135px;margin:10px auto}
+.gauge svg{width:100%;height:100%}
+.gneedle{transform-origin:115px 118px;transition:transform .35s cubic-bezier(.3,1.2,.4,1)}
+.gval{position:absolute;left:0;right:0;top:72px;text-align:center}
+.gval b{font-family:var(--disp);font-size:30px;color:var(--tx);font-variant-numeric:tabular-nums}
+.gval span{display:block;font-size:10.5px;color:var(--tx3);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.qual{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+.qrow{display:flex;justify-content:space-between;font-size:13px;padding:8px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line2)}
+.qrow .ok{color:var(--good);font-weight:600}.qrow .no{color:var(--tx3)}
+/* ─── speed test v2 ─── */
+.st-stage{font-size:13.5px;font-weight:600;color:var(--pri2);margin-bottom:12px;min-height:20px}
+.st-livebox{margin:6px 0 16px;text-align:center}
+.st-num{font-family:var(--disp);font-size:52px;font-weight:700;line-height:1;color:var(--tx)}
+.st-num small{font-size:16px;color:var(--tx3);font-weight:500}
+.st-bar{height:7px;border-radius:99px;background:var(--panel);border:1px solid var(--line2);overflow:hidden;margin-top:14px}
+.st-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal),var(--pri2));transition:width .6s ease}
+.st-heroes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
+.st-hero{text-align:center;padding:16px 10px;border-radius:13px;background:var(--panel);border:1px solid var(--line2)}
+.st-hero .k{display:block;font-size:11.5px;color:var(--tx3);letter-spacing:.04em;margin-bottom:4px}
+.st-hero b{font-family:var(--disp);font-size:37px;line-height:1.05;color:var(--tx)}
+.st-hero small{display:block;font-size:11.5px;color:var(--tx3);margin-top:2px}
+.st-mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
+.st-m{padding:10px 8px;border-radius:11px;background:var(--panel);border:1px solid var(--line2);text-align:center}
+.st-m span{display:block;font-size:10.5px;color:var(--tx3);margin-bottom:3px}
+.st-m b{font-size:14.5px;color:var(--tx)}
+@media (max-width:560px){.st-mgrid{grid-template-columns:1fr 1fr}.st-num{font-size:42px}.st-hero b{font-size:30px}}
+@media (prefers-reduced-motion: reduce){.st-bar i{transition:none}}
+
+/* ─── Speed test v4: append to src/styles.css ─────────────────────────────
+   (keeps every existing .spd-* rule from v3; only these are new) */
+
+/* full-width primary action on the ready screen — the one thing to do */
+.spd-start{width:100%;padding:14px 0;font-size:15.5px;letter-spacing:.01em}
+
+/* running-state metric grid: placeholder ellipses breathe gently */
+.st-m b:empty::after{content:"…"}
+@keyframes spd-pulse{0%,100%{opacity:.35}50%{opacity:.9}}
+.st-m b{transition:opacity .2s}
+.st-mgrid .st-m b{min-height:1.2em}
+
+/* result actions row: primary + pill share a line, wrap on small screens */
+.pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.pillrow .btn.pri{flex:1 1 160px}
+
+/* ─── Speedometer gauge ─────────────────────────────────────────────────── */
+/* gauge tokens — speedtest-style gradients per phase, tuned per theme */
+:root{--spd-track:#1E2740;--spd-needle:#FFFFFF;--spd-dl-a:#3A8DF0;--spd-dl-b:#7CF0E6;--spd-ul-a:#FF7A1A;--spd-ul-b:#FFD27A}
+.light{--spd-track:#EFE6DA;--spd-needle:#241A2E;--spd-dl-a:#1F6FD6;--spd-dl-b:#0FA99A;--spd-ul-a:#C2410C;--spd-ul-b:#E39A12}
+.spd-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.spd-wrap.down{--spd-a:var(--spd-dl-a);--spd-b:var(--spd-dl-b);--spd-ico:var(--teal)}
+.spd-wrap.up{--spd-a:var(--spd-ul-a);--spd-b:var(--spd-ul-b);--spd-ico:var(--warn)}
+.spd-svg{display:block;width:100%;max-width:300px;height:auto;overflow:visible}
+.spd-track{stroke:var(--spd-track)}
+.spd-fill{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--spd-b) 35%,transparent))}
+.spd-ga{stop-color:var(--spd-a);transition:stop-color .45s ease}
+.spd-gb{stop-color:var(--spd-b);transition:stop-color .45s ease}
+.spd-nd{stop-color:var(--spd-needle)}
+.spd-tick{font-family:var(--body);font-size:15px;font-weight:700;fill:var(--tx3);transition:fill .25s}
+.spd-tick.on{fill:var(--tx)}
+.spd-num{font-family:var(--disp);font-size:42px;font-weight:400;letter-spacing:-.02em;fill:var(--tx);font-variant-numeric:tabular-nums}
+.spd-read{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--tx2)}
+.spd-ico{width:15px;height:15px;flex-shrink:0;stroke:var(--spd-ico)}
+@media (prefers-reduced-motion: reduce){.spd-ga,.spd-gb,.spd-tick{transition:none}}
+
+/* ─── Live throughput graph ─────────────────────────────────────────────── */
+.spd-graph{margin-top:12px}
+.spd-graph svg{width:100%;height:60px;border-radius:6px;background:var(--panel);border:1px solid var(--line2)}
+
+/* touch targets on phones — every interactive element ≥44px tall */
+@media (max-width:560px){
+  .pill{min-height:40px}
+  .st-mgrid{grid-template-columns:1fr 1fr}
+  .spd-tipbox{left:auto;right:0;transform:none}
+}
+
+/* very narrow phones: heroes stack instead of squeezing */
+@media (max-width:380px){
+  .st-heroes{grid-template-columns:1fr}
+}

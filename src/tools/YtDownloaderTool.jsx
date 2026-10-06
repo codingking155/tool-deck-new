@@ -5,6 +5,7 @@ import {
   sanitizeFilename, ERROR_TITLES, PERMANENT_ERRORS,
 } from "./ytdl/core.js";
 import { cancelJob, createJob, DownloaderError, fetchJobFile, getJob, getVideoInfo, isConfigured } from "./ytdl/api.js";
+import "./css/yt.css";
 
 /* State machine: idle → analyzing → ready → downloading → complete, with error from analysis or download.
    Downloads run as server jobs: poll for progress, then stream the file into a Blob and save it. */

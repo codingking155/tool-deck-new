@@ -7,6 +7,7 @@ import ZonePicker from "../components/ZonePicker.jsx";
 import { Switch, ShareLink, copyText } from "../components/chrome.jsx";
 import { readParams, writeParams, useNow } from "../hooks/index.js";
 import { buildIcs, googleCalendarUrl } from "../lib/ics.js";
+import "./css/utc.css";
 
 const CLOCK_KEY = "toolDeck.clock12";
 const PRESET_KEY = "toolDeck.utcPresets";

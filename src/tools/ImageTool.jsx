@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../lib/imageCore.mjs";
 import { makeZip } from "../lib/zip.js";
 import { ImagePlus, Loader2, Download, X, Columns2, Trash2, ClipboardPaste } from "lucide-react";
+import "./css/image.css";
 
 /* Everything runs in the browser on <canvas>: files never leave the device. */
 

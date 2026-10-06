@@ -7,6 +7,7 @@ import { formatBytes } from "../lib/pageRanges.js";
 import { saveBlob } from "../lib/zip.js";
 import CodeEditor from "../components/CodeEditor.jsx";
 import { JsonTree, JsonDiff } from "./JsonParts.jsx";
+import "./css/json.css";
 
 const SAMPLE = `{
   "orderId": 98765432109876543210,

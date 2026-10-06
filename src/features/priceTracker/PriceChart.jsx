@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import "../../tools/css/price.css";
 
 /**
  * Price history as a step line: a price holds until the next real reading, so

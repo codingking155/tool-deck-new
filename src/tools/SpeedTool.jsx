@@ -3,6 +3,7 @@ import {
   availableServers, runFullTest, fetchMeta,
   compareRuns, qualityLabels,
 } from "../lib/speed.js";
+import "./css/speed.css";
 
 /* ────────────────────────────────────────────────────────────────────────────
    SPEEDOMETER — speedtest-style 270° gauge; needle driven by a time-based rAF spring
