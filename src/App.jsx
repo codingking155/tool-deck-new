@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
+import { Search, Sun, Moon } from "lucide-react";
 import { TOOLS, tint } from "./toolsMeta.js";
 import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
@@ -165,9 +166,15 @@ export default function App() {
           </button>
           <div className="sp" />
           <LocalClock now={now} />
-          <div className="uclock" title="Live UTC" style={{ opacity: 0.75 }}>{fmtUtc(now)} UTC</div>
-          <button className="hbtn" onClick={() => setCp(true)} title="Cmd+K">⌕ <span style={{ display: "none" }}>Search</span> <kbd style={{ display: "none" }}>Ctrl K</kbd></button>
-          <button className="hbtn" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>{theme === "dark" ? "☀" : "☾"}</button>
+          <div className="uclock utcchip" title="Live UTC">{fmtUtc(now)} UTC</div>
+          <div className="hbtns">
+            <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
+              <Search size={17} strokeWidth={2.2} aria-hidden="true" /><span className="hlabel">Search</span><kbd className="hlabel">Ctrl K</kbd>
+            </button>
+            <button className="hbtn ibtn" onClick={toggleTheme} title="Toggle theme (Ctrl/Cmd+/)" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+              <span className="themeic" key={theme}>{theme === "dark" ? <Sun size={18} strokeWidth={2.2} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.2} aria-hidden="true" />}</span>
+            </button>
+          </div>
         </header>
 
         <main id="main">

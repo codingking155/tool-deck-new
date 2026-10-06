@@ -21,6 +21,14 @@ const TOWERS = [
   { x: 884, y: 160, w: 42, h: 100 },
 ];
 
+/* one cloud outline (≈140×36), placed and scaled per instance */
+const CLOUD_D = "M 12 36 Q -4 36 2 25 Q 6 17 18 19 Q 22 6 40 8 Q 50 -4 68 4 Q 84 -2 92 12 Q 108 8 112 20 Q 126 18 128 28 Q 130 36 116 36 Z";
+const CLOUDS = [
+  { x: 60, y: 66, s: 0.9, t: 30 },
+  { x: 640, y: 26, s: 1.1, t: 38 },
+  { x: 860, y: 70, s: 0.75, t: 26 },
+];
+
 /* one fighter: tricolour contrail, afterburner, delta-wing silhouette */
 function Jet({ dx = 0, dy = 0, scale = 1 }) {
   return (
@@ -76,7 +84,7 @@ export default function BengaluruFooter({ reduced, theme }) {
   return (
     <footer className="footer">
       <div className="skywrap">
-        <svg className="sky" viewBox="0 0 1200 300" role="img" aria-label="Illustrated Bengaluru skyline with a metro train, an auto-rickshaw and the airport tower">
+        <svg className="sky" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Illustrated Bengaluru skyline with a metro train, an auto-rickshaw and the airport tower">
           <defs>
             <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
               {day ? (
@@ -129,8 +137,6 @@ export default function BengaluruFooter({ reduced, theme }) {
             <g>
               <circle cx="1090" cy="54" r="54" fill="url(#sunglow)" />
               <circle cx="1090" cy="54" r="19" fill="#FBD79B" />
-              <path d="M 60 90 Q 90 74 122 88 Q 150 70 186 86 Q 205 96 178 100 L 78 100 Q 48 98 60 90 Z" fill="#FFFFFF" opacity=".82" />
-              <path d="M 830 60 Q 862 42 900 56 Q 934 40 968 58 Q 990 68 960 72 L 852 72 Q 818 70 830 60 Z" fill="#FFFFFF" opacity=".72" />
               {!reduced && [[300, 66], [332, 78], [364, 60]].map(([bx, by], i) => (
                 <path key={bx} d={`M ${bx} ${by} q 5 -4 9 0 q 4 -4 9 0`} fill="none" stroke="#5C6B7C" strokeWidth="1.5"
                   strokeLinecap="round" opacity=".5" style={{ animation: `birdfly ${17 + i * 3}s ${i * 1.4}s linear infinite` }} />
@@ -138,10 +144,14 @@ export default function BengaluruFooter({ reduced, theme }) {
             </g>
           )}
 
-          {!reduced && <g opacity={day ? ".85" : ".22"} fill={day ? "#FFFFFF" : "var(--tx2)"}>
-            <ellipse cx="240" cy="52" rx="52" ry="12" style={{ animation: "clouddrift 26s linear infinite alternate" }} />
-            <ellipse cx="720" cy="36" rx="66" ry="13" style={{ animation: "clouddrift 34s linear infinite alternate-reverse" }} />
-          </g>}
+          {/* puffy clouds — white by day, faint moonlit wisps at night; static under reduced motion */}
+          <g opacity={day ? ".86" : ".16"} fill={day ? "#FFFFFF" : "var(--tx2)"}>
+            {CLOUDS.map((c, i) => (
+              <g key={i} style={reduced ? {} : { animation: `clouddrift ${c.t}s linear infinite ${i % 2 ? "alternate-reverse" : "alternate"}` }}>
+                <path transform={`translate(${c.x} ${c.y}) scale(${c.s})`} d={CLOUD_D} />
+              </g>
+            ))}
+          </g>
 
           {/* Vidhana Soudha inspired — sandstone with a weathered gold dome */}
           <g fill={day ? "#EDE4D3" : "var(--panel2)"} stroke={day ? "rgba(118,100,72,.42)" : "var(--line)"} strokeWidth="1">

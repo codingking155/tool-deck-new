@@ -18,7 +18,7 @@ export const TOOLS = [
       ["Can this tool locate a person?", "No. It only shows the numbering country or region a number belongs to — never the owner, device, or live location."],
       ["Do I need the + prefix?", "Adding the international prefix gives the most accurate result. Without it, the tool marks the guess as assumed."],
     ] },
-  { id: "shopify", where: "server", cat: "Shopping & web", icon: "🛍️", c: "#22C55E", name: "Shopify Detector", desc: "18-signal scan with shop domain, theme, currency and a live API for automation.", pv: "scan",
+  { id: "shopify", where: "server", cat: "Shopping & web", icon: "🛍️", c: "#22C55E", name: "Shopify Detector", desc: "18-signal scan with shop domain, theme, currency and a live API for automation.", pv: "bag",
     blurb: "Check whether any website runs Shopify. Eighteen independent signals — page markers, response headers and live storefront endpoints — score into one confidence value, plus shop domain, theme, currency and Shopify Plus detection. Works from a URL, or pasted page source when a site blocks direct reads. Also exposes a JSON API for CRM, Zapier and n8n.",
     faqs: [
       ["How can I tell if a website uses Shopify?", "Scan the store URL; the tool checks eighteen markers — CDN assets, checkout endpoints, response headers and live endpoint probes — then scores a confidence value, alongside shop domain, theme and currency when detectable."],
@@ -26,7 +26,7 @@ export const TOOLS = [
       ["Why does a check sometimes fail?", "Some stores block cross-origin reads or hide markers behind a headless front end. Paste the page source (Ctrl+U) or deploy the server API for one-click, header-based checks."],
       ["Can I automate this — CRM, Zapier, n8n?", "Yes — deploy the Supabase API and call it as a JSON endpoint; branch your automation on is_shopify. See \"API for CRM / Zapier / n8n\" inside the tool for the exact request/response shape."],
     ] },
-  { id: "shopifydetector", where: "server", cat: "Shopping & web", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "scan",
+  { id: "shopifydetector", where: "server", cat: "Shopping & web", icon: "🔍", c: "#FF6B35", name: "Shopify Store Detector", desc: "Instantly verify if a website is powered by Shopify with API-backed detection.", pv: "lens",
     blurb: "Detect whether any website is running Shopify in seconds. Enter a URL and get instant results with confidence score, shop domain, and technical signals. Powered by the ShopifyOrNot API.",
     faqs: [
       ["What does the Shopify detector do?", "Enter a website URL and the tool checks if it's a Shopify store, returning a confidence score, detected shop domain, and technical signals."],
@@ -55,7 +55,7 @@ export const TOOLS = [
       ["Where does the price history come from?", "Only from real readings: ToolDeck checks each tracked product every few hours, and where a licensed history provider is connected, its earlier recorded prices are imported with their original dates. Nothing is estimated or filled in."],
       ["Can I get an alert when the price drops?", "Yes. Set a target price and we'll notify you by email or WhatsApp when a live check finds the price at or below it."],
     ] },
-  { id: "json", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "utc",
+  { id: "json", where: "device", cat: "Developer", icon: "{ }", c: "#06B6D4", name: "JSON Formatter & Validator", desc: "Format, validate and auto-fix JSON — tree view, compare, query, TypeScript & JSON Schema generation.", pv: "braces",
     blurb: "Validate JSON as you type with the exact line of any error, and auto-fix broken JSON (trailing commas, single quotes, comments, unquoted keys). Beautify or minify, explore a searchable tree, compare two documents, query with JSONPath, and generate TypeScript interfaces, JSON Schema, YAML or CSV. Large IDs are kept exactly. Runs entirely in your browser.",
     faqs: [
       ["How do I fix invalid JSON?", "The validator shows the line and column of the first problem in plain words and marks the line. Auto-fix repairs common mistakes — trailing or missing commas, single or curly quotes, comments, unquoted keys, Python True/None, NaN and unclosed brackets — and lists every change it made."],
@@ -64,14 +64,14 @@ export const TOOLS = [
       ["Can I generate TypeScript types from JSON?", "Yes — Convert → TypeScript interfaces. All items in an array are merged, so fields missing from some items become optional and mixed types become unions. JSON Schema (draft 2020-12) works the same way."],
       ["Is my JSON stored or uploaded?", "No. Everything runs in your browser; nothing is sent anywhere or saved."],
     ] },
-  { id: "ssl", where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "View certificate chain, expiry dates, key strength, and vulnerability alerts.", pv: "scan",
+  { id: "ssl", where: "server", cat: "Security", icon: "🔒", c: "#22C55E", name: "SSL Certificate Checker", desc: "View certificate chain, expiry dates, key strength, and vulnerability alerts.", pv: "lock",
     blurb: "Enter a domain to see its SSL certificate chain, expiry date, key algorithm, size, and signature algorithm. Get alerts for certificates expiring soon.",
     faqs: [
       ["How do I check a website's SSL certificate?", "Enter the domain name (e.g., google.com). The tool fetches the certificate chain and displays subject, issuer, expiry date, key size, and more."],
       ["What does 'Days Left' mean?", "The number of days until the certificate expires. Green = >90 days, orange = 30–90 days, red = <30 days or expired."],
       ["Can I check for weak keys or algorithms?", "Yes. The tool shows key size (aim for 2048+ bits for RSA) and signature algorithm. Older algorithms like SHA-1 are flagged as weak."],
     ] },
-  { id: "password", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "scan",
+  { id: "password", where: "mixed", cat: "Security", icon: "🔐", c: "#F59E0B", name: "Password Strength Checker", desc: "Client-side entropy calculation + HaveIBeenPwned breach check (k-anonymity).", pv: "dots",
     blurb: "Check password strength with client-side entropy calculation (charset and length). Verify against HaveIBeenPwned's 700+ million breached passwords using k-anonymity (your password is never sent to any API).",
     faqs: [
       ["How do you calculate password strength?", "By entropy: bits = log₂(charset size ^ password length). We check for lowercase, uppercase, digits, and special characters. 80+ bits resists brute force for years."],
@@ -79,7 +79,7 @@ export const TOOLS = [
       ["What does 'Not breached' mean?", "The password isn't in HIBP's public breach data (700+ million passwords from confirmed leaks). But always use a unique password per account."],
       ["What if HIBP is unavailable?", "The entropy check still works offline. If HIBP is down, try again later — the API has 99.9% uptime."],
     ] },
-  { id: "prompt", where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "utc",
+  { id: "prompt", where: "device", cat: "Developer", icon: "✨", c: "#A855F7", name: "AI Prompt Generator", desc: "Turn a rough idea into a structured prompt for ChatGPT, Claude or Gemini — templates, plain/Markdown/XML output.", pv: "spark",
     blurb: "Build clear, structured prompts for ChatGPT, Claude, Gemini and other AI assistants. Fill in the role, task, context, audience, tone, format and rules — or start from a template — and copy a ready-to-use prompt as plain text, Markdown or XML. Runs entirely in your browser.",
     faqs: [
       ["What makes a good AI prompt?", "A clear task plus the context the AI can't guess: who it's for, the tone, the output format and any rules. An example of a good answer helps most of all."],
@@ -94,7 +94,7 @@ export const TOOLS = [
       ["Which formats can I convert between?", "Open JPG, PNG, WebP, GIF (first frame), BMP, SVG or AVIF and convert to JPG, PNG or WebP — plus AVIF in browsers that can encode it, such as Chrome and Edge."],
       ["Can it remove backgrounds or upscale with AI?", "Not here. Those need AI models or server processing, which would mean uploading your images; this tool stays fully private."],
     ] },
-  { id: "breach", where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "scan",
+  { id: "breach", where: "mixed", cat: "Security", icon: "🛡️", c: "#14B8A6", name: "Breach Checker", desc: "See if your email appeared in a data breach, and whether a password has leaked.", pv: "shield",
     blurb: "Check an email address against the XposedOrNot breach database to see which breaches exposed it and what data leaked, and test a password against Have I Been Pwned's Pwned Passwords without it ever leaving your browser.",
     faqs: [
       ["How does the email check work?", "Your address is sent to our server, which looks it up in the XposedOrNot breach database and returns the breaches it appears in. Nothing is stored or logged."],
@@ -102,7 +102,7 @@ export const TOOLS = [
       ["What if no breaches are found?", "It means none are known to the database — not that you're safe. Keep using unique passwords and two-factor authentication."],
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
-  { id: "pdf", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "scan",
+  { id: "pdf", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
     blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
