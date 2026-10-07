@@ -1,7 +1,8 @@
 # Sheaf (PDF Toolkit studio)
 
-Lives in `public/sheaf/`, served at `/sheaf/index.html` and framed by the PDF Toolkit
-(`?t=sheaf` or `?t=sheaf:<tool>`, see `src/tools/pdf/SheafStudio.jsx`). It follows ToolDeck's theme
+Lives in `public/sheaf/`, served at `/sheaf/index.html` and framed as its own ToolDeck tool,
+Sheaf PDF Studio (`/tool/sheaf`, or `/tool/sheaf/<tool id>` to open one tool; see `src/tools/SheafTool.jsx`).
+Its entry in `src/toolsMeta.js` is `bare`, so the page shows only Sheaf's UI. It follows ToolDeck's theme
 from the parent page (`js/theme.js`). `/sheaf/` has its own CSP rule in `vercel.json` (`frame-ancestors 'self'`).
 
 Browser-only PDF tools. No backend: every file is processed in the tab and never uploaded.

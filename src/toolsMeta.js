@@ -90,7 +90,7 @@ export const TOOLS = [
       ["Can I check someone else's email?", "Only check addresses you own. Lookups are rate-limited to discourage misuse."],
     ] },
   { id: "pdf", where: "device", cat: "Files & documents", icon: "📑", c: "#EF4444", name: "PDF Toolkit", desc: "Merge, split, compress, rotate, watermark and convert PDFs — privately, in your browser.", pv: "pages",
-    blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock, plus Sheaf studio, a visual workspace with drag-to-reorder pages and live previews. Everything runs locally in your browser; files are never uploaded.",
+    blurb: "A set of 20 PDF tools: merge, split, remove/extract/reorder pages, compress, repair, OCR, JPG to PDF, PDF to JPG, PDF to Word, rotate, page numbers, watermark, crop, compare, sign, protect and unlock. Everything runs locally in your browser; files are never uploaded.",
     faqs: [
       ["Are my PDFs uploaded anywhere?", "No. Every tool runs in your browser, so your documents stay on your device. The only download is OCR's one-time language model."],
       ["How good is PDF to Word?", "It recovers the text as editable paragraphs and page breaks. Layout, images and tables are not reproduced, and scanned PDFs (no selectable text) can't be converted without OCR."],
@@ -100,6 +100,14 @@ export const TOOLS = [
       ["Which tools are missing?", "Anything needing a server: Word/Excel/PowerPoint/HTML to PDF, PDF to PowerPoint/Excel/PDF-A, redaction and PDF text editing."],
     ] },
   /* ── beta: depends on setup that isn't verified end-to-end yet; listed last ── */
+  { id: "sheaf", bare: true, where: "device", cat: "Files & documents", icon: "🗃️", c: "#1D5746", name: "Sheaf PDF Studio", desc: "A visual PDF workspace: drag pages to reorder, live previews for watermarks, page numbers, crops and signatures.", pv: "pages",
+    blurb: "Fifteen PDF tools on one visual workbench: merge, split, remove and extract pages, organize, compress, image to PDF, PDF to JPG/PNG, rotate, page numbers, watermark, crop, protect, unlock and sign. Drop files once, pick a tool, see the result on the page before you save. Everything runs in your browser; files are never uploaded.",
+    faqs: [
+      ["Are my files uploaded?", "No. Sheaf opens, edits and saves your PDFs inside this browser tab. Nothing is sent to a server."],
+      ["How is this different from the PDF Toolkit?", "Sheaf is visual: you drag page thumbnails to reorder them, place signatures by hand and watch watermarks, page numbers and crops update on the page. The PDF Toolkit adds OCR, repair, compare and PDF to Word."],
+      ["Can I chain tools?", "Yes. After a tool finishes, the result screen offers the next steps (compress, protect, number pages and more) and carries the file straight into them."],
+      ["How strong is Protect PDF?", "It encrypts with AES-256 and a password you choose. There is no way to recover a forgotten password, so keep it somewhere safe."],
+    ] },
   { id: "price", beta: true, where: "server", cat: "Shopping & web", icon: "📉", c: "#EC4899", name: "Price Tracker", desc: "Live Amazon prices, recorded price history, drop alerts.", pv: "chart",
     blurb: "Paste an Amazon product link to see its live price, the real price history we've recorded, lowest / highest / average analytics, and set a target-price alert.",
     faqs: [

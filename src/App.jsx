@@ -41,12 +41,13 @@ const PasswordTool = lazyRetry(() => import("./tools/PasswordTool.jsx"));
 const PromptTool = lazyRetry(() => import("./tools/PromptTool.jsx"));
 const ImageTool = lazyRetry(() => import("./tools/ImageTool.jsx"));
 const PdfTool = lazyRetry(() => import("./tools/PdfTool.jsx"));
+const SheafTool = lazyRetry(() => import("./tools/SheafTool.jsx"));
 const BreachTool = lazyRetry(() => import("./tools/BreachTool.jsx"));
 const MyAlerts = lazyRetry(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
-  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, breach: BreachTool, ytdownloader: YtDownloaderTool,
+  speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, sheaf: SheafTool, breach: BreachTool, ytdownloader: YtDownloaderTool,
 };
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
@@ -223,17 +224,18 @@ export default function App() {
             </div>
           )}
           {tool && (
-            <div className="tpage" key={tool.id}>
+            <div className={`tpage${tool.bare ? " bare" : ""}`} key={tool.id}>
               <nav className="crumb" aria-label="Breadcrumb"><Crumb href="/" nav={nav}>← All tools</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">{tool.name}</span></nav>
-              <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
-                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>
+              {/* bare tools bring their own UI: no ToolDeck header or FAQ (the FAQs still feed the page's schema) */}
+              {tool.bare ? <h1 className="sr-only">{tool.name}</h1> : <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
+                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>}
               {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
                   <ToolView notify={notify} nav={nav} arg={toolArg} />
                 </Suspense>
               </ToolErrorBoundary>
-              {tool.faqs && <FaqSection tool={tool} />}
+              {tool.faqs && !tool.bare && <FaqSection tool={tool} />}
             </div>
           )}
         </main>
