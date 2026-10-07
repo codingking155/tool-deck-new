@@ -1,6 +1,6 @@
 /* ToolDeck BLR service worker — app-shell + runtime caching.
    Bump CACHE when you deploy new assets. */
-const CACHE = "tooldeck-v6";
+const CACHE = "tooldeck-v7";
 const MAX_ENTRIES = 80;
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
@@ -20,6 +20,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; /* never cache third-party APIs (IP, speed, proxies) */
   if (url.pathname.startsWith("/sheaf/")) return; /* Sheaf's files are unhashed: always fetch them fresh */
+  if (url.pathname.startsWith("/_vercel/")) return; /* Vercel's own scripts (Speed Insights): never cache or proxy them */
 
   /* SPA navigations: network-first, fall back to cached shell so deep links work offline */
   if (req.mode === "navigate") {
