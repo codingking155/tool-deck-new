@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { shouldTrigger } from "../shared/priceAlertsCore/trigger.mjs";
 import { processAlert } from "../shared/priceAlertsCore/processAlert.mjs";
-import { createMockEmailProvider, createMockWhatsappProvider } from "../shared/priceAlertsCore/providersMock.mjs";
+import { createMockEmailProvider, createMockWhatsappProvider, createUnconfiguredProvider } from "../shared/priceAlertsCore/providersMock.mjs";
 
 function makeAlert(over = {}) {
   return {
@@ -87,6 +87,15 @@ test("all channels fail → stays active, backs off, retry scheduled", async () 
   assert.ok(r.patch.last_error);
   assert.ok(new Date(r.patch.next_check_at).getTime() > deps(900).now);
   assert.equal(r.retriesExhausted, false);
+});
+
+test("unconfigured providers never mark an alert sent", async () => {
+  const providers = { email: createUnconfiguredProvider("Email", "EMAIL_PROVIDER"), whatsapp: createUnconfiguredProvider("WhatsApp", "WHATSAPP_PROVIDER") };
+  const r = await processAlert(makeAlert(), deps(900, providers));
+  assert.equal(r.patch.status, "active");
+  assert.equal(r.patch.triggered_at, undefined);
+  assert.ok(r.deliveries.every((d) => d.status === "failed"));
+  assert.match(r.patch.last_error, /EMAIL_PROVIDER|WHATSAPP_PROVIDER/);
 });
 
 test("retries give up after MAX attempts", async () => {

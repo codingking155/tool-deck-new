@@ -156,6 +156,17 @@ test("upload: a fast uplink grows the chunk size", async () => {
   } finally { globalThis.fetch = realFetch; }
 });
 
+test("upload: hitting the budget steps chunks down instead of stopping every stream", async () => {
+  const { makeBudget } = await import("../src/lib/speed.js");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = simulatedUplink(200);
+  try {
+    const budget = makeBudget(2.5e6);   // round three of 512 kB chunks only half fits
+    await runUpload({ up: "https://example.test/up" }, { budget, minMs: 3000, maxMs: 3000 });
+    assert.ok(budget.used > 2.4e6, `used only ${budget.used} of a 2.5 MB budget`);
+  } finally { globalThis.fetch = realFetch; }
+});
+
 test("data budget: unused reservations are refunded", async () => {
   const { makeBudget } = await import("../src/lib/speed.js");
   const b = makeBudget(100);

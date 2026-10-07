@@ -308,10 +308,10 @@ function detectBrowser() {
 function detectOS() {
   const ua = navigator.userAgent;
   if (/Windows/.test(ua)) return "Windows";
-  if (/Mac OS X/.test(ua)) return "macOS";
-  if (/Linux/.test(ua)) return "Linux";
   if (/iPhone|iPad|iPod/.test(ua)) return "iOS";
   if (/Android/.test(ua)) return "Android";
+  if (/Mac OS X/.test(ua)) return navigator.maxTouchPoints > 1 ? "iPadOS" : "macOS";
+  if (/Linux/.test(ua)) return "Linux";
   return "Unknown";
 }
 
@@ -686,7 +686,7 @@ export default function SpeedTool({ notify }) {
               <button type="button" className="btn pri auto" onClick={() => start()}>
                 <RotateCcw size={16} aria-hidden="true" />Run again
               </button>
-              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />}
+              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />
             </div>
           </>}
 

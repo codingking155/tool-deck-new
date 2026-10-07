@@ -82,14 +82,15 @@ const BREACH_VIEW = {
   unavailable: { tone: "warn", Icon: AlertTriangle, title: "Couldn't check right now", sub: "The breach database didn't answer. Try again later." },
 };
 
-function BreachStatus({ status }) {
+function BreachStatus({ status, count }) {
   const v = BREACH_VIEW[status];
+  const title = status === "found" && count > 0 ? `Seen ${count.toLocaleString()} time${count > 1 ? "s" : ""} in breaches` : v.title;
   return (
     <div className={`pw-breach pw-t-${v.tone}`} aria-live="polite">
       <span className="pw-bic" aria-hidden="true"><v.Icon size={18} className={status === "checking" ? "spin" : undefined} /></span>
       <div className="pw-bb">
         <div className="pw-bk">Breach check · leaked passwords</div>
-        <b>{v.title}</b>
+        <b>{title}</b>
         <p>{v.sub}</p>
       </div>
     </div>
@@ -122,6 +123,7 @@ export default function PasswordTool({ notify }) {
   const [password, setPassword] = useState("");
   const [entropy, setEntropy] = useState(null);
   const [breach, setBreach] = useState("idle");   // idle | checking | found | clear | unavailable
+  const [breachCount, setBreachCount] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const ctrl = useRef(null);
   useEffect(() => () => ctrl.current?.abort(), []);
@@ -140,14 +142,16 @@ export default function PasswordTool({ notify }) {
     const mine = (ctrl.current = new AbortController());
     setBreach("checking");
     let result;
-    try { result = (await checkPassword(password, mine.signal)) > 0; }
+    let count = 0;
+    try { count = await checkPassword(password, mine.signal); result = count > 0; }
     catch (err) { if (err?.name === "AbortError") return; result = null; }
     if (ctrl.current !== mine) return;
+    setBreachCount(result ? count : 0);
     setBreach(result === true ? "found" : result === false ? "clear" : "unavailable");
     if (result === true) {
-      notify("⚠️ This password has been found in a data breach. Choose a different one.");
+      notify(`⚠️ This password has been seen ${count.toLocaleString()} time${count > 1 ? "s" : ""} in data breaches. Choose a different one.`);
     } else if (result === false) {
-      notify("✓ Not found in known breaches (yet tested)");
+      notify("✓ Not found in known breaches");
     } else {
       notify("⚠️ Could not run the breach check. Try again later.");
     }
@@ -231,7 +235,7 @@ export default function PasswordTool({ notify }) {
                 ))}
               </ul>
 
-              <BreachStatus status={breach} />
+              <BreachStatus status={breach} count={breachCount} />
 
               <h3 className="pw-h3">Recommendations</h3>
               <ul className="pw-recs">

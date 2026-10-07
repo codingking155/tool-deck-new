@@ -5,7 +5,7 @@ import {
   checkYouTubeUrl, defaultFormat, formatBytes, formatDuration, formatEta, formatLabel, formatsOf, safeDownloadName,
   sanitizeFilename, ERROR_TITLES, PERMANENT_ERRORS,
 } from "./ytdl/core.js";
-import { cancelJob, createJob, DownloaderError, fetchJobFile, getJob, getVideoInfo, isConfigured } from "./ytdl/api.js";
+import { cancelJob, createJob, DownloaderError, getJob, getVideoInfo, isConfigured, jobFileUrl } from "./ytdl/api.js";
 import "./css/yt.css";
 
 /* State machine: idle → analyzing → ready → downloading → complete, with error from analysis or download.
@@ -40,17 +40,16 @@ function sleep(ms, signal) {
   });
 }
 
-function saveBlob(blob, filename) {
-  const href = URL.createObjectURL(blob);
+/* The anchor has no download attribute (ignored cross-origin anyway): the server
+   answers with Content-Disposition: attachment, so the browser downloads in place. */
+function startFileDownload(href) {
   const a = document.createElement("a");
   a.href = href;
-  a.download = filename;
   a.rel = "noopener";
   a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 1000);   // let the browser start reading the blob first
 }
 
 const STEPS = ["Fetch", "Process", "Save"];
@@ -234,19 +233,12 @@ export default function YtDownloaderTool({ notify }) {
         await sleep(POLL_MS, c.signal);
         job = await getJob(job.id, c.signal);
       }
-      let lastPaint = 0;
-      const { blob, filename } = await fetchJobFile(job.id, (loaded, total) => {
-        const now = performance.now();
-        if (now - lastPaint < 100 && loaded !== total) return;
-        lastPaint = now;
-        dispatch({ type: "progress", progress: { stage: "saving", value: total ? loaded / total : null, loaded, total } });
-      }, c.signal);
+      startFileDownload(jobFileUrl(job.id));
       jobId.current = null;   // the server deletes the file once it has been sent
       const ext = format?.extension || (mode === "audio" ? "mp3" : "mp4");
-      const name = safeDownloadName(filename || `${sanitizeFilename(video.title)}.${ext}`, ext);
-      saveBlob(blob, name);
-      dispatch({ type: "complete", result: { filename: name, size: blob.size } });
-      notify?.(`Downloaded ${name}`);
+      const name = safeDownloadName(job.filename || `${sanitizeFilename(video.title)}.${ext}`, ext);
+      dispatch({ type: "complete", result: { filename: name, size: job.filesize } });
+      notify?.(`Saving ${name} — check your browser's downloads`);
     } catch (e) {
       if (jobId.current) cancelJob(jobId.current);
       jobId.current = null;
@@ -299,7 +291,7 @@ export default function YtDownloaderTool({ notify }) {
   const duration = formatDuration(video?.duration);
 
   const announce = phase === "ready" && video ? `Video found: ${video.title}. Choose a format to download.`
-    : phase === "complete" && s.result ? `Download complete: ${s.result.filename}` : "";
+    : phase === "complete" && s.result ? `Download started: ${s.result.filename}. Check your browser's downloads.` : "";
 
   return (
     <div className="yd">
@@ -394,13 +386,14 @@ export default function YtDownloaderTool({ notify }) {
 
               {phase === "downloading" && s.progress && <Progress progress={s.progress} onCancel={cancel} />}
               {phase === "complete" && s.result && (
-                <Notice tone="ok" className="yd-done" title="Download complete" actions={
+                <Notice tone="ok" className="yd-done" title="Download started" actions={
                   <>
                     <button type="button" className="btn gh sm" onClick={download}><RotateCcw size={14} aria-hidden="true" />Download again</button>
                     <button type="button" className="btn qt sm" onClick={startOver}>New video</button>
                   </>
                 }>
                   <p className="yd-file" title={s.result.filename}>{s.result.filename}{formatBytes(s.result.size) ? ` · ${formatBytes(s.result.size)}` : ""}</p>
+                  <p className="yd-hint">Your browser is saving it — see its downloads bar or list.</p>
                 </Notice>
               )}
               {phase === "error" && error?.during === "download" && (

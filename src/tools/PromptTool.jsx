@@ -91,24 +91,31 @@ const OPTIONAL = FIELDS.filter((x) => !x[4]);
 const CHIP_ORDER = ["role", "task", "context", "audience", "tone", "format", "length", "constraints", "example"];
 const STYLES = [["plain", "Plain text"], ["markdown", "Markdown"], ["xml", "XML tags"]];
 
+/* Pasted text containing one of our own section tags (e.g. "</context>") would
+   close that section early, so only those tags are escaped; other markup and
+   code stay as typed. */
+const OWN_TAG = /<(\/?)(task|context|requirements|constraints|example)\b/gi;
+const escapeOwnTags = (t) => t.replace(OWN_TAG, "&lt;$1$2");
+
 function buildPrompt(f, style, extras) {
   const v = (k) => f[k].trim();
   if (!v("task")) return "";
 
   if (style === "xml") {
+    const x = (k) => escapeOwnTags(v(k));
     const parts = [];
-    if (v("role")) parts.push(`You are ${v("role")}.`);
-    parts.push(`<task>\n${v("task")}\n</task>`);
-    if (v("context")) parts.push(`<context>\n${v("context")}\n</context>`);
+    if (v("role")) parts.push(`You are ${x("role")}.`);
+    parts.push(`<task>\n${x("task")}\n</task>`);
+    if (v("context")) parts.push(`<context>\n${x("context")}\n</context>`);
     const req = [
-      v("audience") && `Audience: ${v("audience")}`,
-      v("tone") && `Tone: ${v("tone")}`,
-      v("format") && `Format: ${v("format")}`,
-      v("length") && `Length: ${v("length")}`,
+      v("audience") && `Audience: ${x("audience")}`,
+      v("tone") && `Tone: ${x("tone")}`,
+      v("format") && `Format: ${x("format")}`,
+      v("length") && `Length: ${x("length")}`,
     ].filter(Boolean);
     if (req.length) parts.push(`<requirements>\n${req.map((r) => `- ${r}`).join("\n")}\n</requirements>`);
-    if (v("constraints")) parts.push(`<constraints>\n${v("constraints")}\n</constraints>`);
-    if (v("example")) parts.push(`<example>\n${v("example")}\n</example>`);
+    if (v("constraints")) parts.push(`<constraints>\n${x("constraints")}\n</constraints>`);
+    if (v("example")) parts.push(`<example>\n${x("example")}\n</example>`);
     if (extras.length) parts.push(extras.join("\n"));
     return parts.join("\n\n");
   }

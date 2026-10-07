@@ -26,3 +26,14 @@ export function createMockWhatsappProvider(opts = {}) {
     },
   };
 }
+
+// Stand-in when a channel's provider env var is unset in a deployment: every
+// send fails with the reason, so the alert retries and records why instead of
+// being marked "sent" by a mock that never delivers anything.
+export function createUnconfiguredProvider(channel, envVar) {
+  const error = `${channel} delivery isn't configured — set ${envVar}.`;
+  return {
+    name: `unconfigured-${channel}`,
+    async send() { return { ok: false, error, provider: `unconfigured-${channel}` }; },
+  };
+}

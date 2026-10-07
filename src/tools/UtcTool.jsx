@@ -76,11 +76,14 @@ function Countdown({ orderUtc, sendUtc }) {
 
 const LEGACY_KEYS = ["m", "sd", "st", "a", "u", "r", "tz", "tz2"];
 
+/* read at use time, not memoized on mount: a tab left open past midnight
+   must not keep yesterday's date for Reset and the past-date warning */
+const localToday = () => { const n = new Date(); return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`; };
+
 export default function UtcTool({ notify }) {
   const P = readParams();
-  const today = useMemo(() => { const n = new Date(); return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`; }, []);
   const [tz, setTz] = useState(() => (isValidZone(P.get("zone")) ? P.get("zone") : USER_TZ));
-  const [orderDate, setOrderDate] = useState(() => (isDate(P.get("date")) ? P.get("date") : today));
+  const [orderDate, setOrderDate] = useState(() => (isDate(P.get("date")) ? P.get("date") : localToday()));
   const [orderTime, setOrderTime] = useState(() => (isTime(P.get("order")) ? P.get("order") : DEFAULTS.order));
   const [sendTime, setSendTime] = useState(() => (isTime(P.get("send")) ? P.get("send") : DEFAULTS.send));
   const [sendDate, setSendDate] = useState(() => (isDate(P.get("senddate")) ? P.get("senddate") : ""));
@@ -126,14 +129,14 @@ export default function UtcTool({ notify }) {
     if (!orderDate) w.push("Please select an order date.");
     if (!orderTime) w.push("Please enter the order created time.");
     if (!sendTime) w.push("Please enter the target send time.");
-    if (orderDate && orderDate < today) w.push("Order date is in the past. The calculator will still find the next valid target send time.");
+    if (orderDate && orderDate < localToday()) w.push("Order date is in the past. The calculator will still find the next valid target send time.");
     if (sendDate && orderDate && sendDate < orderDate) w.push("Target send date is before the order date. The next valid send time after the order is used instead.");
     const a = orderDate && orderTime && safeWarning(orderDate, orderTime, tz, "Order created time");
     if (a) w.push(a);
     const b = sendTime && safeWarning(sendDate || orderDate, sendTime, tz, "Target send time");
     if (b) w.push(b);
     return w;
-  }, [orderDate, orderTime, sendTime, sendDate, tz, today]);
+  }, [orderDate, orderTime, sendTime, sendDate, tz]);
 
   const unusual = result ? unusualWait(result.waitMs) : null;
   const userZoneDiffers = isValidZone(USER_TZ) && USER_TZ !== tz;
@@ -141,7 +144,7 @@ export default function UtcTool({ notify }) {
   const skippedN = result ? result.skipped.length : 0;
   const skippedTx = skippedN > 0 ? `${skippedN} weekend day${skippedN > 1 ? "s" : ""} skipped` : "";
 
-  const reset = () => { setTz(USER_TZ); setOrderDate(today); setOrderTime(DEFAULTS.order); setSendTime(DEFAULTS.send); setSendDate(""); setSkipWk(false); };
+  const reset = () => { setTz(USER_TZ); setOrderDate(localToday()); setOrderTime(DEFAULTS.order); setSendTime(DEFAULTS.send); setSendDate(""); setSkipWk(false); };
 
   const downloadIcs = (sendUtc) => {
     const ics = buildIcs({ title: "Send notification", startUtc: sendUtc, description: `Order placed ${fmtUtcDate(result.orderUtc)} ${fmtUtc(result.orderUtc)} UTC (${tz}).` });

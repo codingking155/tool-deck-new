@@ -247,8 +247,13 @@ export async function runUpload(server, { signal, onLive, budget, minMs = 4000, 
   async function stream() {
     let idx = 0;
     while (!done && !ctrl.signal.aborted) {
-      const size = UP_LADDER[idx];
-      if (budget && !budget.take(size)) { done = true; break; }
+      /* as in download: step down to a size that fits the budget, and end only
+         this stream (not all of them) when none does */
+      let size = 0;
+      for (let i = idx; i >= 0; i--) {
+        if (!budget || budget.take(UP_LADDER[i])) { size = UP_LADDER[i]; idx = i; break; }
+      }
+      if (!size) break;
       const started = performance.now();
       try {
         /* server.up is a plain URL (unlike .down, it isn't parameterized by size) */

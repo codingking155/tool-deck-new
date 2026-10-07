@@ -5,6 +5,7 @@ import { detectPhone, flagOf, REGION_INFO, REGION_LIST } from "../lib/phone.js";
 import { fmtLocal, zoneParts } from "../lib/time.js";
 import { CopyButton } from "../components/ui.jsx";
 import { callWindow } from "../lib/phoneCall.js";
+import { csvCell, CSV_BOM } from "../lib/csv.js";
 
 export const BATCH_MAX = 5000;
 const CHUNK = 100; // rows per tick: keeps typing and scrolling smooth on big lists
@@ -37,8 +38,6 @@ async function lookup(line, region) {
     good: !!(info && info.valid),
   };
 }
-
-const csvCell = (v) => (/[",\n]/.test(String(v ?? "")) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ""));
 
 function toCsv(rows) {
   const now = new Date();
@@ -95,7 +94,7 @@ export default function PhoneBatch({ notify }) {
 
   function download() {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toCsv(rows)], { type: "text/csv" }));
+    a.href = URL.createObjectURL(new Blob([CSV_BOM + toCsv(rows)], { type: "text/csv;charset=utf-8" }));
     a.download = "phone-numbers.csv"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }

@@ -50,8 +50,9 @@ so deploy it with `--no-verify-jwt`.
 `VITE_SUPABASE_URL` **and** `VITE_SUPABASE_ANON_KEY` in the front-end build env
 (the client sends the anon key as the gateway JWT). Function secrets:
 `ALERT_TOKEN_SECRET`, `CRON_SECRET` (the check job refuses to run without it),
-`SUPABASE_SERVICE_ROLE_KEY`, optional `EMAIL_PROVIDER=resend` /
-`WHATSAPP_PROVIDER=meta`. Providers default to `mock`, so nothing sends by accident.
+`SUPABASE_SERVICE_ROLE_KEY`, `EMAIL_PROVIDER=resend` and/or `WHATSAPP_PROVIDER=meta`
+(or `mock` for testing). A channel left unset fails its sends with a clear error
+rather than pretending they were delivered.
 The Shopify checker (`shopify-check`) is public and unauthenticated by design —
 deploy it with `--no-verify-jwt`; it is rate-limited per IP (`SHOPIFY_RATE_LIMIT_MAX`).
 

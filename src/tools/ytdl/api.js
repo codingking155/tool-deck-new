@@ -1,7 +1,5 @@
 /* Client for the YouTube Downloader backend (youtube-downloader/backend, hosted on Render).
    VITE_DOWNLOADER_API_URL is public by design: it's just the service's base URL. */
-import { filenameFromDisposition } from "./core.js";
-
 const BASE = (import.meta.env?.VITE_DOWNLOADER_API_URL || "").replace(/\/+$/, "");
 
 export const isConfigured = () => !!BASE;
@@ -45,26 +43,11 @@ export function cancelJob(id) {
   return request(`/api/jobs/${encodeURIComponent(id)}`, { method: "DELETE", keepalive: true }).catch(() => undefined);
 }
 
-/** Stream a finished job's file into a Blob, reporting (loaded, total|null). */
-export async function fetchJobFile(id, onProgress, signal) {
-  const res = await request(`/api/jobs/${encodeURIComponent(id)}/file`, { signal });
-  const total = Number(res.headers.get("content-length")) || null;
-  const type = res.headers.get("content-type") || "application/octet-stream";
-  const filename = filenameFromDisposition(res.headers.get("content-disposition"));
-  if (!res.body) {
-    const blob = await res.blob();
-    onProgress(blob.size, blob.size);
-    return { blob, filename };
-  }
-  const reader = res.body.getReader();
-  const chunks = [];
-  let loaded = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loaded += value.byteLength;
-    onProgress(loaded, total);
-  }
-  return { blob: new Blob(chunks, { type }), filename };
+/** URL of a finished job's file. The page navigates to it and the server's
+    Content-Disposition: attachment hands it to the browser's download manager,
+    so a file of up to 1 GB is streamed to disk instead of buffered in a Blob
+    (which ran phones out of memory). */
+export function jobFileUrl(id) {
+  if (!BASE) throw new DownloaderError("The YouTube downloader isn't configured on this deployment.", "not_configured");
+  return `${BASE}/api/jobs/${encodeURIComponent(id)}/file`;
 }
