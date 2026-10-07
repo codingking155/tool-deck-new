@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, Component } from "react";
 import ToolIcon from "./components/ToolIcon.jsx";
-import { Search, Sun, Moon } from "lucide-react";
+import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
+import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
+import { readRecent, pushRecent, clearRecent } from "./lib/recentTools.js";
 import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
-import { fmtUtc } from "./lib/time.js";
 import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
 import { Particles, CursorGlow } from "./components/Ambient.jsx";
@@ -15,6 +16,11 @@ import OverscrollSpider from "./components/OverscrollSpider.jsx";
 import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import "./tools/css/v3.css";
+
+/* Tools on the redesigned workspace UI: their content sits inside .v3tool, which scopes
+   the V3 primitives (src/tools/css/v3.css) so the shell, Home and other tools are unchanged. */
+const V3_TOOLS = new Set(["speed", "ssl", "utc", "ytdownloader", "ip", "image", "pdf", "prompt", "phone", "password", "breach", "price"]);
 
 /* After a deploy, an open tab may ask for a chunk hash that no longer exists:
    reload once to pick up the new build instead of showing the error panel. */
@@ -83,7 +89,7 @@ class ToolErrorBoundary extends Component {
 /* Owns the 1 s tick so only the clocks re-render, not the whole app. */
 function HeaderClocks() {
   const now = useNow(1000);
-  return <><LocalClock now={now} /><div className="uclock utcchip" title="Live UTC">{fmtUtc(now)} UTC</div></>;
+  return <LocalClock now={now} />;
 }
 
 /* Real links (middle-click, crawlable) that route in-app on a plain click. */
@@ -128,7 +134,13 @@ export default function App() {
   useEffect(() => {
     const f = (e) => {
       const isCmd = e.ctrlKey || e.metaKey;
-      if (isCmd && e.key.toLowerCase() === "k") { e.preventDefault(); setCp((v) => !v); return; }
+      if (isCmd && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        /* on Home the big launcher is the search: focus it instead of opening the palette */
+        const home = document.getElementById("home-search");
+        if (home) { home.focus(); home.select(); return; }
+        setCp((v) => !v); return;
+      }
       if (isCmd && e.key === "/") { e.preventDefault(); setTheme((t) => (t === "dark" ? "light" : "dark")); }
     };
     window.addEventListener("keydown", f);
@@ -164,9 +176,15 @@ export default function App() {
   const toolArg = seg != null && slash !== -1 ? safeDecode(seg.slice(slash + 1)) : null;
   const tool = isAlertsPage ? null : TOOLS.find((t) => t.id === toolId);
   const ToolView = tool ? TOOL_VIEWS[tool.id] : null;
+  const ti = tool ? TOOLS.indexOf(tool) : 0;
+  const prevTool = TOOLS[(ti - 1 + TOOLS.length) % TOOLS.length], nextTool = TOOLS[(ti + 1) % TOOLS.length];
 
   const isHome = route === "/" || route === "/index.html" || route === "";
   const notFound = !tool && !isAlertsPage && !isHome;
+
+  /* remember opened tools on this device (no account) for Home's "Jump back in" */
+  const [recent, setRecent] = useState(() => readRecent(TOOLS.map((t) => t.id)));
+  useEffect(() => { if (tool) setRecent(pushRecent(tool.id)); }, [tool]);
 
   useDocumentMeta(tool, notFound);
 
@@ -199,9 +217,9 @@ export default function App() {
           <div className="sp" />
           <HeaderClocks />
           <div className="hbtns">
-            <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
+            {!isHome && <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
               <Search size={17} strokeWidth={2.2} aria-hidden="true" /><span className="hlabel">Search</span><kbd className="hlabel">Ctrl K</kbd>
-            </button>
+            </button>}
             <button className="hbtn ibtn" onClick={toggleTheme} title="Toggle theme (Ctrl/Cmd+/)" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
               <span className="themeic" key={theme}>{theme === "dark" ? <Sun size={18} strokeWidth={2.2} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.2} aria-hidden="true" />}</span>
             </button>
@@ -209,7 +227,7 @@ export default function App() {
         </header>
 
         <main id="main">
-          {isHome && <Home nav={nav} reduced={reduced} />}
+          {isHome && <Home nav={nav} reduced={reduced} recent={recent} onClearRecent={() => { clearRecent(); setRecent([]); }} />}
           {notFound && <NotFound nav={nav} />}
           {isAlertsPage && (
             <div className="tpage">
@@ -218,21 +236,36 @@ export default function App() {
               </nav>
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
-                  <MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} />
+                  <div className="v3tool"><MyAlerts manageToken={readParams().get("t") || undefined} signedIn={false} /></div>
                 </Suspense>
               </ToolErrorBoundary>
             </div>
           )}
           {tool && (
             <div className={`tpage${tool.bare ? " bare" : ""}`} key={tool.id}>
-              <nav className="crumb" aria-label="Breadcrumb"><Crumb href="/" nav={nav}>← All tools</Crumb><span aria-hidden="true">/</span><span className="cur" aria-current="page">{tool.name}</span></nav>
+              <nav className="crumb tcrumb" aria-label="Breadcrumb">
+                <Crumb href="/" nav={nav}><ArrowLeft size={15} aria-hidden="true" />All tools</Crumb>
+                <span className="sep" aria-hidden="true">/</span>
+                <span className="cur" aria-current="page">{tool.cat}</span>
+                <span className="nx">
+                  <Crumb href={`/tool/${prevTool.id}`} nav={nav} aria-label={`Previous tool: ${prevTool.name}`} title={prevTool.name}><ChevronLeft size={16} aria-hidden="true" /></Crumb>
+                  <Crumb href={`/tool/${nextTool.id}`} nav={nav} aria-label={`Next tool: ${nextTool.name}`} title={nextTool.name}><span>Next</span><ChevronRight size={16} aria-hidden="true" /></Crumb>
+                </span>
+              </nav>
               {/* bare tools bring their own UI: no ToolDeck header or FAQ (the FAQs still feed the page's schema) */}
-              {tool.bare ? <h1 className="sr-only">{tool.name}</h1> : <div className="thead"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
-                <div><h1>{tool.name}{tool.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}</h1><p>{tool.desc}</p></div></div>}
-              {tool.beta && <div className="note w" role="note"><b>Beta · </b>{BETA_HINT}</div>}
+              {tool.bare ? <h1 className="sr-only">{tool.name}</h1> : (
+              <div className="thead tv3"><div className="tic" style={{ background: tint(tool.c, "1f"), borderColor: tint(tool.c, "70"), "--cc": tool.c }}><ToolIcon tool={tool} size={26} /></div>
+                <div className="tmain">
+                  <h1>{tool.name}{tool.beta && <BetaBadge />}</h1>
+                  <p>{tool.desc}</p>
+                  <div className="badges"><PrivacyBadge where={tool.where} /></div>
+                </div>
+              </div>
+              )}
+              {tool.beta && <p className="betanote"><FlaskConical size={14} aria-hidden="true" />{BETA_HINT}</p>}
               <ToolErrorBoundary resetKey={route}>
                 <Suspense fallback={<ToolFallback />}>
-                  <ToolView notify={notify} nav={nav} arg={toolArg} />
+                  <div className={V3_TOOLS.has(tool.id) ? "v3tool" : undefined}><ToolView notify={notify} nav={nav} arg={toolArg} /></div>
                 </Suspense>
               </ToolErrorBoundary>
               {tool.faqs && !tool.bare && <FaqSection tool={tool} />}

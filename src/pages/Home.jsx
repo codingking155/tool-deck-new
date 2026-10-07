@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Search } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Search, ShieldCheck, UserX, Globe2, CornerDownLeft, History, X, SearchX } from "lucide-react";
+import { searchTools, highlightRuns } from "../lib/toolSearch.js";
 import { TOOLS, tint, ROTATE, CATEGORIES, WHERE_LABEL, BETA_HINT } from "../toolsMeta.js";
 import { tiltHandlers } from "../components/Ambient.jsx";
 import { useCountUp } from "../hooks/index.js";
@@ -52,13 +53,90 @@ function Stat({ target, reduced, suffix = "", label }) {
 
 const ON_DEVICE = TOOLS.filter((t) => t.where === "device").length;
 
-export default function Home({ nav, reduced }) {
+const COUNTS = Object.fromEntries(CATEGORIES.map((c) => [c, c === "All" ? TOOLS.length : TOOLS.filter((t) => t.cat === c).length]));
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "");
+const plainClick = (e) => e.metaKey || e.ctrlKey || e.shiftKey || e.button;
+
+function Hl({ text, idx }) {
+  if (!idx?.length) return text;
+  return highlightRuns(text, idx).map((r, i) => (r.hit ? <mark key={i} className="lx-hit">{r.text}</mark> : <span key={i}>{r.text}</span>));
+}
+
+/* Launcher: fuzzy search over names, aliases and categories with a keyboard-driven suggestion list.
+   Typing also filters the grid below; Enter opens the highlighted suggestion. */
+function Launcher({ q, setQ, hits, nav, inputRef }) {
+  const [open, setOpen] = useState(false);
+  const [act, setAct] = useState(0);
+  const sugg = q.trim() ? hits.slice(0, 6) : [];
+  useEffect(() => { setAct(0); }, [q]);
+  const show = open && sugg.length > 0;
+  const go = (t) => { setOpen(false); nav(`/tool/${t.id}`); };
+  return (
+    <div className="lx" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
+      <div className={`lx-box ${show ? "open" : ""}`}>
+        <Search className="lx-ic" size={20} strokeWidth={2.2} aria-hidden="true" />
+        <input ref={inputRef} id="home-search" type="search" placeholder="What do you need to do?" value={q} autoComplete="off" spellCheck={false} enterKeyHint="go"
+          role="combobox" aria-expanded={show} aria-controls="lx-list" aria-autocomplete="list" aria-label="Search tools" aria-describedby="tool-count"
+          aria-activedescendant={show ? `lx-opt-${act}` : undefined}
+          onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && sugg.length) { e.preventDefault(); setOpen(true); setAct((a) => (a + 1) % sugg.length); }
+            else if (e.key === "ArrowUp" && sugg.length) { e.preventDefault(); setAct((a) => (a - 1 + sugg.length) % sugg.length); }
+            else if (e.key === "Enter" && hits.length) { e.preventDefault(); go(show ? sugg[act].tool : hits[0].tool); }
+            else if (e.key === "Escape") { if (show) setOpen(false); else setQ(""); }
+          }} />
+        <span className="lx-keys" aria-hidden="true">
+          {q.trim() && hits.length
+            ? <><CornerDownLeft size={13} />open <b>{(show ? sugg[act] : hits[0]).tool.name.split(" ")[0]}</b></>
+            : <><kbd>/</kbd>or<kbd>{IS_MAC ? "⌘" : "Ctrl"} K</kbd></>}
+        </span>
+      </div>
+      {show && (
+        <div className="lx-pop" id="lx-list" role="listbox" aria-label="Suggestions">
+          {sugg.map(({ tool: t, hl }, i) => (
+            <div key={t.id} id={`lx-opt-${i}`} role="option" aria-selected={i === act} className={`lx-opt ${i === act ? "on" : ""}`} style={{ "--cc": t.c }}
+              onMouseMove={() => i !== act && setAct(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => go(t)}>
+              <span className="lx-oic" aria-hidden="true"><ToolIcon tool={t} size={16} /></span>
+              <span className="lx-ol"><b><Hl text={t.name} idx={hl} /></b><small>{t.cat} · {WHERE_LABEL[t.where][0]}</small></span>
+              {t.beta && <span className="betabadge">Beta</span>}
+              <CornerDownLeft className="lx-ret" size={14} aria-hidden="true" />
+            </div>
+          ))}
+          <div className="lx-foot" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>↵</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
+        </div>
+      )}
+      <div className="lx-trust">
+        <span className="t-dev"><ShieldCheck aria-hidden="true" />{ON_DEVICE} tools never upload</span>
+        <span className="t-key"><UserX aria-hidden="true" />No account, no tracking cookies</span>
+        <span className="t-net"><Globe2 aria-hidden="true" />Network use is always labelled</span>
+      </div>
+    </div>
+  );
+}
+
+export default function Home({ nav, reduced, recent = [], onClearRecent }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [ri, setRi] = useState(0);
   useEffect(() => { if (reduced) return; const id = setInterval(() => setRi((i) => (i + 1) % ROTATE.length), 2600); return () => clearInterval(id); }, [reduced]);
-  const needle = q.trim().toLowerCase();
-  const list = TOOLS.filter((t) => (cat === "All" || t.cat === cat) && (!needle || `${t.name} ${t.desc} ${t.cat}`.toLowerCase().includes(needle)));
+  const [local, setLocal] = useState(false);
+  const inputRef = useRef(null);
+  /* "/" focuses the launcher from anywhere on Home (unless typing in a field) */
+  useEffect(() => {
+    const f = (e) => {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+      e.preventDefault(); inputRef.current?.focus();
+    };
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, []);
+  const hits = useMemo(() => searchTools(TOOLS, q), [q]);
+  const shown = hits.filter((r) => (cat === "All" || r.tool.cat === cat) && (!local || r.tool.where === "device"));
+  const list = shown.map((r) => r.tool);
+  const hlOf = Object.fromEntries(shown.map((r) => [r.tool.id, r.hl]));
+  const recentTools = recent.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).slice(0, 6);
   const th = tiltHandlers(reduced);
   return (
     <>
@@ -71,19 +149,34 @@ export default function Home({ nav, reduced }) {
           <Stat target={ON_DEVICE} reduced={reduced} label="fully on-device" />
         </div>
       </section>
-      <div className="finder">
-          <div className="searchbar rise d2">
-            <span className="ic" aria-hidden="true"><Search size={18} strokeWidth={2.2} /></span>
-            <input type="search" placeholder="Which tool do you need?" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Search tools" aria-describedby="tool-count" enterKeyHint="go"
-              onKeyDown={(e) => { if (e.key === "Enter" && list.length) nav(`/tool/${list[0].id}`); else if (e.key === "Escape") setQ(""); }} />
-            <kbd>Ctrl K</kbd>
-          </div>
-      <div className="pillrow catrow" role="group" aria-label="Filter tools by category">
-        {CATEGORIES.map((c) => (
-          <button key={c} type="button" className="pill" aria-pressed={cat === c} onClick={() => setCat(c)}>{c}</button>
-        ))}
+      <div className="finder lx-finder">
+        <Launcher q={q} setQ={setQ} hits={hits} nav={nav} inputRef={inputRef} />
       </div>
+      {recentTools.length > 0 && !q.trim() && (
+        <section className="lx-recent" aria-labelledby="recent-h">
+          <div className="lx-sh"><h2 id="recent-h"><History size={13} aria-hidden="true" />Jump back in</h2>
+            {onClearRecent && <button type="button" className="linkbtn" onClick={onClearRecent}>Clear</button>}</div>
+          <div className="lx-chips">
+            {recentTools.map((t, i) => (
+              <a key={t.id} href={`/tool/${t.id}`} className="lx-chip" style={{ "--cc": t.c }}
+                onClick={(e) => { if (plainClick(e)) return; e.preventDefault(); nav(`/tool/${t.id}`); }}>
+                <span className="lx-cic" aria-hidden="true"><ToolIcon tool={t} size={15} /></span>{t.name}
+                {i === 0 && <span className="lx-last">Last used</span>}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="lx-cat">
+        <div className="lx-seg" role="group" aria-label="Filter tools by category">
+          {CATEGORIES.map((c) => (
+            <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(c)}>{c}<span className="n" aria-hidden="true">{COUNTS[c]}</span></button>
+          ))}
+        </div>
+        <button type="button" className="lx-dev" aria-pressed={local} onClick={() => setLocal((v) => !v)} title={WHERE_LABEL.device[1]} aria-label="On-device only">
+          <ShieldCheck size={14} aria-hidden="true" /><span>On-device only</span>
+        </button>
+        <span className="lx-count" aria-hidden="true">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools`}</span>
       </div>
       <p id="tool-count" className="sr-only" role="status">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools shown`}</p>
       <section className="bento" aria-label="Tools">
@@ -93,7 +186,7 @@ export default function Home({ nav, reduced }) {
             style={{ borderTop: `2px solid ${tint(t.c, "66")}`, "--cc": t.c }}>
             <Preview kind={t.pv} />
             <div className="bic" aria-hidden="true" style={{ background: tint(t.c, "1f"), borderColor: tint(t.c, "70") }}><ToolIcon tool={t} /></div>
-            <h2>{t.name}</h2>
+            <h2><Hl text={t.name} idx={hlOf[t.id]} /></h2>
             <span className="badges">
               {t.where && <span className={`wbadge ${t.where}`} title={WHERE_LABEL[t.where][1]}>{WHERE_LABEL[t.where][0]}</span>}
               {t.beta && <span className="betabadge" title={BETA_HINT}>Beta</span>}
@@ -103,9 +196,11 @@ export default function Home({ nav, reduced }) {
           </a>
         ))}
         {list.length === 0 && (
-          <div className="empty" style={{ gridColumn: "1/-1" }}>
-            No tool matches “{q.trim() || cat}”{cat !== "All" ? ` in ${cat}` : ""}.
-            <div><button type="button" className="linkbtn" onClick={() => { setQ(""); setCat("All"); }}>Clear search and filters</button></div>
+          <div className="empty lx-empty">
+            <SearchX size={22} aria-hidden="true" />
+            <b>No tool matches “{q.trim() || cat}”{cat !== "All" ? ` in ${cat}` : ""}{local ? " on-device" : ""}.</b>
+            <span>Try a task instead of a name — “compress”, “timezone”, “certificate”.</span>
+            <div><button type="button" className="linkbtn" onClick={() => { setQ(""); setCat("All"); setLocal(false); }}>Clear search and filters</button></div>
           </div>
         )}
       </section>

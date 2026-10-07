@@ -31,16 +31,23 @@ export function ShareLink({ notify }) {
 export function FaqSection({ tool }) {
   const [open, setOpen] = useState(0);
   return (
-    <section className="faqwrap rise d4" aria-label="Frequently asked questions">
-      <h2 className="faqh">Frequently asked</h2>
-      {tool.faqs.map(([q, a], i) => (
-        <div className="faqitem" key={q}>
-          <button className="faqq" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}>
-            <span>{q}</span><span className="faqsign" aria-hidden="true">{open === i ? "−" : "+"}</span>
-          </button>
-          {open === i && <div className="faqa">{a}</div>}
-        </div>
-      ))}
+    <section className="faqwrap" aria-labelledby="faq-h">
+      <div>
+        <h2 className="faqh" id="faq-h">Questions</h2>
+        <p>About {tool.name}</p>
+      </div>
+      <div>
+        {tool.faqs.map(([q, a], i) => (
+          <div className="faqitem" key={q}>
+            <h3 className="faqqh">
+              <button className="faqq" aria-expanded={open === i} aria-controls={`faq-a-${i}`} onClick={() => setOpen(open === i ? -1 : i)}>
+                <span>{q}</span><span className="faqsign" aria-hidden="true" />
+              </button>
+            </h3>
+            <div className="faqa" id={`faq-a-${i}`} hidden={open !== i}>{a}</div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

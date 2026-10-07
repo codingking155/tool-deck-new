@@ -1,0 +1,48 @@
+/* ─── Breach checker (Archetype A, calm security semantics) ──────────────── */
+.br{max-width:720px;margin:0 auto}
+.br-seg{display:flex;width:max-content}
+@media(max-width:600px){.br-seg{width:100%}.br-seg button{flex:1 1 0;justify-content:center;min-height:44px}}
+.br-field{margin-bottom:var(--s3)}
+.br-pwrow{display:flex;gap:8px;flex:1;min-width:0}
+.br-pwrow>input{flex:1;min-width:0}
+.br-eye{flex:none;width:auto;padding:0 12px}
+.br-gap{margin:var(--s4) 0 0}
+
+/* where the data goes */
+.br-flow{border:1px solid var(--line2);background:var(--bg-secondary);border-radius:var(--r);padding:10px 12px}
+.br-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;font:600 12px var(--body);color:var(--tx)}
+.br-steps li{display:inline-flex;align-items:center;gap:6px}
+.br-steps li>svg:not(.br-arr){color:var(--good)}
+.br-arr{color:var(--tx3);margin:0 2px}
+.br-flow p{margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--tx2)}
+
+/* verdicts — warn/ok tones, never an alarm wall */
+.br-verdict{--bt:var(--line-strong);display:flex;gap:var(--s3);align-items:flex-start;margin-top:var(--s4);padding:var(--s4);border-radius:var(--r-lg);
+  border:1px solid color-mix(in srgb,var(--bt) 35%,var(--line));background:color-mix(in srgb,var(--bt) 6%,var(--surface));animation:rise var(--dur-3) var(--ease) both}
+.br-t-ok{--bt:var(--good)}.br-t-warn{--bt:var(--warn)}
+.br-ic{flex:none;width:38px;height:38px;border-radius:var(--r);display:grid;place-items:center;color:var(--bt);background:color-mix(in srgb,var(--bt) 12%,transparent)}
+.br-vb{min-width:0}
+.br-vb h3{font-family:var(--disp);font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--tx);line-height:1.3}
+.br-vb p{font-size:13px;color:var(--tx2);line-height:1.55;margin-top:3px}
+
+/* breach list */
+.br-list{list-style:none;margin:var(--s3) 0 0;padding:0;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.br-item{padding:var(--s3) var(--s4);border-top:1px solid var(--line2);min-width:0}
+.br-item:first-child{border-top:0}
+.br-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.br-name{font-size:14.5px;font-weight:600;color:var(--tx);overflow-wrap:anywhere}
+.br-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px;font-size:12.5px;color:var(--tx3);font-variant-numeric:tabular-nums}
+.br-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.br-meta svg{flex:none}
+.br-dom{font-family:var(--mono);overflow-wrap:anywhere}
+.br-types{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.br-types .chip{height:auto;min-height:22px;white-space:normal}
+.br-desc{font-size:12.5px;color:var(--tx3);line-height:1.55;margin-top:8px}
+
+/* next steps */
+.br-next{margin-top:var(--s4);padding:var(--s4);border-radius:var(--r-lg);border:1px solid var(--line);background:var(--bg-secondary)}
+.br-next h3{font-size:14px;font-weight:600;color:var(--tx)}
+.br-next ul{list-style:none;margin:var(--s2) 0 0;padding:0;display:grid;gap:8px}
+.br-next li{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--tx2)}
+.br-next li svg{flex:none;margin-top:2px;color:var(--good)}
+@media(max-width:600px){.br .inrow.stack>input{flex:none}}

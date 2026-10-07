@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
 import {
+  ArrowDown, ArrowUp, Activity, Play, Check, X, Info, Minus, RotateCcw,
+  Video, Tv, MonitorPlay, Gamepad2, Briefcase, Trash2,
+} from "lucide-react";
+import {
   availableServers, runFullTest, fetchMeta,
-  compareRuns, qualityLabels,
+  compareRuns, qualityLabels, summaryText,
 } from "../lib/speed.js";
+import { Notice, StatusBadge, CopyButton, describeError } from "../components/ui.jsx";
+import "./css/speed.css";
 
 /* ────────────────────────────────────────────────────────────────────────────
    SPEEDOMETER — speedtest-style 270° gauge; needle driven by a time-based rAF spring
@@ -24,8 +30,13 @@ const reducedMotion = () =>
   typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const fmtMbps = (v) => (v >= 100 ? v.toFixed(1) : v.toFixed(2));
+/* result figures: three significant-ish digits, never more precision than the test has */
+const fmtRes = (v) => (v == null ? null : v >= 100 ? String(Math.round(v)) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+const signed = (d) => (d == null ? null : `${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)}`);
 
-const Speedometer = ({ mbps, phase, label }) => {
+/* Decorative: the stage line (a live region) and the result metrics carry the meaning,
+   so the gauge stays out of the accessibility tree instead of re-labelling every frame. */
+const Speedometer = ({ mbps, phase, label, idle }) => {
   const uid = useId().replace(/:/g, "");
   const angleGoal = gaugeAngle(mbps ?? 0);
   const valueGoal = mbps != null && mbps > 0 ? mbps : 0;
@@ -65,7 +76,7 @@ const Speedometer = ({ mbps, phase, label }) => {
 
   const shown = Math.min(G_SWEEP, Math.max(0, view.a));
   const up = phase === "up";
-  const cx = 150, cy = 150, r = 120, tw = 26, rin = r - tw / 2;   // track centre radius / width / inner edge
+  const cx = 150, cy = 150, r = 120, tw = 22, rin = r - tw / 2;   // track centre radius / width / inner edge
   const pt = (deg, rad) => {
     const a = ((G_START + deg) * Math.PI) / 180;
     return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
@@ -78,17 +89,16 @@ const Speedometer = ({ mbps, phase, label }) => {
   const sweep = `M ${cx} ${cy} L ${sx0} ${sy0} A ${rin} ${rin} 0 ${shown > 180 ? 1 : 0} 1 ${sx1} ${sy1} Z`;
 
   return (
-    <div className={`spd-wrap ${up ? "up" : "down"}`} role="img"
-      aria-label={`${label}: ${mbps == null ? "unavailable" : `${mbps.toFixed(1)} megabits per second`}`}>
-      {/* viewBox covers the full arc incl. stroke (y 17…244), every label and the readout */}
-      <svg viewBox="0 10 300 240" className="spd-svg">
+    <div className={`spd-wrap ${up ? "up" : "down"}${idle ? " idle" : ""}`} aria-hidden="true">
+      {/* viewBox covers the full arc incl. stroke, every label and the readout */}
+      <svg viewBox="0 10 300 240" className="spd-svg" focusable="false">
         <defs>
           <linearGradient id={`${uid}f`} gradientUnits="userSpaceOnUse" x1="40" y1="250" x2="260" y2="20">
             <stop offset="0" className="spd-ga" /><stop offset="1" className="spd-gb" />
           </linearGradient>
           <radialGradient id={`${uid}s`} gradientUnits="userSpaceOnUse" cx={cx} cy={cy} r={rin}>
-            <stop offset="0.45" className="spd-gb" stopOpacity="0" />
-            <stop offset="1" className="spd-gb" stopOpacity="0.22" />
+            <stop offset="0.5" className="spd-gb" stopOpacity="0" />
+            <stop offset="1" className="spd-gb" stopOpacity="0.14" />
           </radialGradient>
           {/* defined in the needle's own (rotated) space: transparent at the hub, solid at the tip */}
           <linearGradient id={`${uid}n`} gradientUnits="userSpaceOnUse" x1={cx + 30} y1={cy} x2={cx + rin - 8} y2={cy}>
@@ -114,11 +124,8 @@ const Speedometer = ({ mbps, phase, label }) => {
           {mbps == null ? "—" : fmtMbps(view.v)}
         </text>
       </svg>
-      <div className="spd-read" aria-hidden="true">
-        <svg viewBox="0 0 16 16" className="spd-ico">
-          <circle cx="8" cy="8" r="7" fill="none" strokeWidth="1.4" />
-          <path d={up ? "M8 11.5V4.5M5 7.5l3-3 3 3" : "M8 4.5v7M5 8.5l3 3 3-3"} fill="none" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <div className="spd-read">
+        {up ? <ArrowUp size={15} className="spd-ico" strokeWidth={2.2} /> : <ArrowDown size={15} className="spd-ico" strokeWidth={2.2} />}
         <span>Mbps · {label}</span>
       </div>
     </div>
@@ -126,28 +133,54 @@ const Speedometer = ({ mbps, phase, label }) => {
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
-   LIVE THROUGHPUT GRAPH — Real-time SVG polyline from timestamped samples
+   THROUGHPUT SPARKLINE — SVG area + line from the live samples of one phase
    ──────────────────────────────────────────────────────────────────────────── */
 
-function LiveGraph({ series, color, label }) {
-  if (!series || series.length < 2) return null;
-
-  const w = 280, h = 56;
-  const maxT = series[series.length - 1].t || 1;
+function Spark({ series, phase, label, live }) {
+  if (!series || series.length < 2) return <div className={`spd-spark ${phase} is-empty`} aria-hidden="true" />;
+  const w = 300, h = 64;
+  const maxT = series.length - 1 || 1;
   const maxM = Math.max(...series.map((s) => s.mbps), 1);
-
-  const pts = series
-    .map((s) => `${(s.t / maxT * w).toFixed(1)},${(h - 4 - (s.mbps / maxM) * (h - 10)).toFixed(1)}`)
-    .join(" ");
-
+  const xy = series.map((s, i) => [(i / maxT) * w, h - 3 - (s.mbps / maxM) * (h - 10)]);
+  const pts = xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   return (
-    <div className="spd-graph" style={{ marginTop: 12 }}>
-      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" style={{ width: "100%", height: 60 }}
-        aria-label={`${label} throughput over time, peaking at ${maxM.toFixed(1)} megabits per second`}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+    <figure className={`spd-spark ${phase}`}>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" focusable="false"
+        {...(live ? { "aria-hidden": "true" } : { role: "img", "aria-label": `${label} throughput over time, peaking at ${maxM.toFixed(1)} megabits per second` })}>
+        <polygon className="area" points={`0,${h} ${pts} ${w},${h}`} />
+        <polyline className="line" points={pts} fill="none" vectorEffect="non-scaling-stroke" />
       </svg>
-      <span className="hint" style={{ fontSize: 11, display: "block", marginTop: 4 }}>{label} · peak {maxM.toFixed(1)} Mbps</span>
-    </div>
+      {!live && <figcaption>{label} over time · peak {maxM.toFixed(1)} Mbps</figcaption>}
+    </figure>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE RAIL — READY → CONNECTING → PING → DOWNLOAD → UPLOAD → COMPLETE
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const STEPS = [["ready", "Ready"], ["connect", "Connecting"], ["ping", "Ping"], ["down", "Download"], ["up", "Upload"], ["done", "Complete"]];
+const STAGE_STEP = { ready: 0, offline: 0, finding: 1, idle: 2, down: 3, up: 4, calc: 5, done: 5 };
+
+function StageRail({ stage, stoppedAt, running }) {
+  const stopped = (stage === "failed" || stage === "cancelled") && stoppedAt != null;
+  const at = stopped ? stoppedAt : (STAGE_STEP[stage] ?? 0);
+  return (
+    <ol className={`spd-rail${running ? " is-running" : ""}`} aria-label="Test stages">
+      {STEPS.map(([k, label], i) => {
+        const st = stage === "done" || i < at ? "done" : i === at ? (stopped ? "stop" : "now") : "todo";
+        return (
+          <li key={k} className={st} aria-current={st === "now" ? "step" : undefined}>
+            <span className="dot" aria-hidden="true">
+              {st === "done" ? <Check size={12} strokeWidth={3} /> : st === "stop" ? <X size={12} strokeWidth={3} /> : null}
+            </span>
+            <span className="lbl">{label}</span>
+            {st === "done" && <span className="sr-only">, done</span>}
+            {st === "stop" && <span className="sr-only">, stopped here</span>}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -254,9 +287,9 @@ function maskIp(ip) {
 }
 
 const STAGE_TEXT = {
-  ready: "Ready", finding: "Finding best server…", idle: "Measuring idle latency…",
+  ready: "Ready to test", finding: "Connecting to the nearest server…", idle: "Measuring ping…",
   down: "Testing download…", up: "Testing upload…", calc: "Calculating results…",
-  done: "Complete", failed: "Failed", cancelled: "Cancelled", offline: "You appear to be offline",
+  done: "Complete", failed: "Test stopped", cancelled: "Test cancelled", offline: "Offline",
 };
 const HKEY = "td-speed-history-v2";
 
@@ -282,12 +315,198 @@ function detectOS() {
   return "Unknown";
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   RESULT PIECES
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/** Headline result. `null` renders a neutral "Unavailable" with the reason in words. */
+function HeadMetric({ icon: Icon, kind, label, value, unit, delta, why, children }) {
+  const na = value == null;
+  return (
+    <div className={`spd-head ${kind}${na ? " na" : ""}`}>
+      <div className="lab"><Icon size={14} aria-hidden="true" strokeWidth={2.4} />{label}</div>
+      {na
+        ? <div className="val na">Unavailable</div>
+        : <div className="val">{value}<small>{unit}</small></div>}
+      {na ? <p className="why"><Info size={12} aria-hidden="true" />{why}</p>
+        : delta != null && <p className="delta">{delta} {unit} vs last test</p>}
+      {children}
+    </div>
+  );
+}
+
+function SecMetric({ label, value, unit, why, title }) {
+  const na = value == null;
+  return (
+    <div className={`spd-sec${na ? " na" : ""}`} title={title}>
+      <div className="k">{label}</div>
+      <div className="v">{na ? "Unavailable" : <>{value}{unit && <small>{unit}</small>}</>}</div>
+      {na && why && <div className="why">{why}</div>}
+    </div>
+  );
+}
+
+const QUALITY_ICON = { "WhatsApp video calls": Video, "HD streaming": Tv, "4K streaming": MonitorPlay, "Online gaming": Gamepad2, "Work from home": Briefcase };
+
+function QualityList({ labels }) {
+  return (
+    <ul className="spd-qual">
+      {labels.map((x) => {
+        const Icon = QUALITY_ICON[x.l] || Activity;
+        return (
+          <li key={x.l} className={x.ok ? "ok" : "no"}>
+            <Icon size={16} aria-hidden="true" strokeWidth={2} className="qi" />
+            <span className="ql">{x.l}</span>
+            {x.ok
+              ? <StatusBadge tone="ok" icon={Check}>Good</StatusBadge>
+              : <StatusBadge icon={Minus}>Limited</StatusBadge>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function lossValue(res) {
+  if (res.loss == null) return null;
+  return res.loss === 0 ? "0" : res.loss < 0.01 ? "<0.01" : String(res.loss);
+}
+
+function Results({ res, delta, downSamples, upSamples }) {
+  const labels = res.down != null ? qualityLabels(res.down, res.up ?? 0, res.ping ?? 999) : null;
+  const bloat = res.loadedDown != null && res.ping != null && res.loadedDown > res.ping * 3;
+  return (
+    <div className="spd-results">
+      {res.partial && (
+        <Notice tone="w" title="Partial result">
+          One stage didn't transfer enough data to report honestly — its value shows as Unavailable rather than a guess.
+        </Notice>
+      )}
+      <div className="spd-heads">
+        <HeadMetric icon={ArrowDown} kind="down" label="Download" value={fmtRes(res.down)} unit="Mbps"
+          delta={delta && signed(delta.down)} why="Not enough data arrived to measure download honestly.">
+          {downSamples.length > 2 && <Spark series={downSamples} phase="down" label="Download" />}
+        </HeadMetric>
+        <HeadMetric icon={ArrowUp} kind="up" label="Upload" value={fmtRes(res.up)} unit="Mbps"
+          delta={delta && signed(delta.up)} why="Not enough data was sent to measure upload honestly.">
+          {upSamples.length > 2 && <Spark series={upSamples} phase="up" label="Upload" />}
+        </HeadMetric>
+        <HeadMetric icon={Activity} kind="lat" label="Latency" value={res.ping == null ? null : String(res.ping)} unit="ms"
+          delta={delta && signed(delta.ping)} why="Every latency probe failed.">
+          <p className="spd-headnote">Idle round-trip time (ping)</p>
+        </HeadMetric>
+      </div>
+
+      <h3 className="spd-h3">Details</h3>
+      <div className="spd-secs">
+        <SecMetric label="Jitter" value={res.jitter} unit="ms" why="Too few latency probes succeeded." />
+        <SecMetric label="Loaded latency · download" value={res.loadedDown} unit="ms" why="No probe finished while downloading." />
+        <SecMetric label="Loaded latency · upload" value={res.loadedUp} unit="ms" why="No probe finished while uploading." />
+        <SecMetric label="Packet loss" value={lossValue(res)} unit="%"
+          why="This server doesn't expose TCP counters, so loss can't be measured."
+          title={res.loss != null
+            ? `Downstream estimate from the edge server's TCP counters: ${res.lossDetail?.lost ?? 0} lost + ${res.lossDetail?.retrans ?? 0} retransmitted of ${res.lossDetail?.sent ?? 0} packets sent.`
+            : "This server doesn't expose TCP-level counters via Server-Timing cfL4 headers, so packet loss can't be measured. Only the global edge server reports its TCP retransmission counters."} />
+        <SecMetric label="Data used" value={res.dataUsed} unit="MB" />
+      </div>
+
+      {bloat && (
+        <Notice tone="i" title="Bufferbloat detected">
+          Latency under load is {Math.round(res.loadedDown / res.ping)}× idle — video calls may stutter while downloads run.
+          Router SQM/QoS usually fixes this.
+        </Notice>
+      )}
+
+      {labels && <>
+        <h3 className="spd-h3">What this connection handles</h3>
+        <QualityList labels={labels} />
+      </>}
+
+      <div className="spd-meta">
+        <div className="kv"><span className="k">Server</span><span className="v">{res.server}</span></div>
+        <div className="kv"><span className="k">Tested</span><span className="v">{res.when}</span></div>
+      </div>
+    </div>
+  );
+}
+
+const ConnRow = ({ k, children }) => (
+  <div className="kv"><span className="k">{k}</span><span className="v">{children ?? <span className="spd-na">Unavailable</span>}</span></div>
+);
+
+const CONN_ROWS = 8;
+
+function ConnectionPanel({ meta, ipHash, ipObservations }) {
+  const ipClass = meta ? classifyIp(meta.ip ? ipHash : null, ipObservations) : null;
+  return (
+    <section className="panel spd-conn" aria-labelledby="spd-conn-h">
+      <div className="ph"><h2 id="spd-conn-h">Your connection</h2><p>Looked up from your public IP — location is approximate.</p></div>
+      <div className="pb" aria-busy={meta === undefined}>
+        {meta === undefined && Array.from({ length: CONN_ROWS }, (_, i) => (
+          <div className="kv spd-skrow" key={i}><span className="skel" /><span className="skel" /></div>
+        ))}
+        {meta !== undefined && <>
+          {meta === null && (
+            <Notice tone="off" title="Connection lookup failed">
+              The speed test still works — these fields just stay Unavailable.
+            </Notice>
+          )}
+          <ConnRow k="Connected via">{meta?.ipVersion}</ConnRow>
+          <ConnRow k="Browser">{detectBrowser()}</ConnRow>
+          <ConnRow k="Operating system">{detectOS()}</ConnRow>
+          <ConnRow k="Server location">{meta?.serverLoc}</ConnRow>
+          <ConnRow k="Your IP address">{meta?.ip ? maskIp(meta.ip) : null}</ConnRow>
+          <ConnRow k="IP type"><span title={ipClass?.detail}>{ipClass?.state ?? "Unknown"}</span></ConnRow>
+          <ConnRow k="Your location">{meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null}</ConnRow>
+          <ConnRow k="Your network">{meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null}</ConnRow>
+          {ipClass && <p className="hint">IP type: {ipClass.detail}</p>}
+          <p className="hint">
+            Your IP address is used only to answer this lookup (approximate location and network name). It isn't stored
+            by this page, and results stay on your device unless you copy or export them.
+          </p>
+        </>}
+      </div>
+    </section>
+  );
+}
+
+function HistoryPanel({ history, onClear }) {
+  return (
+    <section className="panel spd-hist" aria-labelledby="spd-hist-h">
+      <div className="ph spd-hist-ph">
+        <h2 id="spd-hist-h">History <span>(this device)</span></h2>
+        <button type="button" className="btn qt sm" onClick={onClear}><Trash2 size={14} aria-hidden="true" />Clear</button>
+      </div>
+      <div className="pb">
+        <ul className="spd-hist-list">
+          {history.slice(0, 6).map((h) => (
+            <li key={h.iso}>
+              <span className="when">{h.when}</span>
+              <span className="nums">
+                <span><ArrowDown size={12} aria-hidden="true" /><span className="sr-only">Download </span>{h.down ?? "—"}</span>
+                <span><ArrowUp size={12} aria-hidden="true" /><span className="sr-only">Upload </span>{h.up ?? "—"}</span>
+                <span><span className="sr-only">Latency </span>{h.ping ?? "—"} ms</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   TOOL
+   ──────────────────────────────────────────────────────────────────────────── */
+
 export default function SpeedTool({ notify }) {
   const servers = useMemo(availableServers, []);
   const [stage, setStage] = useState("ready");
   const [live, setLive] = useState(0);
+  const [livePing, setLivePing] = useState(null);     // { ms, n } provisional, from idle probes so far
   const [res, setRes] = useState(null);
   const [err, setErr] = useState("");
+  const [stoppedAt, setStoppedAt] = useState(null);
   const [meta, setMeta] = useState(undefined);       // undefined=loading, null=failed
   const [pickedName, setPickedName] = useState(null);
   const [history, setHistory] = useState(loadHistory);
@@ -298,6 +517,7 @@ export default function SpeedTool({ notify }) {
   const abortRef = useRef(null);
   const sampleIndexRef = useRef({ down: 0, up: 0 });
   const currentPhaseRef = useRef(null);
+  const stepRef = useRef(0);
   const running = !["ready", "done", "failed", "cancelled", "offline"].includes(stage);
 
   /* leaving the tool mid-test must stop the transfers, not let them run on unseen */
@@ -333,31 +553,41 @@ export default function SpeedTool({ notify }) {
 
   const start = useCallback(async () => {
     if (running) return;
-    setErr(""); setRes(null); setLive(0); setPickedName(null); setDownSamples([]); setUpSamples([]);
+    setErr(""); setRes(null); setLive(0); setLivePing(null); setPickedName(null); setDownSamples([]); setUpSamples([]);
+    setStoppedAt(null);
     sampleIndexRef.current = { down: 0, up: 0 };
+    stepRef.current = 0;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const cb = (st, payload) => {
+      if (st === "server") setPickedName(payload.name);
+      else if (st === "live") {
+        setLive(payload);
+        if (currentPhaseRef.current === "down") {
+          setDownSamples((prev) => [...prev, { t: sampleIndexRef.current.down++, mbps: payload }]);
+        } else if (currentPhaseRef.current === "up") {
+          setUpSamples((prev) => [...prev, { t: sampleIndexRef.current.up++, mbps: payload }]);
+        }
+      }
+      else if (st === "idle_sample") {
+        /* provisional readout only — the reported ping comes from the library's cleaned median */
+        const ok = payload.filter((x) => x != null).sort((a, b) => a - b);
+        setLivePing({ ms: ok.length ? Math.round(ok[Math.floor(ok.length / 2)]) : null, n: payload.length });
+      }
+      else {
+        if (st === "down" || st === "up") currentPhaseRef.current = st;
+        if (STAGE_STEP[st] != null) stepRef.current = STAGE_STEP[st];
+        setStage(st);
+        setLive(0);
+      }
+    };
     try {
-      const r = await runFullTest(null, servers, (st, payload) => {
-        if (st === "server") setPickedName(payload.name);
-        else if (st === "live") {
-          setLive(payload);
-          if (currentPhaseRef.current === "down") {
-            setDownSamples((prev) => [...prev, { t: sampleIndexRef.current.down++, mbps: payload }]);
-          } else if (currentPhaseRef.current === "up") {
-            setUpSamples((prev) => [...prev, { t: sampleIndexRef.current.up++, mbps: payload }]);
-          }
-        }
-        else if (st !== "idle_sample") {
-          if (st === "down" || st === "up") currentPhaseRef.current = st;
-          setStage(st);
-          setLive(0);
-        }
-      }, ctrl.signal);
+      const r = await runFullTest(null, servers, cb, ctrl.signal);
       setRes(r); setStage("done");
       setHistory((h) => { const nh = [r, ...h]; saveHistory(nh); return nh; });
       if (r.tabHidden) notify("Heads-up: the tab was in the background during the test — browsers throttle hidden tabs, so treat this result as a lower bound.");
     } catch (e) {
+      setStoppedAt(stepRef.current);
       if (e?.cancelled || ctrl.signal.aborted) setStage("cancelled");
       else if (e?.offline) setStage("offline");
       else { setErr(e?.message || "The test could not complete."); setStage("failed"); }
@@ -365,156 +595,111 @@ export default function SpeedTool({ notify }) {
   }, [running, servers, notify]);
 
   const cancel = () => abortRef.current?.abort();
+  const clearHistory = () => { setHistory([]); saveHistory([]); notify("History cleared."); };
   const prev = history.find((h) => res && h.iso !== res.iso);
   const delta = res && prev ? compareRuns(res, prev) : null;
-  const labels = res && res.down != null ? qualityLabels(res.down, res.up ?? 0, res.ping ?? 999) : null;
+  const failure = stage === "failed" ? describeError(new Error(err), { service: "the test servers" }) : null;
 
-  const kv = (k, v) => (
-    <div className="kv" style={{ padding: "8px 0" }}><span className="k">{k}</span>
-      <span className="v" style={{ overflowWrap: "anywhere" }}>{v ?? "Unavailable"}</span></div>
-  );
-
-  const progressWidths = { finding: 8, idle: 22, down: 55, up: 85, calc: 97 };
-  const progressWidth = progressWidths[stage] ?? 5;
+  const phase = stage === "up" ? "up" : "down";
+  const gaugeLabel = stage === "down" ? "Download" : stage === "up" ? "Upload" : stage === "calc" ? "Finishing" : "Waiting";
+  const announce = stage === "done" && res
+    ? ` — download ${fmtRes(res.down) ?? "unavailable"}${res.down != null ? " megabits per second" : ""}, upload ${fmtRes(res.up) ?? "unavailable"}${res.up != null ? " megabits per second" : ""}, latency ${res.ping ?? "unavailable"}${res.ping != null ? " milliseconds" : ""}.`
+    : "";
 
   return (
-    <div className="grid2" style={{ alignItems: "start" }}>
-      {/* ── main test card ── */}
-      <div className="panel rise d1">
-        <div className="ph"><h2>Network quality test</h2>
-          <p>Real transfers against a measurement server — nothing simulated, nothing estimated.</p></div>
+    <div className="spd-layout">
+      <section className="panel spd-main" aria-label="Speed test">
         <div className="pb">
-          {/* live region announces stage changes to screen readers */}
-          <div aria-live="polite" className="st-stage" role="status">
-            {STAGE_TEXT[stage]}{pickedName && running ? ` · ${pickedName}` : ""}
+          <StageRail stage={stage} stoppedAt={stoppedAt} running={running} />
+
+          <div className="spd-statusrow">
+            <p className="spd-status" role="status" aria-live="polite" aria-atomic="true">
+              {STAGE_TEXT[stage]}
+              <span className="sr-only">{announce}</span>
+            </p>
+            {pickedName && running && <span className="spd-server">Server · {pickedName}</span>}
           </div>
 
-          {(running || stage === "calc") && (
-            <div className="st-livebox" style={{ marginTop: 16, minHeight: 140 }}>
-              {/* one gauge instance for both phases: on down → up the needle sweeps back and re-colours instead of remounting */}
-              {(stage === "down" || stage === "up") && (
-                <>
-                  <Speedometer mbps={live} phase={stage} label={stage === "up" ? "Upload" : "Download"} />
-                  <div className="st-bar" style={{ marginTop: 12 }}><i style={{ width: `${progressWidth}%` }} /></div>
-                </>
+          {(stage === "ready" || stage === "offline") && (
+            <div className="spd-ready">
+              <Speedometer mbps={null} phase="down" label="Ready" idle />
+              {stage === "offline" && (
+                <Notice tone="off" title="You're offline">
+                  Your browser reports no network connection. The test will be available again when you're back online.
+                </Notice>
               )}
-              {stage === "calc" && (
-                <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
-                  <Speedometer mbps={res?.down} phase="down" label="Download" />
-                  <Speedometer mbps={res?.up} phase="up" label="Upload" />
-                </div>
-              )}
-              {(stage === "idle" || stage === "finding" || stage === "preparing") && (
-                <div className="st-bar"><i style={{ width: `${progressWidth}%` }} /></div>
-              )}
+              <div className="spd-cta">
+                {/* The test only runs on an explicit click: it moves real data, which matters on mobile plans. */}
+                <button type="button" className="btn pri auto spd-go" onClick={() => start()} disabled={stage === "offline"}>
+                  <Play size={17} aria-hidden="true" strokeWidth={2.4} />Run speed test
+                </button>
+              </div>
+              <p className="spd-data">
+                <Info size={13} aria-hidden="true" />
+                <span>Uses about 20–35 MB on a typical connection (never more than 200 MB on very fast links).</span>
+              </p>
             </div>
           )}
 
-          {stage === "ready" && (
-            <>
-              {/* The test only runs on an explicit click: it can move up to 200 MB, which matters on mobile data. */}
-              <button className="btn pri" onClick={start}>Start speed test</button>
-              <div className="hint" style={{ marginTop: 10 }}>A speed test may consume up to 200 MB of data.</div>
-            </>
-          )}
-          {running && <button className="btn gh" style={{ width: "100%" }} onClick={cancel}>Cancel test</button>}
-          {(stage === "failed" || stage === "cancelled" || stage === "offline") && (
-            <>
-              {stage === "failed" && <div className="note w" style={{ marginTop: 4 }}><b>Test failed · </b>{err} If an ad blocker or privacy extension is active, it may be blocking the measurement endpoints — try allowing this site or another server.</div>}
-              {stage === "offline" && <div className="note w" style={{ marginTop: 4 }}>Your browser reports no network connection. The test will be available again when you're back online.</div>}
-              <button className="btn pri" style={{ marginTop: 12 }} onClick={start} disabled={stage === "offline"}>Run a new test</button>
-            </>
-          )}
-
-          {stage === "done" && res && (
-            <>
-              {res.partial && <div className="note w"><b>Partial result · </b>one stage didn't transfer enough data to report honestly — its value shows as Unavailable.</div>}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16, marginTop: 12 }}>
-                <Speedometer mbps={res.down} phase="down" label="Download" />
-                <Speedometer mbps={res.up} phase="up" label="Upload" />
+          {running && (
+            <div className="spd-live">
+              <Speedometer mbps={stage === "down" || stage === "up" ? live : 0} phase={phase} label={gaugeLabel} />
+              <div className="spd-under">
+                {(stage === "down" || stage === "up") && (
+                  <Spark series={stage === "down" ? downSamples : upSamples} phase={phase} label={gaugeLabel} live />
+                )}
+                {stage === "finding" && <p className="spd-sub">Picking the closest, fastest server…</p>}
+                {stage === "idle" && (
+                  <p className="spd-sub">
+                    Latency <b>{livePing?.ms != null ? `≈ ${livePing.ms} ms` : "—"}</b>
+                    <span>probe {livePing?.n ?? 0} of 10</span>
+                  </p>
+                )}
+                {stage === "calc" && <p className="spd-sub">Crunching the numbers…</p>}
               </div>
-              {downSamples.length > 2 && (
-                <LiveGraph series={downSamples} color="var(--teal)" label="Download" />
-              )}
-              {upSamples.length > 2 && (
-                <LiveGraph series={upSamples} color="var(--warn)" label="Upload" />
-              )}
-              {delta && <div className="hint" style={{ textAlign: "center", marginTop: 2 }}>
-                vs last test: ↓ {delta.down > 0 ? "+" : ""}{delta.down ?? "—"} · ↑ {delta.up > 0 ? "+" : ""}{delta.up ?? "—"} · ping {delta.ping > 0 ? "+" : ""}{delta.ping ?? "—"} ms
-              </div>}
-              <div className="st-mgrid">
-                <div className="st-m"><span>Idle latency</span><b>{res.ping ?? "—"} ms</b></div>
-                <div className="st-m"><span>Jitter</span><b>{res.jitter ?? "—"} ms</b></div>
-                <div className="st-m"><span>Loaded ↓ latency</span><b>{res.loadedDown ?? "—"} ms</b></div>
-                <div className="st-m"><span>Loaded ↑ latency</span><b>{res.loadedUp ?? "—"} ms</b></div>
-                <div className="st-m"><span>Packet loss</span>
-                  {res.loss != null
-                    ? <b title={`Downstream estimate from the edge server's TCP counters: ${res.lossDetail?.lost ?? 0} lost + ${res.lossDetail?.retrans ?? 0} retransmitted of ${res.lossDetail?.sent ?? 0} packets sent.`}>{res.loss === 0 ? "0%" : res.loss < 0.01 ? "<0.01%" : `${res.loss}%`}</b>
-                    : <b title="This server doesn't expose TCP-level counters via Server-Timing cfL4 headers, so packet loss can't be measured. Only the global edge server reports its TCP retransmission counters.">Unavailable</b>}
-                </div>
-              </div>
-              {res.loadedDown != null && res.ping != null && res.loadedDown > res.ping * 3 && (
-                <div className="note i" style={{ marginTop: 10 }}><b>Bufferbloat detected · </b>latency under load is {Math.round(res.loadedDown / res.ping)}× idle — video calls may stutter while downloads run. Router SQM/QoS usually fixes this.</div>
-              )}
-              {labels && <div style={{ marginTop: 12 }}>
-                {labels.map((x) => <div className="qrow" key={x.l}><span className={x.ok ? "ok" : "no"}><span aria-hidden="true">{x.ok ? "✓" : "✕"}</span><span className="sr-only">{x.ok ? "Suitable for " : "Not suitable for "}</span></span>{x.l}</div>)}
-              </div>}
-              <div className="kv" style={{ padding: "10px 0 0", borderBottom: 0 }}><span className="k">Server</span><span className="v">{res.server}</span></div>
-              <div className="kv" style={{ padding: "6px 0", borderBottom: 0 }}><span className="k">Tested</span><span className="v">{res.when}</span></div>
-              <div className="pillrow" style={{ marginTop: 12 }}>
-                <button className="pill" onClick={start} style={{ background: "var(--pri-soft)", borderColor: "var(--pri-line)", color: "var(--pri2)", fontWeight: 600 }}>↻ Retest</button>
-              </div>
-            </>
-          )}
-
-          <div className="hint" style={{ marginTop: 14 }}>
-            Results vary with Wi-Fi conditions, VPNs, background downloads and device limits. Methodology differences also
-            mean numbers won't exactly match other tools measuring against different servers.
-          </div>
-        </div>
-      </div>
-
-      {/* ── right column: connection + history ── */}
-      <div>
-        <div className="panel rise d2">
-          <div className="ph"><h2>Your connection</h2><p>Looked up from your public IP — location is approximate.</p></div>
-          <div className="pb">
-            {meta === undefined && <><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18, marginBottom: 10 }} /><div className="skel" style={{ height: 18 }} /></>}
-            {meta !== undefined && <>
-              {kv("Connected via", meta?.ipVersion)}
-              {kv("Browser", detectBrowser())}
-              {kv("Operating system", detectOS())}
-              {kv("Server location", meta?.serverLoc)}
-              {kv("Your IP address", meta?.ip ? maskIp(meta.ip) : null)}
-              {(() => {
-                const ipClass = classifyIp(meta?.ip ? ipHash : null, ipObservations);
-                return kv("IP type", <span title={ipClass.detail}>{ipClass.state}</span>);
-              })()}
-              {kv("Your location", meta ? [meta.city, meta.region, meta.country].filter(Boolean).join(", ") || null : null)}
-              {kv("Your network", meta ? [meta.asn, meta.org].filter(Boolean).join(" · ") || null : null)}
-              <div className="hint" style={{ marginTop: 10 }}>
-                Your IP address is used only to answer this lookup (approximate location and network name). It isn't stored
-                by this page, and results stay on your device unless you copy or export them.
-              </div>
-            </>}
-            {meta === null && <div className="note w" style={{ marginTop: 6 }}>Connection lookup failed — the speed test still works; these fields just stay Unavailable.</div>}
-          </div>
-        </div>
-
-        {history.length > 0 && (
-          <div className="panel rise d3" style={{ marginTop: 16 }}>
-            <div className="ph" style={{ display: "flex", alignItems: "center" }}><h2 style={{ flex: 1 }}>History (this device)</h2>
-              <button className="pill" onClick={() => { setHistory([]); saveHistory([]); notify("History cleared."); }}>Clear</button></div>
-            <div className="pb" style={{ paddingTop: 6 }}>
-              {history.slice(0, 6).map((h) => (
-                <div className="kv" key={h.iso} style={{ padding: "8px 0" }}>
-                  <span className="k" style={{ fontSize: 11.5 }}>{h.when}</span>
-                  <span className="v" style={{ fontFamily: "var(--mono)", fontSize: 12.5 }}>↓{h.down ?? "—"} ↑{h.up ?? "—"} · {h.ping ?? "—"}ms</span>
-                </div>
-              ))}
+              <button type="button" className="btn gh auto spd-cancel" onClick={cancel}><X size={15} aria-hidden="true" />Cancel test</button>
             </div>
-          </div>
-        )}
+          )}
+
+          {(stage === "failed" || stage === "cancelled") && (
+            <div className="spd-stop">
+              {stage === "failed" && (
+                <Notice tone="w" title={failure.title}>
+                  {failure.hint} If an ad blocker or privacy extension is active, it may be blocking the measurement endpoints — try allowing this site.
+                  {err && <details><summary>Technical detail</summary><code>{err}</code></details>}
+                </Notice>
+              )}
+              {stage === "cancelled" && (
+                <Notice tone="i" title="Test cancelled">Nothing was saved. Run it again whenever you're ready.</Notice>
+              )}
+              <div className="actions">
+                <button type="button" className="btn pri auto" onClick={() => start()}>
+                  <RotateCcw size={16} aria-hidden="true" />Run again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {stage === "done" && res && <>
+            <Results res={res} delta={delta} downSamples={downSamples} upSamples={upSamples} />
+            <div className="actions spd-actions">
+              <button type="button" className="btn pri auto" onClick={() => start()}>
+                <RotateCcw size={16} aria-hidden="true" />Run again
+              </button>
+              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />}
+            </div>
+          </>}
+
+          <p className="hint spd-foot">
+            Real transfers against a measurement server — nothing estimated. Results vary with Wi-Fi conditions, VPNs, background
+            downloads and device limits, and won't exactly match tools that measure against different servers.
+          </p>
+        </div>
+      </section>
+
+      <div className="spd-aside">
+        <ConnectionPanel meta={meta} ipHash={ipHash} ipObservations={ipObservations} />
+        {history.length > 0 && <HistoryPanel history={history} onClear={clearHistory} />}
       </div>
     </div>
   );
