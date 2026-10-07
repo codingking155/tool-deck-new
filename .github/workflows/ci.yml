@@ -20,11 +20,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # match Vercel's production build runtime
           cache: npm
       - run: npm ci
       - name: Unit tests
         run: npm run test:q
+      - name: Lint
+        run: npm run lint -- --quiet
+      - name: Typecheck
+        run: npm run typecheck
       - name: Production build
         run: npm run build
         env:
