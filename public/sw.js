@@ -1,6 +1,6 @@
 /* ToolDeck BLR service worker — app-shell + runtime caching.
    Bump CACHE when you deploy new assets. */
-const CACHE = "tooldeck-v7";
+const CACHE = "tooldeck-v8";
 const MAX_ENTRIES = 80;
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png"];
 
@@ -24,7 +24,7 @@ self.addEventListener("fetch", (e) => {
 
   /* SPA navigations: network-first, fall back to cached shell so deep links work offline */
   if (req.mode === "navigate") {
-    e.respondWith(fetch(req).catch(() => caches.match("/index.html")));
+    e.respondWith(fetch(req, { cache: "no-store" }).catch(() => caches.match("/index.html")));
     return;
   }
   /* static assets: cache-first, then populate */
