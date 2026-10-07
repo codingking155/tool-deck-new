@@ -8,12 +8,7 @@ import { useRoute, useReducedMotion, useDocumentMeta, readParams, useSwipe } fro
 import { Toast, FaqSection } from "./components/chrome.jsx";
 import { Particles, CursorGlow } from "./components/Ambient.jsx";
 import WeatherChip from "./components/WeatherChip.jsx";
-import CommandPalette from "./components/CommandPalette.jsx";
-import InstallPrompt from "./components/InstallPrompt.jsx";
-import BengaluruFooter from "./components/BengaluruFooter.jsx";
 import CornerWebs from "./components/CornerWebs.jsx";
-import OverscrollSpider from "./components/OverscrollSpider.jsx";
-import CrawlingSpiders from "./components/CrawlingSpiders.jsx";
 import Home from "./pages/Home.jsx";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./tools/css/v3.css";
@@ -26,13 +21,17 @@ const V3_TOOLS = new Set(["speed", "ssl", "utc", "ytdownloader", "ip", "image", 
    reload once to pick up the new build instead of showing the error panel. */
 function lazyRetry(load) {
   const KEY = "toolDeck.chunkReload";
-  return lazy(() => load().catch(() => load()).catch((err) => {
+  const C = lazy(() => load().catch(() => load()).catch((err) => {
     /* timestamp, not a sticky flag: one reload per 30s, so a later deploy can still self-heal */
     let last = 0;
     try { last = Number(sessionStorage.getItem(KEY)) || 0; sessionStorage.setItem(KEY, String(Date.now())); } catch { last = Date.now(); }
     if (Date.now() - last > 30000) { window.location.reload(); return new Promise(() => {}); }
     throw err;
   }));
+  /* warm the chunk early (hover/focus on a tool link); lazy() reuses the browser's module cache */
+  let warm = null;
+  C.preload = () => { warm ||= load().catch(() => { warm = null; }); };
+  return C;
 }
 
 /* Each tool is its own chunk — the first paint ships only the shell + home. */
@@ -53,10 +52,20 @@ const SheafTool = lazyRetry(() => import("./tools/SheafTool.jsx"));
 const BreachTool = lazyRetry(() => import("./tools/BreachTool.jsx"));
 const MyAlerts = lazyRetry(() => import("./features/priceAlerts/MyAlerts.jsx"));
 
+/* Decorative / on-demand shell pieces: kept out of the first-paint chunk. */
+const BengaluruFooter = lazy(() => import("./components/BengaluruFooter.jsx"));
+const OverscrollSpider = lazy(() => import("./components/OverscrollSpider.jsx"));
+const CrawlingSpiders = lazy(() => import("./components/CrawlingSpiders.jsx"));
+const CommandPalette = lazy(() => import("./components/CommandPalette.jsx"));
+const InstallPrompt = lazy(() => import("./components/InstallPrompt.jsx"));
+
 const TOOL_VIEWS = {
   utc: UtcTool, phone: PhoneTool, shopifydetector: ShopifyDetectorTool,
   speed: SpeedTool, ip: IpTool, price: PriceTool, json: JsonTool, ssl: SslTool, password: PasswordTool, prompt: PromptTool, image: ImageTool, pdf: PdfTool, sheaf: SheafTool, breach: BreachTool, ytdownloader: YtDownloaderTool,
 };
+
+/* Start downloading a tool's chunk before the click lands. */
+const preloadTool = (id) => TOOL_VIEWS[id]?.preload?.();
 
 function safeDecode(s) { try { return decodeURIComponent(s); } catch { return s; } }
 
@@ -89,8 +98,10 @@ class ToolErrorBoundary extends Component {
 }
 
 /* Real links (middle-click, crawlable) that route in-app on a plain click. */
-function Crumb({ href, nav, children }) {
-  return <a href={href} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(href); }}>{children}</a>;
+function Crumb({ href, nav, children, ...rest }) {
+  const id = href.startsWith("/tool/") ? href.slice(6) : null;
+  const warm = id ? () => preloadTool(id) : undefined;
+  return <a href={href} {...rest} onMouseEnter={warm} onFocus={warm} onTouchStart={warm} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(href); }}>{children}</a>;
 }
 
 function NotFound({ nav }) {
@@ -121,6 +132,9 @@ export default function App() {
   const [theme, setTheme] = useState(initialTheme);
   const [toast, setToast] = useState("");
   const [cp, setCp] = useState(false);
+  /* mount the palette (and fetch its chunk) only once it has been opened */
+  const [cpUsed, setCpUsed] = useState(false);
+  useEffect(() => { if (cp) setCpUsed(true); }, [cp]);
   const timer = useRef(null);
   const reduced = useReducedMotion();
   const notify = useCallback((m) => { setToast(m); clearTimeout(timer.current); timer.current = setTimeout(() => setToast(""), 2600); }, []);
@@ -190,8 +204,10 @@ export default function App() {
       <div className="aurora" aria-hidden="true" /><div className="gridbg" aria-hidden="true" />
       <Particles reduced={reduced} theme={theme} /><CursorGlow reduced={reduced} />
       <CornerWebs size={300} spider={true} zIndex={5} theme={theme} />
-      <OverscrollSpider height={150} zIndex={4} theme={theme} />
-      <CrawlingSpiders theme={theme} reduced={reduced} />
+      <Suspense fallback={null}>
+        <OverscrollSpider height={150} zIndex={4} theme={theme} />
+        <CrawlingSpiders theme={theme} reduced={reduced} />
+      </Suspense>
       <div className="shell">
         <header className="hdr">
           <a className="logo" href="/" onClick={(e) => {
@@ -223,7 +239,7 @@ export default function App() {
         </header>
 
         <main id="main">
-          {isHome && <Home nav={nav} reduced={reduced} recent={recent} onClearRecent={() => { clearRecent(); setRecent([]); }} />}
+          {isHome && <Home nav={nav} preload={preloadTool} reduced={reduced} recent={recent} onClearRecent={() => { clearRecent(); setRecent([]); }} />}
           {notFound && <NotFound nav={nav} />}
           {isAlertsPage && (
             <div className="tpage">
@@ -269,9 +285,11 @@ export default function App() {
           )}
         </main>
       </div>
-      <BengaluruFooter reduced={reduced} theme={theme} />
-      <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />
-      <InstallPrompt />
+      <Suspense fallback={null}>
+        <BengaluruFooter reduced={reduced} theme={theme} />
+        {cpUsed && <CommandPalette open={cp} onClose={() => setCp(false)} nav={nav} toggleTheme={toggleTheme} />}
+        <InstallPrompt />
+      </Suspense>
       <Toast msg={toast} />
       <SpeedInsights />
     </div>

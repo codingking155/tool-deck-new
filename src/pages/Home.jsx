@@ -114,7 +114,7 @@ function Launcher({ q, setQ, hits, nav, inputRef }) {
   );
 }
 
-export default function Home({ nav, reduced, recent = [], onClearRecent }) {
+export default function Home({ nav, preload, reduced, recent = [], onClearRecent }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
   const [ri, setRi] = useState(0);
@@ -138,6 +138,8 @@ export default function Home({ nav, reduced, recent = [], onClearRecent }) {
   const hlOf = Object.fromEntries(shown.map((r) => [r.tool.id, r.hl]));
   const recentTools = recent.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean).slice(0, 6);
   const th = tiltHandlers(reduced);
+  /* fetch a tool's chunk as soon as the pointer/focus lands on its link */
+  const warm = (id) => preload ? { onPointerEnter: () => preload(id), onFocus: () => preload(id) } : {};
   return (
     <>
       <section className="hero">
@@ -158,7 +160,7 @@ export default function Home({ nav, reduced, recent = [], onClearRecent }) {
             {onClearRecent && <button type="button" className="linkbtn" onClick={onClearRecent}>Clear</button>}</div>
           <div className="lx-chips">
             {recentTools.map((t, i) => (
-              <a key={t.id} href={`/tool/${t.id}`} className="lx-chip" style={{ "--cc": t.c }}
+              <a key={t.id} href={`/tool/${t.id}`} className="lx-chip" style={{ "--cc": t.c }} {...warm(t.id)}
                 onClick={(e) => { if (plainClick(e)) return; e.preventDefault(); nav(`/tool/${t.id}`); }}>
                 <span className="lx-cic" aria-hidden="true"><ToolIcon tool={t} size={15} /></span>{t.name}
                 {i === 0 && <span className="lx-last">Last used</span>}
@@ -181,7 +183,7 @@ export default function Home({ nav, reduced, recent = [], onClearRecent }) {
       <p id="tool-count" className="sr-only" role="status">{list.length === TOOLS.length ? `${list.length} tools` : `${list.length} of ${TOOLS.length} tools shown`}</p>
       <section className="bento" aria-label="Tools">
         {list.map((t, i) => (
-          <a key={t.id} href={`/tool/${t.id}`} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th}
+          <a key={t.id} href={`/tool/${t.id}`} className={`bcard rise ${t.big ? "big" : ""} d${Math.min(i + 1, 5)}`} {...th} {...warm(t.id)}
             onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); nav(`/tool/${t.id}`); }}
             style={{ borderTop: `2px solid ${tint(t.c, "66")}`, "--cc": t.c }}>
             <Preview kind={t.pv} />

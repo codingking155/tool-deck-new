@@ -1,6 +1,7 @@
 import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { clientIp } from "../_shared/ratelimit.ts";
 import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
+import { cacheGet, cachePut } from "../_shared/toolCache.ts";
 import { anyResolvedAddressBlocked } from "../../../shared/net/ipGuard.mjs";
 import { safeFetch } from "../../../shared/net/safeFetch.mjs";
 import { normalizeDomain, wildcardParent, selectLatestCert, classifyTlsError } from "../../../shared/sslCore/index.mjs";
@@ -20,6 +21,11 @@ import { normalizeDomain, wildcardParent, selectLatestCert, classifyTlsError } f
 //   range-checked; the TCP connection goes to that checked address (SNI = host), so
 //   DNS rebinding can't point the probe at private space.
 // - 20 checks/min per IP, shared across instances.
+// - Conclusive results are cached for 10 min across instances (public.tool_cache), so a
+//   repeat check skips DNS, the handshake and crt.sh. checked_at shows when it really ran.
+
+const CACHE_SEC = 600;
+const TRANSIENT_TLS = new Set(["unreachable", "handshake_failed", "error"]);
 
 const CONNECT_MS = 5_000;
 const HANDSHAKE_MS = 6_000;
@@ -113,6 +119,9 @@ Deno.serve(withCors(async (req) => {
   if (!n.ok) return fail(400, n.code, n.message);
   const host = n.host;
 
+  const cached = await cacheGet("ssl", host);
+  if (cached) return json(cached, 200, { "Cache-Control": "no-store", "x-tooldeck-cache": "hit" });
+
   const addrs = await resolveAll(host);
   if (addrs === null) return fail(502, "dns_unavailable", "Couldn't look up that domain right now. Try again in a moment.");
   if (!addrs.length) return fail(400, "unresolvable_host", "That domain doesn't resolve. Check the spelling.");
@@ -122,5 +131,8 @@ Deno.serve(withCors(async (req) => {
   const t0 = performance.now();
   const [tls, ct] = await Promise.all([probeTls(host, addr), lookupCt(host)]);
   log("ssl_check", { host, tls: tls.status, ct: ct.status, ms: Math.round(performance.now() - t0) });
-  return json({ host, checked_at: new Date().toISOString(), tls, ct }, 200, { "Cache-Control": "no-store" });
+  const body = { host, checked_at: new Date().toISOString(), tls, ct };
+  // Don't pin a transient failure (timeout, crt.sh down) for 10 min.
+  if (!TRANSIENT_TLS.has(tls.status) && ct.status !== "unavailable") await cachePut("ssl", host, body, CACHE_SEC);
+  return json(body, 200, { "Cache-Control": "no-store", "x-tooldeck-cache": "miss" });
 }));
