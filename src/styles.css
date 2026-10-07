@@ -551,7 +551,7 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
   .finder .searchbar .ic{top:13px}
   .finder .catrow{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;margin:8px -14px 0;padding:0 14px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
   .finder .catrow::-webkit-scrollbar{display:none}
-  .finder .catrow .pill{flex:none;min-height:40px;scroll-snap-align:start;white-space:nowrap}
+  .finder .catrow .pill{flex:none;min-height:44px;scroll-snap-align:start;white-space:nowrap}
   .bento{gap:10px;margin-top:12px}
   .bcard,.bcard.big{display:grid;grid-template-columns:44px 1fr;column-gap:12px;align-items:start;padding:14px}
   .bcard .bic{grid-row:1/4;margin:0}

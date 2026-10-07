@@ -112,13 +112,13 @@
 .app .v3tool .modes button:hover:not(:disabled),.app .v3tool .seg button:hover:not(:disabled){color:var(--tx)}
 .app .v3tool .modes button.on,.app .v3tool .modes button[aria-pressed=true],.app .v3tool .modes button[aria-selected=true],.app .v3tool .seg button[aria-pressed=true],.app .v3tool .seg button[aria-selected=true]{background:var(--surface-elevated);color:var(--tx);box-shadow:0 0 0 1px var(--line),var(--sh-1)}
 .app.light .v3tool .modes button.on,.app.light .v3tool .modes button[aria-pressed=true],.app.light .v3tool .modes button[aria-selected=true]{background:#fff}
-@media(max-width:600px){.app .v3tool .modes button,.app .v3tool .seg button{min-height:40px}}
+@media(max-width:600px){.app .v3tool .modes button,.app .v3tool .seg button{min-height:44px}}
 .app .v3tool .pill{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font:500 12.5px var(--body);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);padding:0 12px;color:var(--tx2);cursor:pointer;min-height:34px;transition:border-color var(--dur-1),color var(--dur-1),background var(--dur-1)}
 .app .v3tool .pill:hover{border-color:var(--border-strong);color:var(--tx)}
 .app .v3tool .pill[aria-pressed=true]{border-color:var(--pri-line);color:var(--pri2);background:var(--pri-soft)}
 .app .v3tool .pillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
 .app .v3tool .pillrow .btn.pri{flex:1 1 160px}
-@media(max-width:600px){.app .v3tool .pill{min-height:40px}}
+@media(max-width:600px){.app .v3tool .pill{min-height:44px}}
 .app .v3tool .note{position:relative;border-radius:var(--r);padding:10px 12px 10px 14px;font-size:13px;line-height:1.55;margin-bottom:var(--s4);border:1px solid var(--line);background:var(--surface);color:var(--tx2)}
 .app .v3tool .note::before{content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:3px;border-radius:var(--r) 0 0 var(--r);background:var(--nt,var(--line-strong))}
 .app .v3tool .note.i{--nt:var(--info)}
@@ -249,3 +249,8 @@
 .app .v3tool .modes,.app .v3tool .seg{width:auto}
 .app .v3tool .panel{backdrop-filter:none;-webkit-backdrop-filter:none}
 .app .v3tool .pill{font-family:var(--body)}
+
+/* Phone width: 44px tap targets for the remaining small controls; the switch keeps its look but gets an invisible 44px hit area. */
+@media(max-width:600px){
+  .app .modes button,.app .pill,.app .lx-seg button,.app .yd-inbtn,.app .pg-xr input{min-height:44px}
+}
