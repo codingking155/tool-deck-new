@@ -14,7 +14,15 @@ export async function analyzeNumber(e164) {
   return {
     valid: p.isValid(), possible: p.isPossible(), type, typeLabel: type ? TYPE_LABEL[type] || type : null,
     country: p.country ?? null, national: p.formatNational(), international: p.formatInternational(),
+    rfc3966: p.getURI(),
   };
+}
+
+/* A national-format number ("020 7183 8750") read as dialled inside `country` → E.164, or null. */
+export async function nationalToE164(digits, country) {
+  const { parsePhoneNumberFromString } = await import("libphonenumber-js/max");
+  const p = parsePhoneNumberFromString(String(digits), country);
+  return p && p.isPossible() ? p.number : null;
 }
 
 export const validityText = (a) => (a.valid ? "Valid number" : a.possible ? "Right length, but not a valid number" : "Not a valid number");

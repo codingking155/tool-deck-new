@@ -173,9 +173,14 @@ export const fmtUtc = (d) => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
 export const fmtUtcDate = (d) => `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 export const fmtLocal = (d, tz) => { const p = zoneParts(d, tz); return `${pad(p.hour)}:${pad(p.minute)}`; };
 
-export function offsetLabel(tz, date = new Date()) {
+/** Minutes the zone is ahead of UTC at `date` (negative = behind). */
+export function offsetMinutes(tz, date = new Date()) {
   const p = zoneParts(date, tz);
-  const om = Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - date.getTime()) / 60000);
+  return Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - date.getTime()) / 60000);
+}
+
+export function offsetLabel(tz, date = new Date()) {
+  const om = offsetMinutes(tz, date);
   if (om === 0) return "GMT";
   const s = om >= 0 ? "+" : "-", a = Math.abs(om), h = Math.floor(a / 60), m = a % 60;
   return m === 0 ? `GMT${s}${h}` : `GMT${s}${h}:${pad(m)}`;
