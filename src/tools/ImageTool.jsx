@@ -2,9 +2,10 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime } from "../lib/imageCore.mjs";
 import { makeZip } from "../lib/zip.js";
 import { ImagePlus, Loader2, Download, X, Columns2, Trash2, ClipboardPaste, Upload, ShieldCheck, ArrowRight, ArrowDown, ArrowUp,
-  OctagonAlert, FileArchive, Shrink, Scaling, Crop, Repeat2, RotateCw, Stamp, SlidersHorizontal, Laugh, EyeOff } from "lucide-react";
+  OctagonAlert, FileArchive, Shrink, Scaling, Crop, Repeat2, RotateCw, Stamp, SlidersHorizontal, Laugh, EyeOff, Eye } from "lucide-react";
 import { Notice, StatusBadge, Metric } from "../components/ui.jsx";
 import { Switch } from "../components/chrome.jsx";
+import ImageViewer from "./ImageViewer.jsx";
 import "./css/image.css";
 
 /* Everything runs in the browser on <canvas>: files never leave the device. */
@@ -447,7 +448,7 @@ function CompareSlider({ before, after, ratio, beforeLabel, afterLabel }) {
   );
 }
 
-function FileRow({ item, solo, onRemove, onSave }) {
+function FileRow({ item, solo, onRemove, onSave, onView }) {
   const [cmp, setCmp] = useState(null);   // null = default: open when it's the only image
   const r = item.res;
   const saved = r ? pct(item.file.size, r.blob.size) : 0;
@@ -456,7 +457,7 @@ function FileRow({ item, solo, onRemove, onSave }) {
   const inFmt = fmtOf(item.file.type, item.file.name), outFmt = r ? fmtOf(r.mime) : "";
   return (
     <li className={`imgrow${item.busy ? " busy" : ""}${item.err ? " err" : ""}${r ? " done" : ""}`}>
-      <img className="th" src={r ? r.url : item.src} alt="" />
+      <button type="button" className="thb" onClick={() => onView(item.id)} aria-label={`View ${item.file.name}`} title="View"><img className="th" src={r ? r.url : item.src} alt="" /></button>
       <div className="meta">
         <b title={item.file.name}>{item.file.name}</b>
         <span className="sz">
@@ -473,6 +474,7 @@ function FileRow({ item, solo, onRemove, onSave }) {
           {saved > 0 ? `${saved}% smaller` : `${-saved}% larger`}
         </StatusBadge></span>}
       <div className="act">
+        <button type="button" className="btn gh ico" onClick={() => onView(item.id)} title="View" aria-label={`View ${item.file.name}`}><Eye size={16} aria-hidden="true" /></button>
         {canCmp && <button type="button" className="btn gh ico" onClick={() => setCmp(!showCmp)} aria-pressed={!!showCmp} title="Compare before / after" aria-label={`Compare ${item.file.name}`}><Columns2 size={16} aria-hidden="true" /></button>}
         {r && <button type="button" className="btn gh ico" onClick={() => onSave(item)} title="Download" aria-label={`Download ${item.file.name}`}><Download size={16} aria-hidden="true" /></button>}
         <button type="button" className="btn gh ico" onClick={() => onRemove(item.id)} title="Remove" aria-label={`Remove ${item.file.name}`}><X size={16} aria-hidden="true" /></button>
@@ -518,6 +520,7 @@ export default function ImageTool({ notify }) {
   const [busy, setBusy] = useState(false);
   const [stale, setStale] = useState(false);
   const [prog, setProg] = useState(null);   // { done, total } while a batch runs
+  const [viewId, setViewId] = useState(null);
   const idRef = useRef(0);
   const runRef = useRef(0);
   const itemsRef = useRef(items);
@@ -611,6 +614,7 @@ export default function ImageTool({ notify }) {
     notify(`Zipped ${files.length} image${files.length > 1 ? "s" : ""}.`);
   };
 
+  const closeView = useCallback(() => setViewId(null), []);
   const why = noopReason(mode, opts[mode]);
   const GIF = items.some((i) => i.file.type === "image/gif");
   const hasPng = items.some((i) => i.file.type === "image/png");
@@ -687,7 +691,7 @@ export default function ImageTool({ notify }) {
               </div>
               {failed > 0 && <Notice tone="e" className="imgnote">{failed} image{failed > 1 ? "s" : ""} failed — see the list below.</Notice>}
               <ul className="imglist" aria-label="Selected images">
-                {items.map((it) => <FileRow key={it.id} item={it} solo={items.length === 1} onRemove={remove} onSave={saveOne} />)}
+                {items.map((it) => <FileRow key={it.id} item={it} solo={items.length === 1} onRemove={remove} onSave={saveOne} onView={setViewId} />)}
               </ul>
             </div>
             {done.length > 0 && <div className="imgbar">
@@ -702,6 +706,7 @@ export default function ImageTool({ notify }) {
           </div>
         )}
       </section>
+      {viewId != null && items.some((i) => i.id === viewId) && <ImageViewer items={items} id={viewId} onNav={setViewId} onClose={closeView} onSaveResult={saveOne} />}
     </div>
   );
 }
