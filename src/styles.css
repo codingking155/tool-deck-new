@@ -767,3 +767,7 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 
 /* Sheaf PDF Studio: the page is just the Sheaf app */
 .sheaf-frame{display:block;width:100%;height:max(620px,calc(100dvh - 130px));border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+
+/* Readable line length on wide screens. */
+.app main p{max-width:72ch}
+.app main .empty-st p{margin-inline:auto}
