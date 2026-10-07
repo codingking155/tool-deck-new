@@ -49,7 +49,30 @@ function WeatherIcon({ code, night }) {
   const I = k === "clear" ? (night ? Moon : Sun) : k === "partly" ? (night ? CloudMoon : CloudSun)
     : k === "fog" ? CloudFog : k === "drizzle" ? CloudDrizzle : k === "rain" ? CloudRain
     : k === "snow" ? CloudSnow : k === "thunder" ? CloudLightning : Cloud;
-  return <I size={18} aria-hidden="true" className="wx-ic" />;
+  /* tint + motion follow the weather; motion is switched off by prefers-reduced-motion in CSS */
+  const tone = night ? "night" : k === "clear" || k === "partly" ? "sun" : k === "cloudy" || k === "fog" ? "grey" : "wet";
+  return <span className={`wx-ico wx-${tone} wx-k-${k}${night ? " wx-nt" : ""}`} aria-hidden="true"><I size={18} className="wx-ic" /></span>;
+}
+
+/* Temperature that slides from the old value to the new one on refresh (no motion if reduced). */
+function Temp({ value }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    if (!Number.isFinite(value)) return;
+    if (!Number.isFinite(from.current) || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { from.current = value; setShown(value); return; }
+    const a = from.current, t0 = performance.now();
+    let raf;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 600), e = 1 - (1 - k) ** 3;
+      from.current = a + (value - a) * e;
+      setShown(from.current);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return Number.isFinite(shown) ? `${Math.round(shown)}°` : "--°";
 }
 
 /* Header chip: weather icon + temperature + condition, then local time and city (zone and city from IP,
@@ -133,7 +156,7 @@ export default function WeatherChip() {
     <details className="clk wx" ref={ref}>
       <summary aria-label={`${ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}` : label}. Local time in ${shortPlace}. Show weather and location details`}>
         {ok ? <WeatherIcon code={wx.code} night={night} /> : <MapPin size={16} aria-hidden="true" className="wx-ic" />}
-        <span className="wx-tmp">{ok ? temp : "--°"}</span>
+        <span className="wx-tmp">{ok ? <Temp value={wx.temp} /> : "--°"}</span>
         <span className="t-sep" aria-hidden="true" />
         <ClockText tz={tz} place={shortPlace} />
       </summary>

@@ -12,7 +12,7 @@
   --grid-line: rgba(255, 255, 255, 0.04);
   --tx:#EAEEF7;--tx2:#95A1B8;--tx3:#7A88A3;
   --pri:#FF8A2A;--pri2:#FFB454;--pri-soft:rgba(255,138,42,.12);--pri-line:rgba(255,138,42,.4);
-  --teal:#4DD6C8;--teal-soft:rgba(77,214,200,.1);--good:#5BD68A;--bad:#F26D6D;--warn:#F5C15C;
+  --teal:#4DD6C8;--teal-soft:rgba(77,214,200,.1);--good:#5BD68A;--bad:#F26D6D;--warn:#F5C15C;--sky:#6FA8FF;--night:#A58BFF;
   --disp:'Space Grotesk',sans-serif;--mono:'IBM Plex Mono',monospace;--body:'Inter',sans-serif;
   --glass:rgba(16,22,37,.72);
   /* form-control boundaries need 3:1 against the panel (WCAG 1.4.11) */
@@ -26,7 +26,7 @@
   --tx:#241A2E;--tx2:#584C69;--tx3:#6F6182;--glass:rgba(255,255,255,.9);
   --pri:#EA6A15;--pri-soft:rgba(234,106,21,.1);--pri-line:rgba(234,106,21,.42);
   /* accents darkened so text stays >=4.5:1 on panels, the pink wash and their own 12% tints */
-  --teal:#0A7266;--teal-soft:rgba(10,114,102,.09);--good:#13723A;--bad:#B42621;--warn:#9A4708;
+  --teal:#0A7266;--teal-soft:rgba(10,114,102,.09);--good:#13723A;--bad:#B42621;--warn:#9A4708;--sky:#1F5FBF;--night:#6A3FC4;
   --pri2:#A84003;--line-strong:#A08C78;--focus:#A84003;--scrim:rgba(36,26,46,.34);
 }
 /* colourful daylight — gradient wash, saturated sky, per-tool card tints */
@@ -769,7 +769,18 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .sheaf-frame{display:block;width:100%;height:max(620px,calc(100dvh - 130px));border:1px solid var(--line);border-radius:14px;background:var(--panel)}
 /* header weather chip (reuses the .clk shell) */
 .wx>summary{font-family:inherit}
-.wx .wx-ic{color:var(--pri2);flex:none}
+.wx .wx-ic{color:var(--pri2);flex:none;display:block}
+.wx .wx-ico{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;flex:none;background:color-mix(in srgb,var(--c,var(--tx2)) 12%,transparent)}
+.wx .wx-sun{--c:var(--warn)}.wx .wx-wet{--c:var(--sky)}.wx .wx-night{--c:var(--night)}.wx .wx-grey{--c:var(--tx2)}
+@keyframes wx-spin{to{transform:rotate(360deg)}}
+@keyframes wx-drift{50%{transform:translateX(2px)}}
+@keyframes wx-fall{50%{transform:translateY(1.5px)}}
+@keyframes wx-twinkle{50%{opacity:.55;transform:scale(.92)}}
+.wx .wx-k-clear:not(.wx-nt) .wx-ic{animation:wx-spin 24s linear infinite}
+.wx .wx-k-partly .wx-ic,.wx .wx-k-cloudy .wx-ic,.wx .wx-k-fog .wx-ic{animation:wx-drift 6s ease-in-out infinite}
+.wx .wx-k-rain .wx-ic,.wx .wx-k-drizzle .wx-ic,.wx .wx-k-snow .wx-ic,.wx .wx-k-thunder .wx-ic{animation:wx-fall 1.6s ease-in-out infinite}
+.wx .wx-nt.wx-k-clear .wx-ic{animation:wx-twinkle 4s ease-in-out infinite}
+@media(prefers-reduced-motion:reduce){.wx .wx-ic{animation:none!important}}
 .wx .wx-tmp{font:600 14px var(--mono);color:var(--tx);min-width:3ch;text-align:right}
 .wx .t-loc{font:500 12.5px var(--mono)}
 @media(max-width:600px){.hdr .wx .t-loc small{max-width:72px}}
