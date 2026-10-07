@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Phone, X, CircleCheck, CircleAlert, CircleX, Loader2, MessageCircle, PhoneCall, Link2, Clock, Info } from "lucide-react";
 import { analyzeNumber, validityText } from "../lib/phoneCheck.js";
 import { detectPhone } from "../lib/phone.js";
-import { fmtLocal, offsetLabel } from "../lib/time.js";
+import { fmtLocal, offsetLabel, offsetMinutes, zoneParts, DAYS, USER_TZ } from "../lib/time.js";
+import { callWindow, diffText } from "../lib/phoneCall.js";
+import PhoneBatch from "./PhoneBatch.jsx";
 import { useNow, readParams, writeParams } from "../hooks/index.js";
 import { Notice, StatusBadge, CopyButton } from "../components/ui.jsx";
 import RecentChecks from "../components/RecentChecks.jsx";
@@ -15,7 +17,20 @@ const EXAMPLES = ["+91 98765 43210", "+1 416 555 0199", "+44 20 7183 8750", "+81
 /* Ticks every second — a leaf so the input and result don't re-render with it. */
 function ZoneNow({ zone }) {
   const now = useNow(1000);
-  return <>{fmtLocal(now, zone)} <span className="ph-off">{offsetLabel(zone, now)}</span></>;
+  const p = zoneParts(now, zone);
+  const dow = DAYS[new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay()];
+  const [tone, text] = callWindow(p.hour);
+  const diff = offsetMinutes(zone, now) - offsetMinutes(USER_TZ, now);
+  return (
+    <>
+      <div className="kv ph-tz">
+        <span className="k"><Clock size={13} aria-hidden="true" />Local time</span>
+        <span className="v">{dow} {fmtLocal(now, zone)} <span className="ph-off">{offsetLabel(zone, now)} · {diffText(diff)}</span></span>
+      </div>
+      <div className="kv ph-tz"><span className="k">Timezone</span><span className="v">{zone}</span></div>
+      <div className={`ph-call ${tone}`}><span className="dot" aria-hidden="true" />{text}</div>
+    </>
+  );
 }
 
 function Verdict({ det, info }) {
@@ -38,6 +53,23 @@ function FormatRow({ label, value, notify, toast }) {
 }
 
 export default function PhoneTool({ notify }) {
+  const [mode, setMode] = useState(() => (readParams().get("mode") === "batch" ? "batch" : "single"));
+  return (
+    <div className="ph-tool">
+      <div className="seg ph-mode" role="group" aria-label="Mode">
+        <button type="button" aria-pressed={mode === "single"} onClick={() => { setMode("single"); writeParams({ mode: null }); }}>Single number</button>
+        <button type="button" aria-pressed={mode === "batch"} onClick={() => { setMode("batch"); writeParams({ mode: "batch", n: null }); }}>Batch</button>
+      </div>
+      {mode === "single" ? <Single notify={notify} /> : <PhoneBatch notify={notify} />}
+      <Notice tone="i" title="What this shows" className="ph-note">
+        The numbering country or region a number belongs to. It can never reveal the owner, the live location,
+        or where the phone physically is right now. Numbers are checked in your browser and never sent anywhere.
+      </Notice>
+    </div>
+  );
+}
+
+function Single({ notify }) {
   const [input, setInput] = useState(() => readParams().get("n") || "");
   useEffect(() => { writeParams({ n: input.trim() || null }); }, [input]);
   const det = useMemo(() => detectPhone(input), [input]);
@@ -65,7 +97,7 @@ export default function PhoneTool({ notify }) {
     : found ? `${det.name}, +${det.dial}${info ? `. ${validityText(info)}, ${info.typeLabel || "type unknown"}` : ""}` : "";
 
   return (
-    <div className="ph-tool">
+    <>
       <div className="ph-hero rise d1">
         <label htmlFor="ph-n" className="ph-lbl">Phone number</label>
         <div className="ph-field">
@@ -115,10 +147,7 @@ export default function PhoneTool({ notify }) {
               {info && info.valid && <FormatRow label="National" value={info.national} notify={notify} toast="National format copied." />}
             </div>
 
-            <div className="kv ph-tz">
-              <span className="k"><Clock size={13} aria-hidden="true" />Local time</span>
-              <span className="v">{det.zone} · now <ZoneNow zone={det.zone} /></span>
-            </div>
+            <ZoneNow zone={det.zone} />
 
             <div className="actions ph-acts">
               <a className="btn gh sm" href={`https://wa.me/${det.dial}${det.national}`} target="_blank" rel="noreferrer">
@@ -132,10 +161,6 @@ export default function PhoneTool({ notify }) {
         )}
       </div>
 
-      <Notice tone="i" title="What this shows" className="ph-note">
-        The numbering country or region a number belongs to. It can never reveal the owner, the live location,
-        or where the phone physically is right now.
-      </Notice>
-    </div>
+    </>
   );
 }
