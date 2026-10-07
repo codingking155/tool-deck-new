@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../src/lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime } from "../src/lib/imageCore.mjs";
 import { makeZip } from "../src/lib/zip.js";
 
 test("fmtBytes", () => {
@@ -45,4 +45,19 @@ test("ImageTool ZIP (zip.js makeZip) writes a valid DOS date and unique names", 
   const date = dv.getUint16(12, true), month = (date >> 5) & 15, day = date & 31;
   assert.ok(month >= 1 && month <= 12 && day >= 1 && day <= 31 && (date >> 9) + 1980 >= 2020);
   assert.match(new TextDecoder().decode(z), /a \(2\)\.txt/);
+});
+
+test("compressMime: 'Same as original' keeps JPG/PNG/WebP, sends GIF/BMP/SVG/AVIF to WebP", () => {
+  for (const t of ["image/jpeg", "image/png", "image/webp"]) assert.equal(compressMime("auto", t), t);
+  for (const t of ["image/gif", "image/bmp", "image/svg+xml", "image/avif", ""]) assert.equal(compressMime("auto", t), "image/webp");
+  assert.equal(compressMime("image/jpeg", "image/gif"), "image/jpeg");
+});
+
+test("noopReason: explains no-op applies", () => {
+  assert.match(noopReason("rotate", { angle: 0, flipH: false, flipV: false }), /rotation or a flip/);
+  assert.equal(noopReason("rotate", { angle: 0, flipH: true, flipV: false }), "");
+  assert.match(noopReason("crop", { aspect: "free", zoom: 1 }), /aspect ratio or zoom/);
+  assert.equal(noopReason("crop", { aspect: "free", zoom: 1.5 }), "");
+  assert.equal(noopReason("crop", { aspect: "1:1", zoom: 1 }), "");
+  assert.equal(noopReason("compress", { q: 70 }), "");
 });

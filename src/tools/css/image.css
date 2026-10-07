@@ -170,3 +170,48 @@
 }
 @media (max-width:360px){.imgt .two{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.imgspin{animation:none}.imgdrop,.imgmodes button,.imgmodes button svg{transition:none}}
+
+/* ---- image viewer (lightbox) ---- */
+.imgrow .thb{padding:0;border:0;background:none;border-radius:var(--r-sm);cursor:zoom-in;flex:none;display:flex;min-width:44px;min-height:44px}
+.imgrow .thb:focus-visible{outline:2px solid var(--pri2);outline-offset:2px}
+.imgview-back{position:fixed;inset:0;z-index:1000;display:flex;align-items:stretch;justify-content:center;padding:24px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(4px)}
+.imgview{display:flex;flex-direction:column;width:100%;max-width:1400px;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:0 20px 60px color-mix(in srgb,var(--bg) 60%,transparent);overflow:hidden;color:var(--tx)}
+.imgview-top{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s2) var(--s2) var(--s4);border-bottom:1px solid var(--line)}
+.imgview-top h2{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;margin:0;font-size:14.5px;font-weight:600}
+.imgview-top .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imgview-top .ct{flex:none;font:500 12px var(--mono);color:var(--tx3)}
+.imgview-tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s4);padding:var(--s2) var(--s3);border-bottom:1px solid var(--line)}
+.imgview-tools .grp{display:flex;align-items:center;gap:6px}
+.imgview-tools .pc{min-width:52px;text-align:center;font:500 12.5px var(--mono);color:var(--tx2)}
+.imgview-tools .btn[aria-pressed="true"]{color:var(--pri2);border-color:var(--pri-line);background:color-mix(in srgb,var(--pri2) 12%,transparent)}
+.imgview-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden}
+.imgview-seg button{min-height:var(--ctl);padding:0 14px;border:0;background:transparent;color:var(--tx2);font:600 13px var(--body);cursor:pointer}
+.imgview-seg button+button{border-left:1px solid var(--line-strong)}
+.imgview-seg button.on{background:color-mix(in srgb,var(--pri2) 12%,transparent);color:var(--pri2)}
+.imgview-seg button:focus-visible{outline:2px solid var(--pri2);outline-offset:-2px}
+.imgview-body{flex:1;min-height:0;display:flex}
+.imgview-stage{position:relative;flex:1;min-width:0;overflow:hidden;background:var(--bg2);touch-action:none;user-select:none;cursor:default}
+.imgview-stage.pan{cursor:grab}.imgview-stage.drag{cursor:grabbing}
+.imgview-stage.chk{background-color:var(--panel);background-image:linear-gradient(45deg,var(--line) 25%,transparent 25%,transparent 75%,var(--line) 75%),linear-gradient(45deg,var(--line) 25%,transparent 25%,transparent 75%,var(--line) 75%);background-size:20px 20px;background-position:0 0,10px 10px}
+.imgview-stage img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center;transition:transform var(--dur-1,.15s) ease-out;image-rendering:auto;pointer-events:none}
+.imgview-stage.drag img{transition:none}
+.app .v3tool .btn.imgview-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px!important;height:44px;border-radius:50%!important;background:color-mix(in srgb,var(--panel) 85%,transparent)!important}
+.app .v3tool .imgview-nav.prev{left:12px}.app .v3tool .imgview-nav.next{right:12px}
+.imgview-info{flex:none;width:240px;margin:0;padding:var(--s4);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:12px;overflow:auto;font-size:13px}
+.imgview-info div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.imgview-info dt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3)}
+.imgview-info dd{margin:0;font-family:var(--mono);overflow-wrap:anywhere;color:var(--tx)}
+.imgview-info dd.good{color:var(--good)}.imgview-info dd.bad{color:var(--bad)}
+@media (max-width:760px){
+  .imgview-back{padding:0}
+  .imgview{border-radius:0;border:0}
+  .imgview-top{padding-left:16px}
+  .imgview-tools{padding:8px 16px;gap:8px}
+  .imgview-tools .btn.ico,.imgview-seg button{min-height:44px}
+  .imgview-tools .btn.ico{width:44px}
+  .imgview-body{flex-direction:column}
+  .imgview-info{width:auto;max-height:32vh;border-left:0;border-top:1px solid var(--line);padding:12px 16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app .v3tool .imgview-nav.prev{left:16px}.app .v3tool .imgview-nav.next{right:16px}
+}
+@media (prefers-reduced-motion:reduce){.imgview-stage img{transition:none}}
+.iv-11{font:700 12px var(--mono);letter-spacing:-.02em}
