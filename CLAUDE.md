@@ -2,6 +2,8 @@
 
 Vite + React 18 SPA (`src/`), Supabase Edge Functions (`supabase/functions/`, Deno) sharing pure
 modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own Vercel project).
+`sheaf-app/` packages Sheaf (`public/sheaf/`) as an Android app with Capacitor, adding a document scanner
+and a QR scanner; own package.json, tests and CI workflow (`sheaf-android.yml`), see its README.
 
 ## Commands
 - `npm run check` — quiet tests + build; the local gate before every commit (`npm test` only for per-test names).

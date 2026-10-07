@@ -1,0 +1,70 @@
+name: Sheaf Android
+
+# Builds the Sheaf Android app in sheaf-app/: its unit tests, the web bundle, a debug APK to
+# install on a phone, and a release App Bundle (.aab) for Google Play. Both land as run artifacts.
+# The bundle is signed when the SHEAF_KEYSTORE_BASE64, SHEAF_KEYSTORE_PASSWORD, SHEAF_KEY_ALIAS and
+# SHEAF_KEY_PASSWORD repository secrets exist (see sheaf-app/README.md); otherwise it is unsigned.
+
+on:
+  push:
+    paths: ['sheaf-app/**', 'public/sheaf/**', '.github/workflows/sheaf-android.yml']
+  pull_request:
+    paths: ['sheaf-app/**', 'public/sheaf/**', '.github/workflows/sheaf-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sheaf-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sheaf-app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Web bundle and Capacitor sync
+        run: npm run sync
+      - name: Debug APK
+        working-directory: sheaf-app/android
+        run: ./gradlew --no-daemon assembleDebug -PversionCode=${{ github.run_number }}
+      - name: Release bundle
+        working-directory: sheaf-app/android
+        env:
+          SHEAF_KEYSTORE_BASE64: ${{ secrets.SHEAF_KEYSTORE_BASE64 }}
+          SHEAF_KEYSTORE_PASSWORD: ${{ secrets.SHEAF_KEYSTORE_PASSWORD }}
+          SHEAF_KEY_ALIAS: ${{ secrets.SHEAF_KEY_ALIAS }}
+          SHEAF_KEY_PASSWORD: ${{ secrets.SHEAF_KEY_PASSWORD }}
+        run: |
+          if [ -n "$SHEAF_KEYSTORE_BASE64" ]; then
+            echo "$SHEAF_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export SHEAF_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          else
+            echo "::notice::No signing secrets, so the release bundle is unsigned. Add them to upload to Google Play."
+          fi
+          ./gradlew --no-daemon bundleRelease -PversionCode=${{ github.run_number }}
+          rm -f "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheaf-debug-apk
+          path: sheaf-app/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheaf-release-aab
+          path: sheaf-app/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

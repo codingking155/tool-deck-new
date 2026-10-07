@@ -62,3 +62,11 @@ It appears on the home page and gets routing, drag and drop, progress and the re
 
 Office conversions (Word, Excel, PowerPoint), HTML to PDF, PDF/A, OCR, Repair, Compare,
 Redact, Edit PDF and Forms need a server or a much larger editor and are not in this build.
+
+## Android app
+
+`sheaf-app/` ships this same code as an Android app (see `sheaf-app/README.md`). Its build copies `public/sheaf/`
+and rewords a few strings in `js/app.js` and `js/core.js` (for example, "Download PDF" becomes "Save PDF"). If you
+change one of those strings here, `sheaf-app/scripts/build-web.mjs` fails and names it; update the list there.
+The app also wraps `saveFile`, `resultView`, `addFiles`, `dropSheet`, `closeCtx`, `fits` and `renderHome` by name,
+so keep those as top-level function declarations.

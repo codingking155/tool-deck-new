@@ -1,0 +1,13 @@
+{
+  "appId": "in.tooldeck.sheaf",
+  "appName": "Sheaf",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "css", "style": "DARK" }
+  }
+}

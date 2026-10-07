@@ -1,0 +1,32 @@
+{
+  "name": "sheaf-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sheaf for Android: offline PDF tools, document scanner and QR scanner (Capacitor wrapper around public/sheaf)",
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "sync": "node scripts/build-web.mjs && cap sync android",
+    "serve": "node scripts/build-web.mjs && npx vite www --port 4180",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@cantoo/pdf-lib": "^2.11.1",
+    "@fontsource/besley": "^5.3.0",
+    "@fontsource/instrument-sans": "^5.3.0",
+    "@fontsource/mrs-saint-delafield": "^5.3.0",
+    "jsqr": "^1.4.0",
+    "jszip": "^3.10.2",
+    "pdfjs-dist": "^4.10.38",
+    "sortablejs": "^1.15.6"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "esbuild": "^0.25.0"
+  }
+}
