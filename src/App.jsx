@@ -25,10 +25,12 @@ const V3_TOOLS = new Set(["speed", "ssl", "utc", "ytdownloader", "ip", "image", 
 /* After a deploy, an open tab may ask for a chunk hash that no longer exists:
    reload once to pick up the new build instead of showing the error panel. */
 function lazyRetry(load) {
-  return lazy(() => load().then((m) => { try { sessionStorage.removeItem("toolDeck.chunkReload"); } catch { /* ignore */ } return m; }, (err) => {
-    let tried = false;
-    try { tried = sessionStorage.getItem("toolDeck.chunkReload") === "1"; sessionStorage.setItem("toolDeck.chunkReload", "1"); } catch { tried = true; }
-    if (!tried) { window.location.reload(); return new Promise(() => {}); }
+  const KEY = "toolDeck.chunkReload";
+  return lazy(() => load().catch(() => load()).catch((err) => {
+    /* timestamp, not a sticky flag: one reload per 30s, so a later deploy can still self-heal */
+    let last = 0;
+    try { last = Number(sessionStorage.getItem(KEY)) || 0; sessionStorage.setItem(KEY, String(Date.now())); } catch { last = Date.now(); }
+    if (Date.now() - last > 30000) { window.location.reload(); return new Promise(() => {}); }
     throw err;
   }));
 }

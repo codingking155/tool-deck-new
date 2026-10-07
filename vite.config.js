@@ -51,6 +51,9 @@ export default defineConfig(({ mode }) => {
   build: {
     target: "es2020",
     cssCodeSplit: true,
+    // @pdf-lib/fontkit (~720 kB) is a single lazy import() used only when a PDF
+    // tool embeds custom fonts; it cannot be split further and never loads up front.
+    chunkSizeWarningLimit: 750,
     rollupOptions: {
       output: {
         // React in its own long-cached chunk; each tool route is already
