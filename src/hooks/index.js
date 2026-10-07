@@ -120,15 +120,16 @@ export function useIpLocale() {
       try {
         /* one lookup per browser session — ipapi.co's free tier is rate-limited */
         let j = null;
-        try { j = JSON.parse(sessionStorage.getItem("toolDeck.ipLocale") || "null"); } catch { /* storage blocked */ }
+        try { j = JSON.parse(sessionStorage.getItem("toolDeck.ipLocale2") || "null"); } catch { /* storage blocked */ }
         if (!j) {
           j = await (await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(6000) })).json();
-          try { if (j && !j.error) sessionStorage.setItem("toolDeck.ipLocale", JSON.stringify({ timezone: j.timezone, city: j.city, region: j.region, country_name: j.country_name })); } catch { /* storage blocked */ }
+          try { if (j && !j.error) sessionStorage.setItem("toolDeck.ipLocale2", JSON.stringify({ timezone: j.timezone, city: j.city, region: j.region, country_name: j.country_name, latitude: j.latitude, longitude: j.longitude })); } catch { /* storage blocked */ }
         }
         if (!alive || !j || j.error) return;
         const next = {};
         if (j.timezone) { try { partsFormatter(j.timezone); next.tz = j.timezone; next.src = "ip"; } catch { /* invalid zone */ } }
         if (j.city) { next.city = j.city; next.region = j.region || ""; next.country = j.country_name || ""; }
+        if (Number.isFinite(j.latitude) && Number.isFinite(j.longitude)) { next.lat = j.latitude; next.lon = j.longitude; }
         setSt((p) => ({ ...p, ...next }));
       } catch { /* sandbox or offline — device timezone stays */ }
     })();

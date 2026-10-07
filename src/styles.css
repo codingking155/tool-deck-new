@@ -767,3 +767,9 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 
 /* Sheaf PDF Studio: the page is just the Sheaf app */
 .sheaf-frame{display:block;width:100%;height:max(620px,calc(100dvh - 130px));border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+/* header weather chip (reuses the .clk shell) */
+.wx>summary{font-family:inherit}
+.wx .wx-ic{color:var(--pri2);flex:none}
+.wx .t-loc{font:600 14px var(--mono)}
+.wx .wx-lbl{color:var(--tx2);font-size:12.5px}
+@media(max-width:600px){.wx .wx-lbl{display:none}}
