@@ -222,18 +222,23 @@ export function applyProbeSignals(res, probes) {
 
 const BLOCK_MARKERS = [
   /just a moment/i, /attention required/i, /cf-browser-verification|cf-challenge|challenge-platform/i,
-  /access denied/i, /request unsuccessful/i, /captcha/i,
-  /perimeterx|_pxhd|px-captcha/i, /datadome/i, /akamai.{0,40}(?:bot|denied)/i,
-  /too many requests|rate limit/i, /enable javascript and cookies/i,
+  /request unsuccessful/i, /perimeterx|_pxhd|px-captcha/i, /datadome/i, /akamai.{0,40}(?:bot|denied)/i,
+  /enable javascript and cookies/i,
 ];
+/* Generic phrases real pages use too ("protected by reCAPTCHA" in a newsletter form),
+   so they only count on a page without real content markup. */
+const WEAK_BLOCK_MARKERS = [/access denied/i, /captcha/i, /too many requests|rate limit/i];
+const REAL_MARKUP_RE = /<(?:main|article|nav|h1|section)\b/i;
 
 /** True when the HTML looks like a bot-protection / rate-limit interstitial
     rather than a real page. Tiny bodies with no real markup also qualify. */
 export function looksBlockedPage(html) {
   if (!html) return true;
-  if (html.length < 600 && !/<(?:main|article|nav|h1|section)\b/i.test(html)) return true;
+  const realMarkup = REAL_MARKUP_RE.test(html);
+  if (html.length < 600 && !realMarkup) return true;
   if (html.length < 20000) {
     for (const re of BLOCK_MARKERS) if (re.test(html)) return true;
+    if (!realMarkup) for (const re of WEAK_BLOCK_MARKERS) if (re.test(html)) return true;
   }
   return false;
 }
