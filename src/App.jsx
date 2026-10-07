@@ -4,7 +4,7 @@ import { Search, Sun, Moon, ArrowLeft, ChevronLeft, ChevronRight, FlaskConical }
 import { PrivacyBadge, BetaBadge } from "./components/ui.jsx";
 import { readRecent, pushRecent, clearRecent } from "./lib/recentTools.js";
 import { TOOLS, tint, BETA_HINT } from "./toolsMeta.js";
-import { useRoute, useNow, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
+import { useRoute, useReducedMotion, useDocumentMeta, readParams, useSwipe } from "./hooks/index.js";
 import { Toast, FaqSection } from "./components/chrome.jsx";
 import { Particles, CursorGlow } from "./components/Ambient.jsx";
 import WeatherChip from "./components/WeatherChip.jsx";
@@ -95,12 +95,6 @@ class ToolErrorBoundary extends Component {
       </div>
     );
   }
-}
-
-/* Owns the 1 s tick so only the header chip re-renders, not the whole app. */
-function HeaderClock() {
-  const now = useNow(1000);
-  return <WeatherChip now={now} />;
 }
 
 /* Real links (middle-click, crawlable) that route in-app on a plain click. */
@@ -233,7 +227,7 @@ export default function App() {
             <span className="lname">ToolDeck <small>everyday utilities</small></span>
           </a>
           <div className="sp" />
-          <HeaderClock />
+          <WeatherChip />
           <div className="hbtns">
             {!isHome && <button className="hbtn" onClick={() => setCp(true)} title="Search tools (Ctrl/Cmd+K)" aria-label="Search tools">
               <Search size={17} strokeWidth={2.2} aria-hidden="true" /><span className="hlabel">Search</span><kbd className="hlabel">Ctrl K</kbd>

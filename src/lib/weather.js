@@ -49,5 +49,5 @@ export async function fetchWeather(lat, lon) {
   const j = await r.json();
   const temp = Number(j?.current?.temperature_2m), code = Number(j?.current?.weather_code);
   if (!Number.isFinite(temp) || !Number.isFinite(code)) throw new Error("bad weather response");
-  return { temp, code, isDay: j.current.is_day, sunrise: j?.daily?.sunrise?.[0], sunset: j?.daily?.sunset?.[0] };
+  return { temp, code, isDay: j.current.is_day, sunrise: j?.daily?.sunrise?.[0], sunset: j?.daily?.sunset?.[0], tz: typeof j.timezone === "string" ? j.timezone : "" };
 }

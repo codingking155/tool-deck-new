@@ -770,9 +770,9 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 /* header weather chip (reuses the .clk shell) */
 .wx>summary{font-family:inherit}
 .wx .wx-ic{color:var(--pri2);flex:none}
-.wx .wx-tmp{font:600 14px var(--mono);color:var(--tx)}
+.wx .wx-tmp{font:600 14px var(--mono);color:var(--tx);min-width:3ch;text-align:right}
 .wx .t-loc{font:500 12.5px var(--mono)}
-.wx .wx-lbl{color:var(--tx2);font-size:12.5px}
+.wx .wx-lbl{color:var(--tx2);font-size:12.5px;min-width:11ch}
 @media(max-width:900px){.wx .wx-lbl{display:none}}
 @media(max-width:600px){.hdr .wx .t-loc small{max-width:72px}}
 

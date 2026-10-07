@@ -1,10 +1,48 @@
 import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Cloud, CloudSun, CloudMoon, CloudFog, CloudDrizzle, CloudRain, CloudSnow, CloudLightning, MapPin, LocateFixed } from "lucide-react";
 import { useIpLocale } from "../hooks/index.js";
-import { pad, zoneParts, fmtUtc } from "../lib/time.js";
+import { pad, zoneParts, fmtUtc, isValidZone } from "../lib/time.js";
 import { fetchWeather, weatherKind, weatherLabel, isNight, moonPhase, moonPhaseName } from "../lib/weather.js";
 
-const REFRESH_MS = 15 * 60 * 1000;
+const REFRESH_MS = 45 * 60 * 1000;
+const CACHE_KEY = "toolDeck.wx"; // IP-location weather only; GPS results are never written to storage
+
+function readCache() {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
+    return c && Date.now() - c.at < REFRESH_MS ? c : null;
+  } catch { return null; }
+}
+
+/* Re-renders once a minute, on the minute (the chip shows HH:MM, so a 1 s tick is wasted work). */
+function useMinute() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let id;
+    const tick = () => { setNow(new Date()); id = setTimeout(tick, 60000 - (Date.now() % 60000) + 50); };
+    id = setTimeout(tick, 60000 - (Date.now() % 60000) + 50);
+    return () => clearTimeout(id);
+  }, []);
+  return now;
+}
+
+const hhmm = (d, tz) => { const p = zoneParts(d, tz); return `${pad(p.hour)}:${pad(p.minute)}`; };
+
+/* Leaf clocks: only these re-render each minute, not the weather part. */
+function ClockText({ tz, place }) {
+  const now = useMinute();
+  return <span className="t-loc">{hhmm(now, tz)}<small>{place.toUpperCase()}</small></span>;
+}
+function ClockRows({ tz }) {
+  const now = useMinute();
+  return (
+    <>
+      <div className="row"><span>Local</span><b>{hhmm(now, tz)}</b></div>
+      <div className="row"><span>UTC</span><b>{fmtUtc(now)}</b></div>
+      <div className="row"><span>Time zone</span><b>{tz}</b></div>
+    </>
+  );
+}
 
 function WeatherIcon({ code, night }) {
   const k = weatherKind(code);
@@ -18,26 +56,37 @@ function WeatherIcon({ code, night }) {
    falling back to the device timezone). Precise location only on click.
    Day/night comes from real sunrise/sunset, never from the site theme. Coordinates are never stored.
    Real data only — if the weather can't load, it says so. */
-export default function WeatherChip({ now: nowDate }) {
+export default function WeatherChip() {
   const ipd = useIpLocale();
   const [gps, setGps] = useState(null); // null | "loading" | {lat,lon,city,region} | {err}
-  const [wx, setWx] = useState(null); // null | {temp,code,isDay,sunrise,sunset} | {err}
+  const [wx, setWx] = useState(null); // null | {temp,code,isDay,sunrise,sunset,tz} | {err}
+  const [now, setNow] = useState(() => Date.now()); // day/night only; 1 min is plenty
   const ref = useRef(null);
 
-  const now = nowDate.getTime();
   const lat = gps?.lat ?? ipd.lat, lon = gps?.lon ?? ipd.lon;
 
-  /* load + refresh every 15 min and on return to the tab; the parent's 1 s tick keeps day/night current */
+  /* load + refresh every 45 min and on return to the tab. IP-location weather is cached for the
+     session so reloads within 45 min show it instantly without a request. */
+  const precise = !!gps && Number.isFinite(gps.lat);
   useEffect(() => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     let alive = true, last = 0;
-    const load = () => { last = Date.now(); fetchWeather(lat, lon).then((w) => alive && setWx(w)).catch(() => alive && setWx((p) => (p && !p.err ? p : { err: true }))); };
-    load();
-    const id = setInterval(load, REFRESH_MS);
+    const load = () => {
+      last = Date.now();
+      fetchWeather(lat, lon).then((w) => {
+        if (!alive) return;
+        setWx(w);
+        if (!precise) { try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: last, w })); } catch { /* storage blocked */ } }
+      }).catch(() => alive && setWx((p) => (p && !p.err ? p : { err: true })));
+    };
+    const c = !precise && readCache();
+    if (c) { last = c.at; setWx(c.w); } else load();
+    const id = setInterval(() => { if (Date.now() - last >= REFRESH_MS - 1000) load(); }, 60000);
     const vis = () => { if (document.visibilityState === "visible" && Date.now() - last > REFRESH_MS) load(); };
     document.addEventListener("visibilitychange", vis);
     return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", vis); };
-  }, [lat, lon]);
+  }, [lat, lon, precise]);
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(id); }, []);
 
   /* close the popover on outside click / Escape, returning focus to the trigger */
   useEffect(() => {
@@ -68,7 +117,6 @@ export default function WeatherChip({ now: nowDate }) {
     );
   };
 
-  const precise = gps && Number.isFinite(gps.lat);
   const city = (precise && gps.city) || ipd.city;
   const region = (precise && gps.city && gps.region) || (!precise && ipd.region) || "";
   const place = city ? `${city}${region ? `, ${region}` : ""}` : precise ? "Precise location" : "Approximate location";
@@ -76,26 +124,22 @@ export default function WeatherChip({ now: nowDate }) {
   const night = ok && isNight(wx, now);
   const phase = moonPhaseName(moonPhase(now));
   const temp = ok ? `${Math.round(wx.temp)}°` : "";
-  const tz = ipd.tz;
-  const p = zoneParts(nowDate, tz);
-  const local = `${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
-  const utc = fmtUtc(nowDate);
+  /* with precise location, the time follows that place's zone (from the weather lookup), not the IP's */
+  const tz = precise && ok && isValidZone(wx.tz) ? wx.tz : ipd.tz;
   const shortPlace = city || tz.split("/").pop().replace(/_/g, " ");
   const label = ok ? weatherLabel(wx.code) : wx?.err ? "Weather unavailable" : "Loading weather";
 
   return (
     <details className="clk wx" ref={ref}>
-      <summary aria-label={`${ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}` : label}. Local time ${local} ${shortPlace}. Show weather and location details`}>
+      <summary aria-label={`${ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}` : label}. Local time in ${shortPlace}. Show weather and location details`}>
         {ok ? <WeatherIcon code={wx.code} night={night} /> : <MapPin size={16} aria-hidden="true" className="wx-ic" />}
-        {ok && <span className="wx-tmp">{temp}</span>}
-        <span className="wx-lbl">{label}</span>
+        <span className="wx-tmp">{ok ? temp : "--°"}</span>
+        <span className="wx-lbl">{ok ? label : wx?.err ? "Unavailable" : "Loading…"}</span>
         <span className="t-sep" aria-hidden="true" />
-        <span className="t-loc">{local}<small>{shortPlace.toUpperCase()}</small></span>
+        <ClockText tz={tz} place={shortPlace} />
       </summary>
       <div className="clk-pop">
-        <div className="row"><span>Local</span><b>{local}</b></div>
-        <div className="row"><span>UTC</span><b>{utc}</b></div>
-        <div className="row"><span>Time zone</span><b>{tz}</b></div>
+        <ClockRows tz={tz} />
         {ok && <div className="row"><span>Now</span><b>{temp}C · {label}</b></div>}
         {ok && <div className="row"><span>Sky</span><b>{night ? `Night · ${phase}` : "Daytime"}</b></div>}
         <div className="loc">
