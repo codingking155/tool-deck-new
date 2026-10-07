@@ -11,7 +11,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
 
 const BASE = process.env.BASE_URL || "http://localhost:4173";
-const TOOL_IDS = ["utc", "phone", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf", "ytdownloader"];
+const TOOL_IDS = ["utc", "phone", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf", "ytdownloader", "sheaf"];
 const CORS = { "access-control-allow-origin": "*" };
 const dir = mkdtempSync(join(tmpdir(), "tooldeck-e2e-"));
 
@@ -65,7 +65,7 @@ await scenario("every tool page renders and the homepage filters cover all tools
     await p.getByRole("button", { name: c, exact: true }).click(); total += await p.locator(".bcard").count();
   }
   assert.equal(total, TOOL_IDS.length);
-  for (const id of TOOL_IDS) { await p.goto(`${BASE}/tool/${id}`); await p.locator(".thead h1").waitFor({ timeout: 15000 }); }
+  for (const id of TOOL_IDS) { await p.goto(`${BASE}/tool/${id}`); await p.locator(".tpage h1").waitFor({ timeout: 15000 }); } // bare tools (Sheaf) have no .thead
 });
 
 await scenario("UTC: reference scenario, weekend skipping and calendar export", async (p) => {
