@@ -1,6 +1,7 @@
 import { preflight, json, fail, log, withCors } from "../_shared/http.ts";
 import { clientIp } from "../_shared/ratelimit.ts";
 import { sharedRateLimit } from "../_shared/sharedRateLimit.ts";
+import { cacheGet, cachePut } from "../_shared/toolCache.ts";
 import { analyzeShopify, applyHeaderSignals, applyProbeSignals, looksBlockedPage } from "../../../shared/shopifyCore/detect.mjs";
 import { safeFetch, assertFetchable, BlockedUrlError } from "../../../shared/net/safeFetch.mjs";
 
@@ -112,6 +113,12 @@ Deno.serve(withCors(async (req) => {
   if (hit && Date.now() - hit.at < TTL) {
     return json(hit.body, 200, { "x-tooldeck-cache": "hit", "Cache-Control": "public, max-age=300" });
   }
+  // Shared cache: another instance may have checked this URL recently.
+  const shared = await cacheGet("shopify", key);
+  if (shared) {
+    cache.set(key, { at: Date.now(), body: shared });
+    return json(shared, 200, { "x-tooldeck-cache": "shared", "Cache-Control": "public, max-age=300" });
+  }
 
   const t0 = performance.now();
   let html = "", finalUrl = target.href, fetchStatus: number | null = null;
@@ -187,6 +194,7 @@ Deno.serve(withCors(async (req) => {
   const cacheable = fetchStatus != null && !blocked;
   if (cacheable) {
     cache.set(key, { at: Date.now(), body });
+    await cachePut("shopify", key, body, TTL / 1000);
     if (cache.size > 500) { const oldest = cache.keys().next().value; if (oldest) cache.delete(oldest); }
   }
   log("shopify_check", { host: target.hostname, verdict: res.verdict, conf: res.confidence, ms: elapsed, cached: cacheable });

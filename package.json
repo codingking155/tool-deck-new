@@ -12,7 +12,7 @@
     "test:e2e": "node tests/e2e/run.mjs",
     "e2e": "node tests/e2e/local.mjs",
     "test:q": "node --test --test-reporter=dot tests/*.test.mjs",
-    "check": "npm run -s test:q && vite build --logLevel error",
+    "check": "npm run -s test:q && vite build --logLevel error && node scripts/check-bundle.mjs",
     "preview:csp": "vite build --config vite.csp-preview.config.js --logLevel error && vite preview --config vite.csp-preview.config.js --port 4173"
   },
   "dependencies": {
