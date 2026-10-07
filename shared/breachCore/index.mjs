@@ -29,7 +29,7 @@ function normalizeBreach(b) {
     name: String(b.breach ?? "Unknown"),
     domain: b.domain ? String(b.domain) : null,
     year: year ? Number(year) : null,
-    records: Number.isFinite(Number(b.xposed_records)) ? Number(b.xposed_records) : null,
+    records: b.xposed_records != null && b.xposed_records !== "" && Number.isFinite(Number(b.xposed_records)) ? Number(b.xposed_records) : null,
     dataTypes: data,
     severe: data.some((d) => SEVERE.test(d)),
     description: b.details ? String(b.details).replace(/<[^>]*>/g, "").slice(0, 400) : null,

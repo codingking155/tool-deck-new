@@ -1,6 +1,7 @@
 import { Agent, fetch as undiciFetch } from "undici";
 import { DetectionError } from "./errors";
-import { safeLookup } from "./ssrf";
+import { isIP } from "node:net";
+import { isBlockedIp, safeLookup } from "./ssrf";
 
 export interface HeaderBag {
   get(name: string): string | null;
@@ -110,6 +111,11 @@ export const fetchPage: PageFetcher = async (url, { timeoutMs, maxBytes, accept,
         }
         if (next.port && next.port !== "80" && next.port !== "443") {
           throw new DetectionError("unreachable", "The site redirected to a non-standard port.", "http_error");
+        }
+        // Sockets don't run `lookup` for IP literals, so safeLookup can't catch these.
+        const literal = next.hostname.replace(/^\[|\]$/g, "");
+        if (isIP(literal) && isBlockedIp(literal)) {
+          throw new DetectionError("invalid_url", "That site redirects to a private or reserved network address.");
         }
         next.username = "";
         next.password = "";

@@ -23,7 +23,7 @@ export function isValidE164(phone) {
 }
 
 export function validateTargetPrice(value) {
-  const n = typeof value === "number" ? value : parseFloat(String(value));
+  const n = typeof value === "number" ? value : Number(String(value ?? "").trim() || NaN);
   return Number.isFinite(n) && n > 0;
 }
 

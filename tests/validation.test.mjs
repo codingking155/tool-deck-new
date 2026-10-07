@@ -33,6 +33,9 @@ test("target price must be > 0", () => {
   assert.ok(!validateTargetPrice(0));
   assert.ok(!validateTargetPrice(-5));
   assert.ok(!validateTargetPrice("abc"));
+  // trailing junk must not validate while the stored value becomes NaN
+  assert.ok(!validateTargetPrice("12abc"));
+  assert.ok(!validateAlertInput({ ...base, targetPrice: "12abc" }).ok);
 });
 
 test("signed-in create is valid", () => {
