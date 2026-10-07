@@ -134,7 +134,6 @@ export default function WeatherChip() {
       <summary aria-label={`${ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}` : label}. Local time in ${shortPlace}. Show weather and location details`}>
         {ok ? <WeatherIcon code={wx.code} night={night} /> : <MapPin size={16} aria-hidden="true" className="wx-ic" />}
         <span className="wx-tmp">{ok ? temp : "--°"}</span>
-        <span className="wx-lbl">{ok ? label : wx?.err ? "Unavailable" : "Loading…"}</span>
         <span className="t-sep" aria-hidden="true" />
         <ClockText tz={tz} place={shortPlace} />
       </summary>
