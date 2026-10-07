@@ -70,6 +70,6 @@
 .app .v3tool table.ph-tbl{min-width:600px}
 .ph-tbl .mono{font-family:var(--mono)}
 .ph-ok{color:var(--good)}.ph-bad{color:var(--warn)}
-@media(max-width:600px){.ph-bacts .btn,.ph-file{min-height:44px}}
+@media(max-width:600px){.ph-bacts .btn,.ph-file,.ph-btools .seg button{min-height:44px}}
 .app .v3tool .ph-bres .tblwrap{max-height:480px;overflow:auto}
 .app .v3tool .ph-tbl thead th{position:sticky;top:0;z-index:1;background:var(--surface-elevated)}
