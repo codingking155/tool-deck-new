@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, ZoomIn, ZoomOut, Maximize, Scan, ChevronLeft, ChevronRight, RotateCw, Grid2x2, Download, Info } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Maximize, ChevronLeft, ChevronRight, RotateCw, Grid2x2, Download, Info } from "lucide-react";
 import { fmtBytes } from "../lib/imageCore.mjs";
 import { fitScale, clampPan, zoomAt, stepZoom, savingPct, wrapIndex } from "../lib/viewerMath.mjs";
 
@@ -179,7 +179,7 @@ export default function ImageViewer({ items, id, onNav, onClose, onSaveResult })
             <span className="pc" aria-live="polite" aria-label={`Zoom ${pctLabel}`}>{pctLabel}</span>
             <button type="button" className="btn gh ico" onClick={() => zoomTo(stepZoom(scale, 1))} title="Zoom in (+)" aria-label="Zoom in"><ZoomIn size={17} aria-hidden="true" /></button>
             <button type="button" className="btn gh ico" onClick={fitView} aria-pressed={view.fit} title="Fit to screen (0)" aria-label="Fit to screen"><Maximize size={17} aria-hidden="true" /></button>
-            <button type="button" className="btn gh ico" onClick={() => zoomTo(1)} aria-pressed={!view.fit && Math.abs(scale - 1) < 1e-3} title="Actual pixels, 100% (1)" aria-label="Actual size 100%"><Scan size={17} aria-hidden="true" /></button>
+            <button type="button" className="btn gh ico" onClick={() => zoomTo(1)} aria-pressed={!view.fit && Math.abs(scale - 1) < 1e-3} title="Actual pixels, 100% (1)" aria-label="Actual size 100%"><span className="iv-11" aria-hidden="true">1:1</span></button>
           </div>
           <div className="grp">
             <button type="button" className="btn gh ico" onClick={() => { setRot((x) => (x + 90) % 360); fitView(); }} title="Rotate view 90° (file unchanged)" aria-label="Rotate view 90 degrees"><RotateCw size={17} aria-hidden="true" /></button>
