@@ -11,7 +11,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
 
 const BASE = process.env.BASE_URL || "http://localhost:4173";
-const TOOL_IDS = ["utc", "phone", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf", "ytdownloader"];
+const TOOL_IDS = ["utc", "phone", "shopifydetector", "speed", "ip", "price", "json", "ssl", "password", "prompt", "image", "breach", "pdf", "sheaf", "ytdownloader"];
 const CORS = { "access-control-allow-origin": "*" };
 const dir = mkdtempSync(join(tmpdir(), "tooldeck-e2e-"));
 
