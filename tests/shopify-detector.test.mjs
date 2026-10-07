@@ -61,6 +61,12 @@ test("myshopify.com URL alone is decisive without any HTML", () => {
   assert.ok(r.confidence >= 95, "a myshopify.com hostname is conclusive by definition");
 });
 
+test("myshopify.com platform host (cdn/checkout) is not conclusive", () => {
+  const r = analyzeShopify("", "https://cdn.myshopify.com");
+  assert.notEqual(r.verdict, "yes");
+  assert.ok(r.confidence < 95);
+});
+
 test("headless storefront lands in uncertain, not no", () => {
   const r = analyzeShopify(HEADLESS, "https://acmehydro.com");
   assert.equal(r.verdict, "uncertain");

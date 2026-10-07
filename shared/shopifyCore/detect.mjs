@@ -101,7 +101,7 @@ export function analyzeShopify(html, url = "") {
   let score = 0, plus = false, conclusiveHost = false;
   let host = "";
   try { host = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase(); } catch { /* no usable URL */ }
-  if (host.endsWith(".myshopify.com")) {
+  if (normalizeShopDomain(host)) {
     /* the platform's own storefront domain — conclusive by definition */
     conclusiveHost = true;
     score += 95; hits.push({ label: "URL is a *.myshopify.com storefront (conclusive)", w: 95 });
