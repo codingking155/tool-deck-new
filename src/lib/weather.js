@@ -43,11 +43,12 @@ export function moonPhaseName(p) {
 
 /* Open-Meteo (no key). Throws on a bad response — the chip never shows made-up weather. */
 export async function fetchWeather(lat, lon) {
-  const q = new URLSearchParams({ latitude: lat, longitude: lon, current: "temperature_2m,weather_code,is_day", daily: "sunrise,sunset", timezone: "auto", timeformat: "unixtime", forecast_days: "1" });
+  const q = new URLSearchParams({ latitude: lat, longitude: lon, current: "temperature_2m,apparent_temperature,weather_code,is_day", daily: "sunrise,sunset,temperature_2m_max,temperature_2m_min", timezone: "auto", timeformat: "unixtime", forecast_days: "1" });
   const r = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`, { signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error("weather " + r.status);
   const j = await r.json();
   const temp = Number(j?.current?.temperature_2m), code = Number(j?.current?.weather_code);
   if (!Number.isFinite(temp) || !Number.isFinite(code)) throw new Error("bad weather response");
-  return { temp, code, isDay: j.current.is_day, sunrise: j?.daily?.sunrise?.[0], sunset: j?.daily?.sunset?.[0], tz: typeof j.timezone === "string" ? j.timezone : "" };
+  const num = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v)); // missing stays missing, never 0
+  return { temp, code, feels: num(j.current.apparent_temperature), hi: num(j?.daily?.temperature_2m_max?.[0]), lo: num(j?.daily?.temperature_2m_min?.[0]), isDay: j.current.is_day, sunrise: j?.daily?.sunrise?.[0], sunset: j?.daily?.sunset?.[0], tz: typeof j.timezone === "string" ? j.timezone : "" };
 }

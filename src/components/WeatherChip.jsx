@@ -5,7 +5,7 @@ import { pad, zoneParts, fmtUtc, isValidZone } from "../lib/time.js";
 import { fetchWeather, weatherKind, weatherLabel, isNight, moonPhase, moonPhaseName } from "../lib/weather.js";
 
 const REFRESH_MS = 45 * 60 * 1000;
-const CACHE_KEY = "toolDeck.wx"; // IP-location weather only; GPS results are never written to storage
+const CACHE_KEY = "toolDeck.wx2"; // v2 adds feels-like / high / low // IP-location weather only; GPS results are never written to storage
 
 function readCache() {
   try {
@@ -44,14 +44,14 @@ function ClockRows({ tz }) {
   );
 }
 
-function WeatherIcon({ code, night }) {
+function WeatherIcon({ code, night, size = 18 }) {
   const k = weatherKind(code);
   const I = k === "clear" ? (night ? Moon : Sun) : k === "partly" ? (night ? CloudMoon : CloudSun)
     : k === "fog" ? CloudFog : k === "drizzle" ? CloudDrizzle : k === "rain" ? CloudRain
     : k === "snow" ? CloudSnow : k === "thunder" ? CloudLightning : Cloud;
   /* tint + motion follow the weather; motion is switched off by prefers-reduced-motion in CSS */
   const tone = night ? "night" : k === "clear" || k === "partly" ? "sun" : k === "cloudy" || k === "fog" ? "grey" : "wet";
-  return <span className={`wx-ico wx-${tone} wx-k-${k}${night ? " wx-nt" : ""}`} aria-hidden="true"><I size={18} className="wx-ic" /></span>;
+  return <span className={`wx-ico wx-${tone} wx-k-${k}${night ? " wx-nt" : ""}`} aria-hidden="true"><I size={size} className="wx-ic" /></span>;
 }
 
 /* Temperature that slides from the old value to the new one on refresh (no motion if reduced). */
@@ -73,6 +73,26 @@ function Temp({ value }) {
     return () => cancelAnimationFrame(raf);
   }, [value]);
   return Number.isFinite(shown) ? `${Math.round(shown)}°` : "--°";
+}
+
+const deg = (v) => `${Math.round(v)}°`;
+
+/* Popover header card: big icon, temperature, condition, feels-like and today's high/low.
+   Fields the API didn't return are left out, never filled in. */
+function WxHeader({ wx, night, label, phase }) {
+  return (
+    <div className="wx-card">
+      <WeatherIcon code={wx.code} night={night} size={30} />
+      <div className="wx-card-tx">
+        <b className="wx-big"><Temp value={wx.temp} /></b>
+        <span className="wx-cond">{label}{night ? ` · ${phase}` : ""}</span>
+        {Number.isFinite(wx.feels) && <span className="wx-sub">Feels like {deg(wx.feels)}</span>}
+        {Number.isFinite(wx.hi) && Number.isFinite(wx.lo) && (
+          <span className="wx-sub"><span className="wx-hi">H {deg(wx.hi)}</span> · <span className="wx-lo">L {deg(wx.lo)}</span></span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* Header chip: weather icon + temperature + condition, then local time and city (zone and city from IP,
@@ -161,9 +181,8 @@ export default function WeatherChip() {
         <ClockText tz={tz} place={shortPlace} />
       </summary>
       <div className="clk-pop">
+        {ok ? <WxHeader wx={wx} night={night} label={label} phase={phase} /> : <p className="wx-card wx-none">{wx?.err ? "Unable to retrieve the latest weather right now." : "Loading weather…"}</p>}
         <ClockRows tz={tz} />
-        {ok && <div className="row"><span>Now</span><b>{temp}C · {label}</b></div>}
-        {ok && <div className="row"><span>Sky</span><b>{night ? `Night · ${phase}` : "Daytime"}</b></div>}
         <div className="loc">
           <MapPin size={14} aria-hidden="true" /><span className="pl">{place}</span>
           {precise ? <span className="loctag ok">precise</span> : <span className="loctag">{gps?.err || "approx. · from IP"}</span>}

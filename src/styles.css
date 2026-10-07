@@ -781,6 +781,14 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .wx .wx-k-rain .wx-ic,.wx .wx-k-drizzle .wx-ic,.wx .wx-k-snow .wx-ic,.wx .wx-k-thunder .wx-ic{animation:wx-fall 1.6s ease-in-out infinite}
 .wx .wx-nt.wx-k-clear .wx-ic{animation:wx-twinkle 4s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.wx .wx-ic{animation:none!important}}
+.wx .wx-card{display:flex;align-items:center;gap:14px;padding:4px 0 14px;margin-bottom:6px;border-bottom:1px solid var(--line2)}
+.wx .wx-card .wx-ico{width:56px;height:56px}
+.wx .wx-card-tx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.wx .wx-big{font:600 30px/1.05 var(--disp);color:var(--tx)}
+.wx .wx-cond{color:var(--tx);font-weight:500}
+.wx .wx-sub{font:500 12px var(--mono);color:var(--tx2)}
+.wx .wx-hi{color:var(--warn)}.wx .wx-lo{color:var(--sky)}
+.wx .wx-none{color:var(--tx2)}
 .wx .wx-tmp{font:600 14px var(--mono);color:var(--tx);min-width:3ch;text-align:right}
 .wx .t-loc{font:500 12.5px var(--mono)}
 @media(max-width:600px){.hdr .wx .t-loc small{max-width:72px}}
