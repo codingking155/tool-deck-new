@@ -38,7 +38,7 @@ export function logError(error, context = {}) {
   saveErrorLog(log);
 
   /* Log to console in dev mode */
-  if (process.env.NODE_ENV !== "production") {
+  if (import.meta.env?.DEV) {
     console.error("[ToolDeck Error]", entry);
   }
 

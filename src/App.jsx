@@ -11,6 +11,8 @@ import WeatherChip from "./components/WeatherChip.jsx";
 import CornerWebs from "./components/CornerWebs.jsx";
 import Home from "./pages/Home.jsx";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { Analytics } from "@vercel/analytics/react";
+import { metricsPath, scrubEvent } from "./lib/metricsRoute.js";
 import "./tools/css/v3.css";
 
 /* Tools on the redesigned workspace UI: their content sits inside .v3tool, which scopes
@@ -291,7 +293,9 @@ export default function App() {
         <InstallPrompt />
       </Suspense>
       <Toast msg={toast} />
-      <SpeedInsights />
+      {/* both see only the page or tool id, never what the user typed after it (see lib/metricsRoute.js) */}
+      <SpeedInsights route={metricsPath(route)} beforeSend={scrubEvent} />
+      <Analytics beforeSend={scrubEvent} />
     </div>
   );
 }

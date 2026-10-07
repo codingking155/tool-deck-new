@@ -4,7 +4,8 @@ Vite + React 18 SPA (`src/`), Supabase Edge Functions (`supabase/functions/`, De
 modules in `shared/`, and a standalone Next.js app in `shopify-detector/` (own Vercel project).
 
 ## Commands
-- `npm run check` — quiet tests + build; the local gate before every commit (`npm test` only for per-test names).
+- `npm run check` — quiet tests + lint + typecheck + build; the local gate before every commit (`npm test` only for per-test names).
+  `npm run lint` / `npm run typecheck` are also Vercel deployment checks (Typecheck is Required).
 - `npm run preview:csp` serves a build with vercel.json's CSP; a new fetched/loaded origin needs a CSP update there.
 - e2e (`npm run e2e -- <filter…>`): NEVER run it unless the user asks in that session — CI runs the suite.
   Raw `p.mouse` drawing in e2e must emulate reduced motion (decorative spiders swallow pointerdown).

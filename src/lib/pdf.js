@@ -18,7 +18,6 @@ async function pickFrom(src, indices) {
   (await out.copyPages(src, indices)).forEach((p) => out.addPage(p));
   return out.save();
 }
-const pick = async (bytes, indices) => pickFrom(await load(bytes), indices);
 
 /** Works on encrypted files too (the page tree isn't encrypted), so the UI can show a count before unlocking. */
 export async function pageCount(bytes) { return (await parse(bytes)).getPageCount(); }

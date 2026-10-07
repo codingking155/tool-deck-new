@@ -322,7 +322,7 @@ export function sortKeysDeep(v) {
 export const formatJSON = (value, indent = 2, sortKeys = false) => stringify(value, indent, sortKeys);
 export const minifyJSON = (value, sortKeys = false) => stringify(value, 0, sortKeys);
 
-const YAML_PLAIN = /^[A-Za-z_][A-Za-z0-9_ .\/-]*$/;
+const YAML_PLAIN = /^[A-Za-z_][A-Za-z0-9_ ./-]*$/;
 const YAML_RESERVED = /^(true|false|yes|no|on|off|null|~|y|n)$/i;
 function yamlScalar(v) {
   if (v instanceof BigNum) return v.raw;

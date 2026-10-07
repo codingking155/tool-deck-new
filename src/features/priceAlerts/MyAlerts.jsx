@@ -16,7 +16,7 @@ const STATUS = {
 };
 const DELIVERY_TONE = { sent: "ok", failed: "warn", pending: "", skipped: "" };
 
-export default function MyAlerts({ functionsBase, getToken, manageToken, signedIn = false }) {
+export default function MyAlerts({ functionsBase, getToken, manageToken }) {
 
   const api = createAlertsApi({ functionsBase, getToken });
 

@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import { mkdirSync, copyFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, copyFileSync, writeFileSync, readFileSync } from "node:fs";
 
 /* Sheaf (public/sheaf, the PDF Toolkit's visual studio) is plain scripts that expect its libraries
    and fonts next to it. Copy them from node_modules into public/sheaf/vendor (gitignored) so dev,
@@ -31,10 +31,21 @@ function sheafVendor() {
   };
 }
 
+/* The CSP names the downloader backend's exact host (no *.onrender.com). If VITE_DOWNLOADER_API_URL
+   points anywhere else, fail the build instead of shipping a downloader the CSP silently blocks. */
+function assertDownloaderInCsp(url) {
+  if (!url) return;
+  const origin = new URL(url).origin;
+  const csp = JSON.parse(readFileSync("./vercel.json", "utf8")).headers[0].headers.find((h) => h.key === "Content-Security-Policy").value;
+  const connect = (csp.split(";").find((d) => d.trim().startsWith("connect-src")) || "").trim().split(/\s+/);
+  if (!connect.includes(origin)) throw new Error(`VITE_DOWNLOADER_API_URL (${origin}) is not in vercel.json's connect-src; add it there.`);
+}
+
 export default defineConfig(({ mode }) => {
   // Load all env vars (including non-VITE_ prefixed ones) so we can
   // forward the Supabase integration vars that arrive without the VITE_ prefix.
   const env = loadEnv(mode, process.cwd(), "");
+  assertDownloaderInCsp(env.VITE_DOWNLOADER_API_URL);
 
   return {
   plugins: [react(), sheafVendor()],
