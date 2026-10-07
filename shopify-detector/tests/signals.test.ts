@@ -89,6 +89,11 @@ describe("extractShopDomain", () => {
   it("falls back to the most frequent myshopify domain", () => {
     expect(extractShopDomain("x.myshopify.com y.myshopify.com y.myshopify.com")).toBe("y.myshopify.com");
   });
+
+  it("ignores Shopify platform hosts like cdn/checkout", () => {
+    expect(extractShopDomain("cdn.myshopify.com cdn.myshopify.com checkout.myshopify.com acme.myshopify.com")).toBe("acme.myshopify.com");
+    expect(extractShopDomain("cdn.myshopify.com")).toBeNull();
+  });
 });
 
 describe("sampleHeaders", () => {

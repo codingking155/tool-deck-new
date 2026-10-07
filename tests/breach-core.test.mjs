@@ -37,6 +37,13 @@ test("parseXonAnalytics normalises, sorts newest first, flags severity", () => {
   assert.deepEqual(summarize(b), { count: 2, severe: true, dataTypes: ["Email addresses", "Names", "Passwords"] });
 });
 
+test("a missing record count is unknown, not zero", () => {
+  for (const xposed_records of [null, ""]) {
+    const [b] = parseXonAnalytics({ ExposedBreaches: { breaches_details: [{ breach: "X", xposed_records }] } });
+    assert.equal(b.records, null);
+  }
+});
+
 test("unrecognised payload is null, never an empty 'clear' list", () => {
   assert.equal(parseXonAnalytics({}), null);
   assert.equal(parseXonAnalytics(null), null);

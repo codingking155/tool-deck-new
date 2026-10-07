@@ -78,12 +78,16 @@ function codeSurface($: cheerio.CheerioAPI): string {
   return parts.join("\n");
 }
 
+// Platform hosts (cdn.myshopify.com, checkout.…) are not a store identity.
+const INFRA_SUBDOMAINS = /^(?:cdn|checkout|admin|api|help|apps|accounts|www|partners|community|shopify|status)$/i;
+
 export function extractShopDomain(html: string): string | null {
   const assigned = html.match(/Shopify\.shop\s*=\s*["']([a-z0-9][a-z0-9-]*\.myshopify\.com)["']/i);
-  if (assigned) return assigned[1].toLowerCase();
+  if (assigned && !INFRA_SUBDOMAINS.test(assigned[1].split(".")[0])) return assigned[1].toLowerCase();
 
   const counts = new Map<string, number>();
-  for (const m of html.matchAll(/([a-z0-9][a-z0-9-]*)\.myshopify\.com/gi)) {
+  for (const m of html.matchAll(/(?<![a-z0-9-])([a-z0-9][a-z0-9-]*)\.myshopify\.com/gi)) {
+    if (INFRA_SUBDOMAINS.test(m[1])) continue;
     const d = `${m[1].toLowerCase()}.myshopify.com`;
     counts.set(d, (counts.get(d) ?? 0) + 1);
   }

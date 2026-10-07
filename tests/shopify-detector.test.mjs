@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyzeShopify, applyProbeSignals, buildReport, SHOPIFY_SIGNALS } from "../shared/shopifyCore/detect.mjs";
+import { analyzeShopify, applyProbeSignals, buildReport, looksBlockedPage, SHOPIFY_SIGNALS } from "../shared/shopifyCore/detect.mjs";
 
 /* ── realistic fixtures ─────────────────────────────────────────────── */
 
@@ -59,6 +59,12 @@ test("myshopify.com URL alone is decisive without any HTML", () => {
   const r = analyzeShopify("", "https://acme.myshopify.com");
   assert.equal(r.verdict, "yes");
   assert.ok(r.confidence >= 95, "a myshopify.com hostname is conclusive by definition");
+});
+
+test("myshopify.com platform host (cdn/checkout) is not conclusive", () => {
+  const r = analyzeShopify("", "https://cdn.myshopify.com");
+  assert.notEqual(r.verdict, "yes");
+  assert.ok(r.confidence < 95);
 });
 
 test("headless storefront lands in uncertain, not no", () => {
@@ -173,4 +179,11 @@ test("header + HTML evidence still capped at 98", () => {
     { "x-shopify-stage": "production", "x-shopid": "9", "x-shardid": "1", "powered-by": "Shopify" },
   );
   assert.equal(r.confidence, 98);
+});
+
+test("looksBlockedPage: a real page mentioning reCAPTCHA is not a block page", () => {
+  const page = `<html><body><nav>Shop</nav><h1>Acme</h1>${"<p>Products</p>".repeat(60)}<form>This site is protected by reCAPTCHA.</form></body></html>`;
+  assert.equal(looksBlockedPage(page), false);
+  assert.equal(looksBlockedPage(`<html><body><p>Access denied</p>${" ".repeat(700)}</body></html>`), true);
+  assert.equal(looksBlockedPage(`<html><h1>Just a moment...</h1>${" ".repeat(700)}</html>`), true);
 });
