@@ -686,7 +686,7 @@ export default function SpeedTool({ notify }) {
               <button type="button" className="btn pri auto" onClick={() => start()}>
                 <RotateCcw size={16} aria-hidden="true" />Run again
               </button>
-              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />}
+              <CopyButton text={() => summaryText(res)} label="Copy result" className="btn" notify={notify} toast="Result copied." />
             </div>
           </>}
 
