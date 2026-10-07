@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Cloud, CloudSun, CloudMoon, CloudFog, CloudDrizzle, CloudRain, CloudSnow, CloudLightning, MapPin, LocateFixed } from "lucide-react";
 import { useIpLocale } from "../hooks/index.js";
+import { pad, zoneParts, fmtUtc } from "../lib/time.js";
 import { fetchWeather, weatherKind, weatherLabel, isNight, moonPhase, moonPhaseName } from "../lib/weather.js";
 
 const REFRESH_MS = 15 * 60 * 1000;
@@ -13,19 +14,20 @@ function WeatherIcon({ code, night }) {
   return <I size={18} aria-hidden="true" className="wx-ic" />;
 }
 
-/* Header weather chip: approximate location from IP, precise location only on click.
+/* Header chip: weather icon + temperature + condition, then local time and city (zone and city from IP,
+   falling back to the device timezone). Precise location only on click.
    Day/night comes from real sunrise/sunset, never from the site theme. Coordinates are never stored.
    Real data only — if the weather can't load, it says so. */
-export default function WeatherChip() {
+export default function WeatherChip({ now: nowDate }) {
   const ipd = useIpLocale();
   const [gps, setGps] = useState(null); // null | "loading" | {lat,lon,city,region} | {err}
   const [wx, setWx] = useState(null); // null | {temp,code,isDay,sunrise,sunset} | {err}
-  const [now, setNow] = useState(() => Date.now());
   const ref = useRef(null);
 
+  const now = nowDate.getTime();
   const lat = gps?.lat ?? ipd.lat, lon = gps?.lon ?? ipd.lon;
 
-  /* load + refresh every 15 min and on return to the tab; the 1 min tick keeps day/night current */
+  /* load + refresh every 15 min and on return to the tab; the parent's 1 s tick keeps day/night current */
   useEffect(() => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     let alive = true, last = 0;
@@ -36,7 +38,6 @@ export default function WeatherChip() {
     document.addEventListener("visibilitychange", vis);
     return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", vis); };
   }, [lat, lon]);
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(id); }, []);
 
   /* close the popover on outside click / Escape, returning focus to the trigger */
   useEffect(() => {
@@ -75,17 +76,26 @@ export default function WeatherChip() {
   const night = ok && isNight(wx, now);
   const phase = moonPhaseName(moonPhase(now));
   const temp = ok ? `${Math.round(wx.temp)}°` : "";
+  const tz = ipd.tz;
+  const p = zoneParts(nowDate, tz);
+  const local = `${pad(p.hour)}:${pad(p.minute)}:${pad(p.second)}`;
+  const utc = fmtUtc(nowDate);
+  const shortPlace = city || tz.split("/").pop().replace(/_/g, " ");
   const label = ok ? weatherLabel(wx.code) : wx?.err ? "Weather unavailable" : "Loading weather";
 
   return (
     <details className="clk wx" ref={ref}>
-      <summary aria-label={ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}${city ? `, ${city}` : ""}. Show weather details` : `${label}. Show weather details`}>
+      <summary aria-label={`${ok ? `${temp}C, ${label}, ${night ? `night, ${phase}` : "day"}` : label}. Local time ${local} ${shortPlace}. Show weather and location details`}>
         {ok ? <WeatherIcon code={wx.code} night={night} /> : <MapPin size={16} aria-hidden="true" className="wx-ic" />}
-        {ok && <span className="t-loc">{temp}</span>}
+        {ok && <span className="wx-tmp">{temp}</span>}
         <span className="wx-lbl">{label}</span>
+        <span className="t-sep" aria-hidden="true" />
+        <span className="t-loc">{local}<small>{shortPlace.toUpperCase()}</small></span>
       </summary>
       <div className="clk-pop">
-        <div className="row"><span>Location</span><b>{place}</b></div>
+        <div className="row"><span>Local</span><b>{local}</b></div>
+        <div className="row"><span>UTC</span><b>{utc}</b></div>
+        <div className="row"><span>Time zone</span><b>{tz}</b></div>
         {ok && <div className="row"><span>Now</span><b>{temp}C · {label}</b></div>}
         {ok && <div className="row"><span>Sky</span><b>{night ? `Night · ${phase}` : "Daytime"}</b></div>}
         <div className="loc">
