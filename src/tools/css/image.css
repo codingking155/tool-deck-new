@@ -214,3 +214,4 @@
   .app .v3tool .imgview-nav.prev{left:16px}.app .v3tool .imgview-nav.next{right:16px}
 }
 @media (prefers-reduced-motion:reduce){.imgview-stage img{transition:none}}
+.iv-11{font:700 12px var(--mono);letter-spacing:-.02em}
