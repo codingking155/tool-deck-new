@@ -55,3 +55,21 @@ export function outName(name, suffix, mime) {
   const ext = MIME_EXT[mime] || (name.match(/\.([^.]+)$/)?.[1] ?? "img");
   return `${base}${suffix}.${ext}`;
 }
+
+/** Why Apply is pointless right now, or "" when it will change something. */
+export function noopReason(mode, o) {
+  if (mode === "resize" && o.mode === "px" && !Number(o.width) && !Number(o.height)) return "Enter a width or height.";
+  if (mode === "editor" && !Object.values(o).some(Boolean)) return "Move a slider to adjust the photo.";
+  if (mode === "watermark" && !o.text.trim()) return "Enter watermark text.";
+  if (mode === "meme" && !o.top.trim() && !o.bottom.trim()) return "Enter top or bottom text.";
+  if (mode === "rotate" && !o.angle && !o.flipH && !o.flipV) return "Pick a rotation or a flip.";
+  if (mode === "crop" && o.aspect === "free" && Number(o.zoom) <= 1) return "Pick an aspect ratio or zoom in to crop.";
+  return "";
+}
+
+/** Compress output type: "auto" keeps JPG/PNG/WebP; other inputs (GIF/BMP/SVG/AVIF) go to WebP,
+    since re-encoding them "as-is" means a lossless, usually larger PNG. */
+export function compressMime(fmt, srcType) {
+  if (fmt && fmt !== "auto") return fmt;
+  return ["image/jpeg", "image/png", "image/webp"].includes(srcType) ? srcType : "image/webp";
+}

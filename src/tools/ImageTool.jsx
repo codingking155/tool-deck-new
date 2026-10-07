@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName } from "../lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime } from "../lib/imageCore.mjs";
 import { makeZip } from "../lib/zip.js";
 import { ImagePlus, Loader2, Download, X, Columns2, Trash2, ClipboardPaste, Upload, ShieldCheck, ArrowRight, ArrowDown, ArrowUp,
   OctagonAlert, FileArchive, Shrink, Scaling, Crop, Repeat2, RotateCw, Stamp, SlidersHorizontal, Laugh, EyeOff } from "lucide-react";
@@ -31,16 +31,6 @@ const SUFFIX = { compress: "-compressed", resize: "-resized", crop: "-cropped", 
   watermark: "-watermarked", editor: "-edited", meme: "-meme", blur: "-blurred" };
 const MAX_FILES = 40;
 const RESIZE_PRESETS = [["Custom", "", ""], ["Instagram post 1080×1080", 1080, 1080], ["Story 1080×1920", 1080, 1920], ["HD 1280 wide", 1280, ""], ["Full HD 1920 wide", 1920, ""], ["Thumbnail 300 wide", 300, ""], ["Email 600 wide", 600, ""]];
-/** Why Apply is pointless right now, or "" when it will change something. */
-function noopReason(mode, o) {
-  if (mode === "resize" && o.mode === "px" && !Number(o.width) && !Number(o.height)) return "Enter a width or height.";
-  if (mode === "editor" && !Object.values(o).some(Boolean)) return "Move a slider to adjust the photo.";
-  if (mode === "watermark" && !o.text.trim()) return "Enter watermark text.";
-  if (mode === "meme" && !o.top.trim() && !o.bottom.trim()) return "Enter top or bottom text.";
-  if (mode === "rotate" && !o.angle && !o.flipH && !o.flipV) return "Pick a rotation or a flip.";
-  if (mode === "crop" && o.aspect === "free" && Number(o.zoom) <= 1) return "Pick an aspect ratio or zoom in to crop.";
-  return "";
-}
 const MAX_PIXELS = 100e6;
 const QUALITY_PRESETS = [["Smallest", 40], ["Balanced", 70], ["High", 85], ["Best", 95]];
 const isImageFile = (f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(f.name);
@@ -156,7 +146,7 @@ async function runMode(mode, o, file, canAvif) {
       canvas = mk(w, h); ctx = ctx2d(canvas);
       /* GIF/BMP/SVG/AVIF can't be re-encoded as-is; "same as original" would mean a lossless
          PNG that is usually far BIGGER, so compress those to WebP where quality applies */
-      mime = o.fmt !== "auto" ? o.fmt : srcMime === file.type ? srcMime : "image/webp";
+      mime = compressMime(o.fmt, file.type);
       if (mime === "image/jpeg") fillBg(ctx, "#fff");
       ctx.imageSmoothingQuality = "high"; ctx.drawImage(bmp, 0, 0, w, h);
       q = o.q / 100;
