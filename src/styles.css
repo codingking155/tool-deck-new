@@ -773,3 +773,7 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .wx .t-loc{font:600 14px var(--mono)}
 .wx .wx-lbl{color:var(--tx2);font-size:12.5px}
 @media(max-width:600px){.wx .wx-lbl{display:none}}
+
+/* Readable line length on wide screens. */
+.app main p{max-width:72ch}
+.app main .empty-st p{margin-inline:auto}
