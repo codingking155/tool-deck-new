@@ -45,5 +45,9 @@
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.62.2"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "tesseract.js": false
   }
 }
