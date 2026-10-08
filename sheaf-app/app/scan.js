@@ -3,7 +3,8 @@
    them to the Image to PDF workspace. Plain script sharing Sheaf's top-level scope. */
 'use strict';
 const SCAN_MAX = 2400;          // long side of a kept page, in pixels (about 200 dpi on A4)
-const FILTER_KEY = 'sheaf.scanFilter';
+const FILTER_KEY = 'sheaf.scanFilter', AUTO_KEY = 'sheaf.autoCapture';
+const STEADY_FRAMES = 5;        // outline checks (about 1.3 s) the page must hold still before auto-capture
 let scanCount = 0, scanQueue = Promise.resolve();
 
 const savedFilter = () => { try { return localStorage.getItem(FILTER_KEY) || 'color'; } catch { return 'color'; } };
@@ -166,6 +167,10 @@ async function importPhotos(files, add) {
 /* ---------- the camera ---------- */
 function scanSession(add) {
   let kept = 0, timer = 0, busy = false;
+  /* auto-capture: shoot once the page has held still; then wait for the page to move or leave
+     (a new sheet, or the phone lifted) before shooting again, so one page is not taken twice */
+  let auto = (() => { try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; } })();
+  let prev = null, steady = 0, armed = true, lastShot = null;
   const video = h('video', { class: 'cam-v', autoplay: true, muted: true, playsinline: true });
   const guide = h('canvas', { class: 'cam-guide', 'aria-hidden': 'true' });
   const status = h('p', { class: 'cam-msg', 'aria-live': 'polite' }, 'Starting the camera');
@@ -176,10 +181,15 @@ function scanSession(add) {
     try { await Cam.torch(on); torchBtn.setAttribute('aria-pressed', String(on)); } catch { toast('The torch could not be switched.'); }
   }, 'cam-tb');
   torchBtn.hidden = true;
+  const autoBtn = h('button', { type: 'button', class: 'cam-auto', 'aria-pressed': String(auto), onclick: () => {
+    auto = !auto; autoBtn.setAttribute('aria-pressed', String(auto)); steady = 0;
+    try { localStorage.setItem(AUTO_KEY, auto ? '1' : '0'); } catch { /* storage blocked */ }
+    status.textContent = auto ? 'Auto: hold the phone still over a page.' : 'Auto is off. Tap the button to take each page.';
+  } }, 'Auto');
   const shutter = h('button', { type: 'button', class: 'shutter', 'aria-label': 'Take photo', onclick: shoot });
   const done = h('button', { type: 'button', class: 'cam-done', onclick: () => L.close() }, count, 'Done');
   L.el.append(video, guide,
-    h('div', { class: 'cam-top' }, tb('x', 'Close the camera', () => L.close(), 'cam-tb'), status, torchBtn),
+    h('div', { class: 'cam-top' }, tb('x', 'Close the camera', () => L.close(), 'cam-tb'), status, autoBtn, torchBtn),
     h('div', { class: 'cam-bot' },
       h('button', { type: 'button', class: 'cam-side', onclick: () => pickFiles('image', true, files => importPhotos(files, keep)) }, icon('img2pdf', 22), 'Photos'),
       shutter, done));
@@ -192,32 +202,42 @@ function scanSession(add) {
     if (guide.width !== Math.round(box.width * dpr)) { guide.width = Math.round(box.width * dpr); guide.height = Math.round(box.height * dpr); }
     const g = guide.getContext('2d'); g.clearRect(0, 0, guide.width, guide.height);
     const q = ScanCore.detectQuad(pixels(Cam.frame(video, 160)));
+    const moved = (a, b) => a && b ? Math.max(...a.map((p, i) => Math.abs(p.x - b[i].x) + Math.abs(p.y - b[i].y))) : 1;
+    if (!armed && (!q || moved(q, lastShot) > 0.08)) armed = true;
+    steady = q && moved(q, prev) < 0.012 ? steady + 1 : 0;
+    prev = q;
     if (!q) return;
+    const still = auto && armed && steady >= 2;
+    if (auto && armed) status.textContent = still ? 'Hold still…' : 'Auto: hold the phone still over a page.';
+    if (still && steady >= STEADY_FRAMES) { steady = 0; armed = false; lastShot = q; shoot(); return; }
     const r = containRect(box.width, box.height, video.videoWidth, video.videoHeight);
     g.save(); g.scale(dpr, dpr); g.beginPath();
     q.forEach((p, i) => { const x = r.x + p.x * video.videoWidth * r.s, y = r.y + p.y * video.videoHeight * r.s; i ? g.lineTo(x, y) : g.moveTo(x, y); });
-    g.closePath(); g.lineWidth = 3; g.strokeStyle = '#ffd23f'; g.fillStyle = 'rgba(255,210,63,.14)'; g.fill(); g.stroke(); g.restore();
+    const c = still ? '76,196,151' : '255,210,63';
+    g.closePath(); g.lineWidth = still ? 4 : 3; g.strokeStyle = `rgb(${c})`; g.fillStyle = `rgba(${c},.16)`; g.fill(); g.stroke(); g.restore();
   }
 
-  async function shoot() {
+  async function shoot(ev) {
     if (busy || !Cam.live) return;
+    if (ev) { armed = false; lastShot = prev; }   // a tap counts as this page's shot too
     busy = true; shutter.disabled = true;
     const shot = Cam.frame(video);
     L.el.classList.add('flash'); setTimeout(() => L.el.classList.remove('flash'), 160);
     const file = await editPage(shot);
     if (file) keep(file);
-    busy = false; shutter.disabled = false;
+    busy = false; shutter.disabled = false; steady = 0;
+    if (auto) status.textContent = file ? 'Turn to the next page, or tap Done.' : 'Auto: hold the phone still over a page.';
     guide.getContext('2d').clearRect(0, 0, guide.width, guide.height);
   }
 
   Cam.start(video, { w: 2560, h: 1920, onRestart: () => { torchBtn.setAttribute('aria-pressed', 'false'); } })
     .then(() => {
-      status.textContent = 'Point at a page. The yellow outline shows what Sheaf sees.';
+      status.textContent = auto ? 'Auto: hold the phone still over a page.' : 'Point at a page. The yellow outline shows what Sheaf sees.';
       torchBtn.hidden = !Cam.canTorch();
       timer = setInterval(outline, 260);
     })
     .catch(e => {
-      status.textContent = e.message; shutter.disabled = true;
+      status.textContent = e.message; shutter.disabled = true; autoBtn.hidden = true;
       L.el.classList.add('nocam');
     });
 }

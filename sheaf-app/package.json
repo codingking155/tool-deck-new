@@ -11,18 +11,19 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1",
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/share": "^8.0.0",
-    "@cantoo/pdf-lib": "^2.11.1",
     "@fontsource/besley": "^5.3.0",
     "@fontsource/instrument-sans": "^5.3.0",
     "@fontsource/mrs-saint-delafield": "^5.3.0",
     "jsqr": "^1.4.0",
     "jszip": "^3.10.2",
     "pdfjs-dist": "^4.10.38",
+    "qrcode": "^1.5.4",
     "sortablejs": "^1.15.6"
   },
   "devDependencies": {

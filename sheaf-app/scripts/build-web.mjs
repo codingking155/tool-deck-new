@@ -33,9 +33,11 @@ for (const [family, pkg, weights] of fonts) for (const w of weights) {
 writeFileSync(`${out}/vendor/fonts.css`, css);
 
 /* App layer: plain scripts copied, the Capacitor bridge bundled into one classic script. */
-const scripts = ['scan-core.js', 'camera.js', 'scan.js', 'qr.js', 'mobile.js'];
+const scripts = ['scan-core.js', 'camera.js', 'scan.js', 'qr.js', 'qrmake.js', 'mobile.js'];
 for (const f of [...scripts, 'mobile.css']) copyFileSync(`${root}app/${f}`, `${out}/app/${f}`);
 await build({ entryPoints: [`${root}app/native.src.js`], bundle: true, format: 'iife', target: 'chrome90', minify: true, outfile: `${out}/app/native.js`, logLevel: 'error' });
+/* the qrcode library as a global (window.QRCode) for qrmake.js */
+await build({ stdin: { contents: "import QRCode from 'qrcode'; window.QRCode = QRCode;", resolveDir: root }, bundle: true, format: 'iife', target: 'chrome90', minify: true, outfile: `${out}/vendor/qrcode.js`, logLevel: 'error' });
 
 function patch(file, pairs) {
   let s = readFileSync(file, 'utf8');
@@ -56,7 +58,7 @@ patch(`${out}/js/app.js`, [
 ]);
 patch(`${out}/js/core.js`, [['Check your connection and reload the page.', 'Close Sheaf and open it again.']]);
 
-const appTags = ['<script src="vendor/jsQR.js" defer></script>', ...scripts.map(f => `<script src="app/${f}" defer></script>`)].join('\n');
+const appTags = ['<script src="vendor/jsQR.js" defer></script>', '<script src="vendor/qrcode.js" defer></script>', ...scripts.map(f => `<script src="app/${f}" defer></script>`)].join('\n');
 writeFileSync(`${out}/index.html`, readFileSync(`${sheaf}/index.html`, 'utf8'));
 patch(`${out}/index.html`, [
   ['<title>Sheaf: PDF tools that run in your browser</title>', '<title>Sheaf</title>\n<meta name="color-scheme" content="light dark">\n<link rel="icon" href="data:,">'],

@@ -18,6 +18,9 @@ body.layered{overflow:hidden}
 .quick-b:active{transform:translateY(1px)}
 .drop .tip{font-size:.82rem}
 
+.toast.act{display:flex; align-items:center; gap:14px; pointer-events:auto}
+.toast.act button{background:none; border:0; padding:4px 2px; color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:.84rem}
+
 /* ---------- full-screen layers ---------- */
 .layer{position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; background:#050807; color:#eef5f0;
   padding:var(--sa-top) 0 var(--sa-bot)}
@@ -38,6 +41,8 @@ body.layered{overflow:hidden}
   display:inline-flex; align-items:center; justify-content:center}
 .cam-tb .ico{width:20px; height:20px}
 .cam-tb[aria-pressed=true]{background:#ffd23f; color:#1f1a00}
+.cam-auto{height:36px; padding:0 14px; border-radius:18px; border:1px solid rgba(255,255,255,.3); background:rgba(0,0,0,.45); color:#fff; font-weight:600; font-size:.84rem}
+.cam-auto[aria-pressed=true]{background:#4cc497; border-color:#4cc497; color:#04130d}
 .shutter{width:76px; height:76px; border-radius:50%; border:4px solid #fff; background:rgba(255,255,255,.25); padding:0;
   box-shadow:inset 0 0 0 4px rgba(0,0,0,.35)}
 .shutter:active:not(:disabled){background:#fff}
@@ -101,3 +106,16 @@ body.layered{overflow:hidden}
 .qr-hist li b{font-size:.9rem}
 .qr-hist li span{font-size:.84rem; color:var(--muted); overflow-wrap:anywhere}
 .qr-hist li time{font-size:.74rem; color:var(--muted)}
+
+/* ---------- QR code maker ---------- */
+.qm{display:grid; gap:14px}
+.qm-out,.qm-in{background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:16px}
+.qm-in{display:grid; gap:16px}
+.qm-in textarea.inp{resize:vertical; min-height:76px; font:inherit}
+.qm-prev{display:flex; justify-content:center}
+.qm-card{width:min(300px,100%); height:auto; border:1px solid var(--line); border-radius:10px}
+.qm-empty{display:grid; justify-items:center; gap:8px; padding:36px 0; color:var(--muted)}
+.qm-err{color:var(--danger); font-size:.88rem; text-align:center; margin:8px 0 0}
+.qm-err:empty{display:none}
+.qm-acts{justify-content:center; margin-top:12px}
+@media (min-width:860px){.qm{grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; width:min(960px,calc(100% - 32px))} .qm-out{position:sticky; top:16px}}

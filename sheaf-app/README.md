@@ -1,13 +1,23 @@
 # Sheaf for Android
 
 Sheaf is ToolDeck's offline PDF studio (`public/sheaf/`, see `docs/SHEAF.md`), packaged as an Android app
-with [Capacitor](https://capacitorjs.com). It adds two camera tools:
+with [Capacitor](https://capacitorjs.com). It adds a **Scan & QR** group:
 
 - **Scan to PDF:** photograph pages. Sheaf finds the page edges, straightens the page, cleans it up
   (Colour, Greyscale, Document or Original) and builds one PDF. Photos from the gallery go through the same steps.
+  **Auto** mode takes the photo by itself once the page has held still for about a second, and waits for the
+  next page before taking another.
 - **QR scanner:** reads codes from the camera or a photo and explains what they say: links, UPI payments,
   Wi-Fi, contacts, email, SMS, phone numbers and locations. It also keeps a list of recent scans. Barcodes are
   read too where the phone's WebView supports `BarcodeDetector`.
+- **QR code maker:** turns a link or text, a **UPI payment** or a Wi-Fi login into a QR code. Save it as an image,
+  share it, or print an A4 "Scan & pay" poster PDF. The UPI details are remembered for next time; the Wi-Fi
+  password is not.
+
+The app also works with other Android apps:
+- **Share to Sheaf / Open with Sheaf:** PDFs and photos sent from WhatsApp, Gmail, Files or Photos land in Sheaf,
+  ready for a tool.
+- **Open:** after saving, the toast's Open button shows the file in a viewer app.
 
 Everything runs on the phone. The app makes no network requests, and files are saved to **Documents/Sheaf**.
 
@@ -24,11 +34,13 @@ Everything runs on the phone. The app makes no network requests, and files are s
       camera.js           camera stream, full-screen layers, clipboard
       scan.js             the Scan to PDF tool (camera, corner editor, looks)
       qr.js               the QR scanner tool
+      qrmake.js           the QR code maker (card image, A4 poster PDF)
       mobile.js           adds the Scan group, wraps Sheaf's save/result/home for the phone
       mobile.css
     scripts/build-web.mjs builds www/ from ../public/sheaf plus app/ (a few "browser tab" strings are reworded)
     scripts/make-icons.mjs  launcher icons, splash and Play Store graphics from the logo
     android/              the Capacitor Android project (committed; build output is ignored)
+      .../SharedFilesPlugin.java  receives shared or opened files, opens saved files in other apps
     store/                Play Store icon (512 px) and feature graphic (1024×500)
     tests/                unit tests for scan-core.js
 
@@ -85,6 +97,4 @@ Suggested short description (80 characters at most):
 
 ## Ideas for later
 
-- "Open with Sheaf" and "Share to Sheaf" for PDFs coming from other apps (Android intent filters).
-- A QR code generator.
 - OCR (tesseract.js is already used by ToolDeck's PDF Toolkit), to make scanned PDFs searchable.

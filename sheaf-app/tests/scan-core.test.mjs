@@ -94,3 +94,21 @@ test('parseCode understands the common QR payloads', () => {
   assert.equal(S.parseCode('8901234567890').title, 'Barcode number');
   assert.equal(S.parseCode('javascript:alert(1)').kind, 'text', 'never offered as a link');
 });
+
+test('buildCode makes payloads that parseCode reads back', () => {
+  const upi = S.buildCode('upi', { pa: 'shop@okaxis', pn: 'Corner Shop', am: '99.5', tn: 'Tea & snacks' });
+  assert.equal(upi.text, 'upi://pay?pa=shop%40okaxis&pn=Corner%20Shop&am=99.50&cu=INR&tn=Tea%20%26%20snacks');
+  assert.deepEqual(plain(S.parseCode(upi.text).rows), [['Pay to', 'Corner Shop'], ['UPI ID', 'shop@okaxis'], ['Amount', '₹99.50'], ['Note', 'Tea & snacks']]);
+  assert.equal(S.buildCode('upi', { pa: 'shop', pn: 'A' }).field, 'pa');
+  assert.equal(S.buildCode('upi', { pa: 'ab@ok', pn: 'A', am: '0' }).field, 'am');
+  assert.equal(S.buildCode('upi', { pa: 'ab@ok', pn: '' }).field, 'pn');
+
+  const wifi = S.buildCode('wifi', { s: 'Cafe;Guest', p: 'pa:ss\\word', t: 'WPA', h: true });
+  assert.equal(wifi.text, 'WIFI:T:WPA;S:Cafe\\;Guest;P:pa\\:ss\\\\word;H:true;;');
+  assert.deepEqual(plain(S.parseCode(wifi.text).rows.slice(0, 2)), [['Network', 'Cafe;Guest'], ['Password', 'pa:ss\\word']]);
+  assert.equal(S.buildCode('wifi', { s: 'Open', t: 'nopass' }).text, 'WIFI:T:nopass;S:Open;;');
+  assert.equal(S.buildCode('wifi', { s: 'x', p: 'short', t: 'WPA' }).field, 'p');
+
+  assert.equal(S.buildCode('text', { text: '  hello ' }).text, 'hello');
+  assert.equal(S.buildCode('text', { text: ' ' }).field, 'text');
+});

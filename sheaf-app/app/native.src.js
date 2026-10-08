@@ -2,12 +2,13 @@
    The few things a phone app does differently from the web page: saving into Documents/Sheaf,
    the Android share sheet, opening links in other apps, and the hardware back button.
    Exposes window.SheafNative; in a plain browser `native` is false and the callers fall back. */
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { App } from '@capacitor/app';
 
 const native = Capacitor.isNativePlatform();
+const SharedFiles = registerPlugin('SharedFiles');   // android/app/src/main/java/in/tooldeck/sheaf/SharedFilesPlugin.java
 const FOLDER = 'Sheaf';
 
 function base64(blob) {
@@ -34,15 +35,16 @@ async function storageReady() {
   } catch (e) { if (/storage access/.test(e.message)) throw e; /* platform without the permission */ }
 }
 
-/* Save into Documents/Sheaf without overwriting: "a.pdf", "a (2).pdf", ... Returns the shown path. */
+/* Save into Documents/Sheaf without overwriting: "a.pdf", "a (2).pdf", ...
+   Returns { shown: the path to tell the person, uri: for open() }. */
 async function save(name, blob) {
   await storageReady();
   const safe = clean(name), dot = safe.lastIndexOf('.');
   const stem = dot > 0 ? safe.slice(0, dot) : safe, ext = dot > 0 ? safe.slice(dot) : '';
   let file = safe;
   for (let k = 2; await exists(`${FOLDER}/${file}`, Directory.Documents); k++) file = `${stem} (${k})${ext}`;
-  await Filesystem.writeFile({ path: `${FOLDER}/${file}`, data: await base64(blob), directory: Directory.Documents, recursive: true });
-  return `Documents/${FOLDER}/${file}`;
+  const r = await Filesystem.writeFile({ path: `${FOLDER}/${file}`, data: await base64(blob), directory: Directory.Documents, recursive: true });
+  return { shown: `Documents/${FOLDER}/${file}`, uri: r.uri };
 }
 
 const cancelled = e => /cancel/i.test((e && e.message) || '');
@@ -58,6 +60,25 @@ async function share(files, title = 'Share') {
 }
 async function shareText(text, title = 'Share') {
   try { await Share.share({ title, text, dialogTitle: title }); } catch (e) { if (!cancelled(e)) throw e; }
+}
+
+/* A saved file, in the viewer app the person picks. */
+const open = (uri, mime) => SharedFiles.open({ uri, mime });
+
+/* Files shared to Sheaf or opened with it. The plugin copies them into the cache; read them back
+   as File objects through Capacitor's local file URLs. Events wait for the first listener. */
+function onIncoming(fn) {
+  if (!native) return;
+  SharedFiles.addListener('received', async ev => {
+    const files = [];
+    for (const f of ev.files || []) {
+      try {
+        const blob = await (await fetch(Capacitor.convertFileSrc('file://' + f.path))).blob();
+        files.push(new File([blob], f.name, { type: f.type || blob.type }));
+      } catch { /* reported below */ }
+    }
+    fn(files, ev.failed || (files.length < (ev.files || []).length ? 'a file' : null));
+  });
 }
 
 /* Links, UPI, tel:, mailto:, geo: go to the app that handles them. Capacitor hands any
@@ -84,4 +105,4 @@ if (native) {
   });
 }
 
-window.SheafNative = { native, save, share, shareText, openUrl, onBack };
+window.SheafNative = { native, save, open, share, shareText, openUrl, onBack, onIncoming };

@@ -294,6 +294,37 @@ var ScanCore = (function () {
     return { kind: 'text', title: /^\d{8,14}$/.test(text) ? 'Barcode number' : 'Text', rows: [['Text', text]], copy: text };
   }
 
-  return { orderQuad, quadSize, quadArea, isConvex, homography, project, warp, detectQuad, applyFilter, FILTERS, parseCode, otsu };
+  /* ---------- making codes ---------- */
+  const wifiEsc = v => String(v).replace(/([\\;,:"])/g, '\\$1');
+  const UPI_ID = /^[\w.-]{2,256}@[a-z][a-z0-9.-]{1,64}$/i;
+
+  /* What to put in a QR code. kind: 'text' | 'upi' | 'wifi'. -> { text } or { error, field } */
+  function buildCode(kind, f) {
+    if (kind === 'upi') {
+      const pa = (f.pa || '').trim(), pn = (f.pn || '').trim(), note = (f.tn || '').trim(), amt = String(f.am || '').trim();
+      if (!pa) return { error: 'Enter the UPI ID that receives the money.', field: 'pa' };
+      if (!UPI_ID.test(pa)) return { error: 'A UPI ID looks like name@bank, for example shop@okaxis.', field: 'pa' };
+      if (!pn) return { error: 'Enter the name people will see when they pay.', field: 'pn' };
+      let am = '';
+      if (amt) {
+        if (!/^\d{1,7}(\.\d{1,2})?$/.test(amt) || +amt <= 0) return { error: 'Enter the amount in rupees, like 250 or 99.50, or leave it empty.', field: 'am' };
+        am = (+amt).toFixed(2);
+      }
+      const q = [['pa', pa], ['pn', pn], ['am', am], ['cu', 'INR'], ['tn', note]].filter(p => p[1]).map(([k, v]) => `${k}=${encodeURIComponent(v)}`);
+      return { text: 'upi://pay?' + q.join('&') };
+    }
+    if (kind === 'wifi') {
+      const ssid = f.s || '', sec = f.t || 'WPA';
+      if (!ssid.trim()) return { error: 'Enter the Wi-Fi network name.', field: 's' };
+      if (sec !== 'nopass' && !f.p) return { error: 'Enter the Wi-Fi password, or choose No password.', field: 'p' };
+      if (sec === 'WPA' && f.p.length < 8) return { error: 'WPA passwords are at least 8 characters.', field: 'p' };
+      return { text: `WIFI:T:${sec};S:${wifiEsc(ssid)};${sec === 'nopass' ? '' : `P:${wifiEsc(f.p)};`}${f.h ? 'H:true;' : ''};` };
+    }
+    const text = (f.text || '').trim();
+    if (!text) return { error: 'Type a link or some text.', field: 'text' };
+    return { text };
+  }
+
+  return { buildCode, orderQuad, quadSize, quadArea, isConvex, homography, project, warp, detectQuad, applyFilter, FILTERS, parseCode, otsu };
 })();
 if (typeof module !== 'undefined') module.exports = ScanCore;

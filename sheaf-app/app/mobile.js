@@ -15,15 +15,30 @@ Object.assign(ICONS, {
   copy: '<path d="M9 9h10v11H9z"/><path d="M5 15V4h10"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700L11.500 6.800"/><path d="M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1.500-1.500"/>',
   right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  qrmake: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/><path d="M17 14v6M14 17h6"/>',
 });
-CATS.unshift(['scan', 'Scan']);
+CATS.unshift(['scan', 'Scan & QR']);
+/* each tool file put itself first; set the Scan & QR order */
+for (const id of ['qrmake', 'qr', 'scan']) { const i = TOOLS.findIndex(t => t.id === id); if (i > 0) TOOLS.unshift(...TOOLS.splice(i, 1)); }
 
 /* ---------- saving and sharing ---------- */
+/* A toast with one button, kept up longer so there is time to tap it. */
+function toastAction(msg, label, fn, kind = 'ok') {
+  const el = h('div', { class: 'toast act ' + kind, role: 'status' }, h('span', null, msg),
+    h('button', { type: 'button', onclick: () => { el.remove(); fn(); } }, label));
+  document.getElementById('toasts').append(el);
+  setTimeout(() => el.remove(), 8000);
+}
+const MIME = { pdf: 'application/pdf', zip: 'application/zip', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+const mimeOf = name => MIME[(name.match(/\.([^.]+)$/) || [, ''])[1].toLowerCase()] || 'application/octet-stream';
+
 const webSave = saveFile;
 saveFile = async function (name, blob) {
   if (!NATIVE) return webSave(name, blob);
-  try { toast(`Saved to ${await SheafNative.save(name, blob)}`, 'ok'); }
-  catch (e) { toast(`The file was not saved. ${explain(e)}`, 'err'); }
+  try {
+    const saved = await SheafNative.save(name, blob);
+    toastAction(`Saved to ${saved.shown}`, 'Open', () => SheafNative.open(saved.uri, mimeOf(name)).catch(e => toast(explain(e), 'err')));
+  } catch (e) { toast(`The file was not saved. ${explain(e)}`, 'err'); }
 };
 async function shareOutputs(outs) {
   try {
@@ -54,7 +69,11 @@ dropSheet = function (tool) { return tool.sheet ? tool.sheet(S.ctx) : sheafDropS
 const sheafCloseCtx = closeCtx;
 closeCtx = function () { Cam.stop(); document.querySelectorAll('.layer').forEach(l => l.remove()); document.body.classList.remove('layered'); sheafCloseCtx(); };
 const sheafFits = fits;
-fits = function (tool) { return tool.id === 'qr' ? !S.tray.length || trayCounts().image === 1 : sheafFits(tool); };
+fits = function (tool) {
+  if (tool.id === 'qr') return !S.tray.length || trayCounts().image === 1;
+  if (tool.accept === 'none') return !S.tray.length;
+  return sheafFits(tool);
+};
 
 /* ---------- home: the two camera jobs up front ---------- */
 const sheafRenderHome = renderHome;
@@ -67,6 +86,21 @@ renderHome = function () {
     h('button', { type: 'button', class: 'quick-b', onclick: () => { openTool('scan'); scan.startCamera(); } }, icon('scan', 28), h('b', null, 'Scan a document'), h('span', null, 'Camera to PDF')),
     h('button', { type: 'button', class: 'quick-b', onclick: () => openTool('qr') }, icon('qr', 28), h('b', null, 'Scan a QR code'), h('span', null, 'Links, UPI, Wi-Fi'))));
 };
+
+/* ---------- files shared to Sheaf, or opened with it ---------- */
+if (NATIVE) SheafNative.onIncoming((files, failed) => {
+  if (failed) toast(`Sheaf could not read ${failed}.`, 'err');
+  const good = files.filter(kindOf);
+  if (!good.length) { if (files.length) toast('Only PDFs and images can be opened in Sheaf.'); return; }
+  document.querySelectorAll('.layer').forEach(l => l.remove()); document.body.classList.remove('layered'); Cam.stop();
+  const ctx = S.ctx;
+  // stay in the open tool when it takes these files; otherwise put them in the home tray
+  if (S.view === 'tool' && ctx && !ctx.busy && ctx.stage !== 'done' && good.every(f => kindOf(f) === ctx.tool.accept)) return takeFiles(good);
+  if (S.view !== 'home') goHome();
+  S.tray = [];
+  takeFiles(good);
+  toast(good.length === 1 ? `${good[0].name} is ready. Pick a tool.` : `${good.length} files are ready. Pick a tool.`, 'ok');
+});
 
 document.documentElement.classList.toggle('native', NATIVE);
 /* Sheaf's app.js already drew the page before these tools existed; draw it again. */
