@@ -749,6 +749,7 @@ table.rt{width:100%;min-width:760px;border-collapse:collapse;font-size:13px}
 .clk-pop .row b{font-family:var(--mono);font-weight:500;color:var(--tx);text-align:right;overflow-wrap:anywhere}
 .clk-pop .loc{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .clk-pop .hint{margin-top:8px}
+.clk-pop .hint.loc-err{color:var(--warn)}
 .clk-pop .pl{color:var(--tx)}
 .clk-pop .btn{margin-top:12px;width:100%}
 @media(max-width:900px){.clk .t-utc,.clk .t-sep{display:none}}

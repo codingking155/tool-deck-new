@@ -99,9 +99,16 @@ function WxHeader({ wx, night, label, phase }) {
    falling back to the device timezone). Precise location only on click.
    Day/night comes from real sunrise/sunset, never from the site theme. Coordinates are never stored.
    Real data only — if the weather can't load, it says so. */
+const LOC_MSG = {
+  denied: "Location is blocked for this site. Allow it in your browser's site settings, then try again.",
+  unavailable: "Couldn't get your precise location. Check that location services are on and try again.",
+  unsupported: "This browser can't share a precise location.",
+};
+
 export default function WeatherChip() {
   const ipd = useIpLocale();
-  const [gps, setGps] = useState(null); // null | "loading" | {lat,lon,city,region} | {err}
+  const [gps, setGps] = useState(null); // null | {lat,lon,city,region}
+  const [loc, setLoc] = useState("idle"); // idle | loading | denied | unavailable | unsupported
   const [wx, setWx] = useState(null); // null | {temp,code,isDay,sunrise,sunset,tz} | {err}
   const [now, setNow] = useState(() => Date.now()); // day/night only; 1 min is plenty
   const ref = useRef(null);
@@ -110,7 +117,7 @@ export default function WeatherChip() {
 
   /* load + refresh every 45 min and on return to the tab. IP-location weather is cached for the
      session so reloads within 45 min show it instantly without a request. */
-  const precise = !!gps && Number.isFinite(gps.lat);
+  const precise = !!gps;
   useEffect(() => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
     let alive = true, last = 0;
@@ -142,9 +149,20 @@ export default function WeatherChip() {
     return () => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", key); };
   }, []);
 
-  const locate = () => {
-    if (!navigator.geolocation) { setGps({ err: "GPS unsupported here" }); return; }
-    setGps("loading");
+  /* if the user re-allows location in site settings while the page is open, clear the "blocked" note */
+  useEffect(() => {
+    let st, alive = true;
+    const onChange = () => { if (st.state !== "denied") setLoc((l) => (l === "denied" ? "idle" : l)); };
+    navigator.permissions?.query({ name: "geolocation" }).then((s) => { if (!alive) return; st = s; st.addEventListener("change", onChange); }).catch(() => {});
+    return () => { alive = false; st?.removeEventListener("change", onChange); };
+  }, []);
+
+  const locate = async () => {
+    if (loc === "loading") return;
+    if (!navigator.geolocation) { setLoc("unsupported"); return; }
+    /* a blocked permission fails instantly; checking first avoids a loading flash on every retry */
+    try { if ((await navigator.permissions?.query({ name: "geolocation" }))?.state === "denied") { setLoc("denied"); return; } } catch { /* no Permissions API */ }
+    setLoc("loading");
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -154,8 +172,10 @@ export default function WeatherChip() {
           city = j.city || j.locality || ""; region = j.principalSubdivision || "";
         } catch { /* weather still works without a place name */ }
         setGps({ lat: latitude, lon: longitude, city, region });
+        setLoc("idle");
       },
-      (e) => setGps({ err: e && e.code === 1 ? "Permission denied" : "Location unavailable" }),
+      /* a failed refresh keeps the last precise fix */
+      (e) => setLoc(e && e.code === 1 ? "denied" : "unavailable"),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
     );
   };
@@ -185,15 +205,14 @@ export default function WeatherChip() {
         <ClockRows tz={tz} />
         <div className="loc">
           <MapPin size={14} aria-hidden="true" /><span className="pl">{place}</span>
-          {!precise && <span className="loctag">{gps?.err || "approx."}</span>}
+          {!precise && <span className="loctag">approx.</span>}
         </div>
-        {gps !== "loading" && (
-          <button type="button" className="btn gh sm" onClick={locate}>
-            <LocateFixed size={14} aria-hidden="true" />{precise ? "Refresh precise location" : "Use precise location"}
-          </button>
-        )}
-        {gps === "loading" && <p className="hint">Locating precisely…</p>}
-        <p className="hint">Shown only to you. Coordinates are never stored.</p>
+        {/* the button stays mounted in every state so the popover never jumps */}
+        <button type="button" className="btn gh sm" onClick={locate} disabled={loc === "loading"} aria-busy={loc === "loading"}>
+          <LocateFixed size={14} aria-hidden="true" />
+          {loc === "loading" ? "Locating…" : precise ? "Refresh precise location" : loc === "denied" ? "Try precise location again" : "Use precise location"}
+        </button>
+        <p className={`hint${LOC_MSG[loc] ? " loc-err" : ""}`} role="status">{LOC_MSG[loc] || "Shown only to you. Coordinates are never stored."}</p>
       </div>
     </details>
   );
