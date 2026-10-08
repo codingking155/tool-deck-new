@@ -166,7 +166,6 @@ canvas.particles{position:fixed;inset:0;z-index:0;pointer-events:none;will-chang
 .uclock.loc .trow{font-family:var(--mono);font-size:13px}
 .uclock.loc .trow b{color:var(--pri2)}
 .loctag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3);border:1px solid var(--line);border-radius:99px;padding:1.5px 7px}
-.loctag.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent);background:color-mix(in srgb,var(--good) 8%,transparent)}
 .pinbtn{border:1px solid var(--line);background:var(--panel);color:var(--tx2);border-radius:7px;font-size:10.5px;padding:4px 9px;min-height:26px;cursor:pointer;font-family:var(--body);font-weight:700}
 .pinbtn:hover{color:var(--pri2);border-color:var(--pri-line)}
 

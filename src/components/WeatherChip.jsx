@@ -185,7 +185,7 @@ export default function WeatherChip() {
         <ClockRows tz={tz} />
         <div className="loc">
           <MapPin size={14} aria-hidden="true" /><span className="pl">{place}</span>
-          {precise ? <span className="loctag ok">precise</span> : <span className="loctag">{gps?.err || "approx. · from IP"}</span>}
+          {!precise && <span className="loctag">{gps?.err || "approx."}</span>}
         </div>
         {gps !== "loading" && (
           <button type="button" className="btn gh sm" onClick={locate}>
