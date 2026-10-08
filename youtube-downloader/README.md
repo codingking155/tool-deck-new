@@ -173,7 +173,7 @@ download through a temporary object URL with a sanitized filename, and revokes t
 - **Cleanup:** files are deleted right after they are sent and on failure or cancellation. A background sweeper removes
   anything older than `FILE_TTL_SECONDS` (30 min), and the scratch directory is emptied on startup.
 - **Friendly errors:** yt-dlp and FFmpeg messages are mapped to codes such as `private`, `members_only`, `age_restricted`,
-  `region_restricted`, `unavailable`, `rate_limited`, `format_unavailable`, `ffmpeg_missing`, `processing_failed` and
+  `region_restricted`, `unavailable`, `rate_limited`, `bot_check`, `format_unavailable`, `ffmpeg_missing`, `processing_failed` and
   `network`. Raw output is only logged.
 - **Headers:** the API sends `nosniff`, `no-referrer`, `DENY` and `no-store`. The frontend sends a CSP that only allows
   connections to itself and the API, plus YouTube's image CDN.
@@ -240,7 +240,7 @@ Check it with `curl https://<service>.onrender.com/api/health`, which should ret
 
 **Caveats**
 - YouTube often challenges requests from cloud/datacenter IPs ("Sign in to confirm you're not a bot"). The tool then
-  shows a "slow down" error. That is YouTube's access control, and this project deliberately doesn't work around it
+  shows a `bot_check` error saying YouTube is blocking the download server. That is YouTube's access control, and this project deliberately doesn't work around it
   (no cookies, no proxy rotation).
 - The blueprint uses Render's **free** plan. It sleeps after about 15 minutes without traffic, so the next request
   waits about a minute while it wakes. With 512 MB of RAM and a fraction of a CPU, it is limited to one download at a

@@ -67,9 +67,23 @@
 .ph-n{font:600 11px var(--mono);color:var(--tx3)}
 .ph-bacts{display:flex;gap:6px;flex-wrap:wrap}
 .ph-bacts .btn{gap:6px}
-.app .v3tool table.ph-tbl{min-width:600px}
+.app .v3tool table.ph-tbl{min-width:820px}
 .ph-tbl .mono{font-family:var(--mono)}
 .ph-ok{color:var(--good)}.ph-bad{color:var(--warn)}
 @media(max-width:600px){.ph-bacts .btn,.ph-file,.ph-btools .seg button{min-height:44px}}
 .app .v3tool .ph-bres .tblwrap{max-height:480px;overflow:auto}
 .app .v3tool .ph-tbl thead th{position:sticky;top:0;z-index:1;background:var(--surface-elevated)}
+/* sortable headers: the whole label is the button */
+.app .v3tool .ph-tbl thead th{padding:0}
+.ph-sort{display:inline-flex;align-items:center;gap:5px;width:100%;padding:10px 14px;border:0;background:none;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap}
+.ph-sort svg{color:var(--tx3);flex:none}
+.ph-sort:hover,.ph-sort.on{color:var(--tx)}
+.ph-sort.on svg{color:var(--pri2)}
+.ph-sort:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+@media(max-width:600px){.ph-sort{min-height:44px}}
+.ph-cw{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:var(--tx2)}
+.ph-cw .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--tx3)}
+.ph-cw.good .dot{background:var(--good)}.ph-cw.warn .dot{background:var(--warn)}.ph-cw.bad .dot{background:var(--bad)}
+.ph-cw.good{color:var(--good)}
+/* country picker for numbers typed without + */
+.ph-region{margin:var(--s3) 0 0;max-width:380px}

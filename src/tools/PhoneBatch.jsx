@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Upload, Download, Loader2 } from "lucide-react";
+import { Upload, Download, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { analyzeNumber, nationalToE164 } from "../lib/phoneCheck.js";
 import { detectPhone, flagOf, REGION_INFO, REGION_LIST } from "../lib/phone.js";
-import { fmtLocal, zoneParts } from "../lib/time.js";
 import { CopyButton } from "../components/ui.jsx";
-import { callWindow } from "../lib/phoneCall.js";
+import { rowTimes, sortRows, nextSort, loadDraft, saveDraft } from "../lib/phoneBatch.js";
 import { csvCell, CSV_BOM } from "../lib/csv.js";
+import { useNow } from "../hooks/index.js";
 
 export const BATCH_MAX = 5000;
 const CHUNK = 100; // rows per tick: keeps typing and scrolling smooth on big lists
@@ -43,25 +43,85 @@ function toCsv(rows) {
   const now = new Date();
   return ["Input,Status,Country,ISO,E.164,International,Type,Local time,Call window,Duplicate",
     ...rows.map((r) => {
-      const t = r.zone ? fmtLocal(now, r.zone) : "";
-      const w = r.zone ? callWindow(zoneParts(now, r.zone).hour)[1] : "";
-      return [r.input, r.status, r.country, r.iso, r.e164, r.intl, r.type, t, w, r.dup ? "yes" : ""].map(csvCell).join(",");
+      const t = rowTimes(r.zone, now);
+      return [r.input, r.status, r.country, r.iso, r.e164, r.intl, r.type, t.local, t.window, r.dup ? "yes" : ""].map(csvCell).join(",");
     })].join("\n");
 }
 
 const FILTERS = [["all", "All"], ["valid", "Valid"], ["bad", "Problems"], ["dup", "Duplicates"]];
+const COLS = [["input", "Input"], ["status", "Status"], ["country", "Country"], ["e164", "E.164"], ["type", "Type"], ["local", "Local time"], ["call", "Call window"]];
+
+/* Re-renders once a minute for the local-time columns — a leaf so the textarea doesn't. */
+function BatchTable({ rows, sort, onSort }) {
+  const now = useNow(60000);
+  const times = useMemo(() => new Map(rows.map((r) => [r, rowTimes(r.zone, now)])), [rows, now]);
+  const list = useMemo(() => (sort ? sortRows(rows, sort.key, sort.dir, (r) => times.get(r)) : rows), [rows, sort, times]);
+  return (
+    <>
+      <div className="tblwrap">
+        <table className="rt ph-tbl">
+          <thead>
+            <tr>
+              {COLS.map(([k, l]) => {
+                const on = sort && sort.key === k;
+                const Ic = on ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                return (
+                  <th key={k} scope="col" aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}>
+                    <button type="button" className={`ph-sort ${on ? "on" : ""}`} onClick={() => onSort(k)}>
+                      {l}<Ic size={12} aria-hidden="true" />
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {list.slice(0, SHOW_MAX).map((r, i) => {
+              const t = times.get(r);
+              return (
+                <tr key={i}>
+                  <td className="mono">{r.input}</td>
+                  <td className={r.good ? "ph-ok" : "ph-bad"}>{r.status}{r.dup ? " · dup" : ""}</td>
+                  <td>{r.flag} {r.country || "—"}</td>
+                  <td className="mono">{r.e164 || "—"}</td>
+                  <td>{r.type || "—"}</td>
+                  <td className="mono">{t.local || "—"}</td>
+                  <td>{t.tone ? <span className={`ph-cw ${t.tone}`} title={t.window}><span className="dot" aria-hidden="true" />{t.label}</span> : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {list.length > SHOW_MAX && <p className="hint">Showing {SHOW_MAX} of {list.length} — the CSV has every row.</p>}
+    </>
+  );
+}
+
+const session = () => { try { return window.sessionStorage; } catch { return null; } };
 
 export default function PhoneBatch({ notify }) {
-  const [text, setText] = useState("");
-  const [region, setRegion] = useState("");
+  // The draft survives mode switches and reloads in this tab (results are re-checked on demand).
+  const [draft] = useState(() => { const st = session(); return st ? loadDraft(st) : null; });
+  const [text, setText] = useState(() => (draft ? draft.text : ""));
+  const [region, setRegion] = useState(() => (draft ? draft.region : ""));
   const [rows, setRows] = useState(null);
   const [progress, setProgress] = useState(null); // null = idle, else rows done
   const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState(null); // null = input order
   const runId = useRef(0);
   const lines = useMemo(() => splitNumbers(text), [text]);
   const todo = Math.min(lines.length, BATCH_MAX);
+  const latest = useRef({ text, region });
+  latest.current = { text, region };
 
   useEffect(() => () => { runId.current++; }, []); // stop a running batch on unmount
+  // Debounced while typing; flushed on unmount so a quick mode switch keeps the last keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => { const st = session(); if (st) saveDraft(st, { text, region }); }, 400);
+    return () => clearTimeout(id);
+  }, [text, region]);
+  useEffect(() => () => { const st = session(); if (st) saveDraft(st, latest.current); }, []);
 
   async function run() {
     const id = ++runId.current;
@@ -101,7 +161,7 @@ export default function PhoneBatch({ notify }) {
 
   const counts = rows && { all: rows.length, valid: rows.filter((r) => r.good && !r.dup).length,
     bad: rows.filter((r) => !r.good).length, dup: rows.filter((r) => r.dup).length };
-  const shown = rows ? rows.filter((r) => filter === "all" || (filter === "valid" ? r.good && !r.dup : filter === "bad" ? !r.good : r.dup)) : [];
+  const shown = useMemo(() => (rows ? rows.filter((r) => filter === "all" || (filter === "valid" ? r.good && !r.dup : filter === "bad" ? !r.good : r.dup)) : []), [rows, filter]);
   const validE164 = rows ? [...new Set(rows.filter((r) => r.good).map((r) => r.e164))].join("\n") : "";
   const busy = progress !== null;
 
@@ -151,23 +211,7 @@ export default function PhoneBatch({ notify }) {
               <button type="button" className="btn gh sm" onClick={download}><Download size={14} aria-hidden="true" />CSV</button>
             </div>
           </div>
-          <div className="tblwrap">
-            <table className="rt ph-tbl">
-              <thead><tr><th>Input</th><th>Status</th><th>Country</th><th>E.164</th><th>Type</th></tr></thead>
-              <tbody>
-                {shown.slice(0, SHOW_MAX).map((r, i) => (
-                  <tr key={i}>
-                    <td className="mono">{r.input}</td>
-                    <td className={r.good ? "ph-ok" : "ph-bad"}>{r.status}{r.dup ? " · dup" : ""}</td>
-                    <td>{r.flag} {r.country || "—"}</td>
-                    <td className="mono">{r.e164 || "—"}</td>
-                    <td>{r.type || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {shown.length > SHOW_MAX && <p className="hint">Showing {SHOW_MAX} of {shown.length} — the CSV has every row.</p>}
+          <BatchTable rows={shown} sort={sort} onSort={(k) => setSort((cur) => nextSort(cur, k))} />
         </section>
       )}
     </div>

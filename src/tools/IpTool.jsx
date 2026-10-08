@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useRef, useId } from "react";
-import { Check, Minus, RotateCw, ChevronDown, Network, MapPin, Clock, Monitor } from "lucide-react";
+import { Check, Minus, RotateCw, ChevronDown, Network, MapPin, Clock, Monitor, EyeOff } from "lucide-react";
 import IpLeakPanel, { DiagStatus } from "./IpLeakPanel.jsx";
 import { Notice, StatusBadge, CopyButton, describeError } from "../components/ui.jsx";
+import { parseUA, classifyIpv6, maskAddress, buildIpReport } from "../lib/ipInfo.js";
 import "./css/ip.css";
 
-function parseUA() {
-  const ua = navigator.userAgent;
-  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Unknown";
-  const os = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Unknown";
-  const device = /Mobi|Android|iPhone/.test(ua) ? "Mobile" : "Desktop";
-  return { browser, os, device };
+const readUA = () => typeof navigator === "undefined" ? parseUA() : parseUA(navigator.userAgent, navigator.maxTouchPoints || 0);
+
+/* "Hide IP" for screen sharing: on-screen only, remembered per browser */
+const HIDE_KEY = "ipt-hide-ip";
+function readHide() {
+  try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; }
 }
 
 /* read-only facts the browser already knows — nothing leaves the page */
@@ -28,7 +29,7 @@ const IPV6_TIPS = [
   ["Wi-Fi router", "Router admin page → Internet/WAN settings → enable IPv6 (usually DHCPv6 or SLAAC). Update the firmware first."],
   ["Indian ISPs", "Jio, Airtel and ACT support IPv6 widely; BSNL varies by region. Ask support to enable dual-stack on your plan."],
 ];
-const OS_TIP = { Android: "Android", iOS: "iPhone", Windows: "Windows", macOS: "macOS" };
+const OS_TIP = { Android: "Android", iOS: "iPhone", iPadOS: "iPhone", Windows: "Windows", macOS: "macOS" };
 
 /* each lookup gets its own timeout (body included): a hanging endpoint must not leave the panel loading forever */
 async function getJson(url, ms = 5000) {
@@ -63,7 +64,7 @@ function Fact({ icon: Icon, k, children, loading }) {
   );
 }
 
-function HeroIp({ st, v4, v6, notify }) {
+function HeroIp({ st, v4, v6, v6kind, hide, notify }) {
   if (st === "loading") return (
     <div className="ipt-ipblock" aria-hidden="true">
       <span className="skel ipt-sk-ip" />
@@ -73,20 +74,24 @@ function HeroIp({ st, v4, v6, notify }) {
   if (st === "blocked") return <div className="ipt-ipblock"><p className="ipt-ip is-na">Unavailable</p></div>;
   const primary = v4 || v6;
   const pv = v4 ? "IPv4" : "IPv6";
+  const show = (ip) => (hide ? maskAddress(ip) : ip);
+  const realTip = hide ? "Copies the real address — Hide IP only masks the screen" : undefined;
+  const kind = v6kind && <span className="ipt-v6kind" title={v6kind.note}>{v6kind.label}</span>;
   return (
     <div className="ipt-ipblock">
       <div className="ipt-iprow">
-        <span className="ipt-ip mono">{primary}</span>
+        <span className="ipt-ip mono">{show(primary)}</span>
         <span className="ipt-ver">{pv}</span>
+        {!v4 && kind}
       </div>
       <div className="ipt-iprow alt">
         {v4 && v6
-          ? <><span className="ipt-ver">IPv6</span><span className="ipt-alt mono">{v6}</span></>
+          ? <><span className="ipt-ver">IPv6</span><span className="ipt-alt mono">{show(v6)}</span>{kind}</>
           : <span className="ipt-alt-none">{v4 ? "No IPv6 address on this connection" : "No IPv4 address detected"}</span>}
       </div>
       <div className="actions ipt-copy">
-        <CopyButton text={primary} label={`Copy ${pv}`} className="btn sm" notify={notify} toast={`${pv} address copied.`} />
-        {v4 && v6 && <CopyButton text={v6} label="Copy IPv6" className="btn gh sm" notify={notify} toast="IPv6 address copied." />}
+        <CopyButton text={primary} label={`Copy ${pv}`} className="btn sm" notify={notify} toast={`${pv} address copied.`} title={realTip} />
+        {v4 && v6 && <CopyButton text={v6} label="Copy IPv6" className="btn gh sm" notify={notify} toast="IPv6 address copied." title={realTip} />}
       </div>
     </div>
   );
@@ -133,7 +138,9 @@ export default function IpTool({ notify }) {
   const [v6, setV6] = useState(null);
   const [geo, setGeo] = useState(null);
   const [openTip, setOpenTip] = useState(null);
-  const ua = useMemo(parseUA, []);
+  const [hide, setHide] = useState(readHide);
+  const [leaks, setLeaks] = useState({ webrtc: null, dns: null });
+  const ua = useMemo(readUA, []);
   const local = useMemo(localFacts, []);
   const run = useRef(0);
 
@@ -157,6 +164,8 @@ export default function IpTool({ notify }) {
     setOpenTip(!ip6 && tip ? tip : null);
   };
   useEffect(() => { check(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { try { localStorage.setItem(HIDE_KEY, hide ? "1" : "0"); } catch { /* private mode */ } }, [hide]);
+  const onLeak = (key, summary) => setLeaks((l) => ({ ...l, [key]: summary }));
 
   /* the user's own platform first, then the rest */
   const mine = OS_TIP[ua.os];
@@ -168,14 +177,23 @@ export default function IpTool({ notify }) {
   const err = st === "blocked" ? describeError(new Error("Failed to fetch"), { service: "the IP lookup services" }) : null;
   const tzDiffers = geo?.tz && local.tz && geo.tz !== local.tz;
   const v6Status = loading ? "busy" : st === "blocked" ? "unknown" : v6on ? "safe" : "na";
+  const v6kind = useMemo(() => (v6 ? classifyIpv6(v6) : null), [v6]);
+  /* built on click: always the real values, whatever the screen shows */
+  const report = () => buildIpReport({ v4, v6, geo, localTz: local.tz, ua, webrtc: leaks.webrtc, dns: leaks.dns, at: new Date().toISOString() });
 
   return (
     <div className="ipt">
       <section className="panel ipt-hero" aria-labelledby="ipt-hero-h" aria-busy={loading}>
         <div className="ipt-hero-grid">
           <div className="ipt-hero-main">
-            <h2 id="ipt-hero-h" className="eyebrow">Your public IP</h2>
-            <HeroIp st={st} v4={v4} v6={v6} notify={notify} />
+            <div className="ipt-hero-top">
+              <h2 id="ipt-hero-h" className="eyebrow">Your public IP</h2>
+              <button type="button" className="btn gh sm ipt-hide" aria-pressed={hide} onClick={() => setHide((h) => !h)}
+                title="Masks addresses on this page for screen sharing. Copy buttons still copy the real values.">
+                <EyeOff size={14} aria-hidden="true" />Hide IP
+              </button>
+            </div>
+            <HeroIp st={st} v4={v4} v6={v6} v6kind={v6kind} hide={hide} notify={notify} />
             <Availability st={st} v4={v4} v6={v6} />
           </div>
           <div className="ipt-facts">
@@ -197,7 +215,12 @@ export default function IpTool({ notify }) {
         <div className="ipt-hero-foot">
           <p className="hint">Location is estimated from the public IP and can be far from where you actually are. This page does not store your address.</p>
           {!loading && st !== "blocked" && (
-            <button type="button" className="btn gh sm" onClick={check}><RotateCw size={14} aria-hidden="true" />Re-check</button>
+            <div className="actions ipt-foot-acts">
+              <CopyButton text={report} label={hide ? "Copy full report (real IPs)" : "Copy full report"} className="btn gh sm" notify={notify}
+                toast="Report copied — paste it into your support ticket."
+                title={hide ? "Copies your real, unmasked addresses — Hide IP only affects the screen" : "Plain-text summary for a support ticket: addresses, ISP, location and any leak-check results"} />
+              <button type="button" className="btn gh sm" onClick={check}><RotateCw size={14} aria-hidden="true" />Re-check</button>
+            </div>
           )}
         </div>
         <p className="sr-only" role="status" aria-live="polite">
@@ -223,6 +246,9 @@ export default function IpTool({ notify }) {
                 Usually your ISP or router hasn't enabled IPv6 for your plan. A VPN or a router with IPv6 switched off can also hide it.
                 Your device settings are rarely the cause — start with the router{mine ? `, then ${mine}` : ""}.
               </Notice>
+            )}
+            {done && v6kind && (
+              <p className="ipt-p ipt-v6note"><b>Address type: {v6kind.label}.</b> {v6kind.note}</p>
             )}
             {st === "blocked" && <p className="ipt-p">IPv6 couldn't be tested because the lookup services were unreachable.</p>}
             <p className="ipt-p">
@@ -253,7 +279,7 @@ export default function IpTool({ notify }) {
         </section>
       </div>
 
-      <IpLeakPanel v4={v4} v6={v6} />
+      <IpLeakPanel v4={v4} v6={v6} hide={hide} onResult={onLeak} />
     </div>
   );
 }

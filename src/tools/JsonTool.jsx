@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useDeferredValue } from "react";
+import { useState, useMemo, useRef, useDeferredValue, useEffect } from "react";
 import {
   parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, toTypeScript, toJSONSchema,
-  queryPath, stats, innerJSON,
+  queryPath, stats, innerJSON, packSaved, restoreSaved,
 } from "../lib/jsonCore.js";
+import { makeShareLink, shareBase, decodeShare, readHashParam, readStored, writeStored } from "../lib/shareState.js";
 import { formatBytes } from "../lib/pageRanges.js";
 import { saveBlob } from "../lib/zip.js";
 import CodeEditor from "../components/CodeEditor.jsx";
@@ -46,6 +47,15 @@ const CONVERTERS = {
 };
 const PATH_EXAMPLES = ["$.items[*].sku", "$..id", "$.items[-1]", "$.customer.*"];
 const bytes = (s) => new TextEncoder().encode(s).length;
+
+/* Input survives reloads for this tab only (sessionStorage): pasted JSON often holds tokens or PII. */
+const SAVE_KEY = "toolDeck.json";
+const session = () => { try { return window.sessionStorage; } catch { return null; } };
+const DEFAULTS = { input: SAMPLE, inputB: SAMPLE_B, mode: "format", indent: "2", sortKeys: false, path: "$.items[*].sku", conv: "ts", rootName: "Root" };
+const SAVE_VOCAB = { modes: MODES.map(([k]) => k), convs: Object.keys(CONVERTERS) };
+/* Share links carry the input in the URL hash (never sent to a server); keep them short enough to paste anywhere. */
+const LINK_MAX = 4096;
+const dropHash = () => { try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch { /* ignore */ } };
 
 async function copyText(text, notify, what = "Copied") {
   try { await navigator.clipboard.writeText(text); notify(what); }
@@ -109,18 +119,59 @@ function buildOutput(v, { mode, indent, sortKeys, path, conv, rootName }) {
 }
 
 export default function JsonTool({ notify }) {
-  const [input, setInput] = useState(SAMPLE);
-  const [inputB, setInputB] = useState(SAMPLE_B);
-  const [mode, setMode] = useState("format");
-  const [indent, setIndent] = useState("2");
-  const [sortKeys, setSortKeys] = useState(false);
-  const [path, setPath] = useState("$.items[*].sku");
-  const [conv, setConv] = useState("ts");
-  const [rootName, setRootName] = useState("Root");
+  const [saved] = useState(() => restoreSaved(readStored(SAVE_KEY, session()), DEFAULTS, SAVE_VOCAB));
+  const [input, setInput] = useState(saved.input);
+  const [inputB, setInputB] = useState(saved.inputB);
+  const [mode, setMode] = useState(saved.mode);
+  const [indent, setIndent] = useState(saved.indent);
+  const [sortKeys, setSortKeys] = useState(saved.sortKeys);
+  const [path, setPath] = useState(saved.path);
+  const [conv, setConv] = useState(saved.conv);
+  const [rootName, setRootName] = useState(saved.rootName);
   const [undo, setUndo] = useState(null);
   const [applied, setApplied] = useState(null);
   const inputRef = useRef(null);
   const fileA = useRef(null), fileB = useRef(null);
+  const inputNow = useRef(input);
+  inputNow.current = input;
+
+  /* Debounced save; if the quota rejects the inputs, keep at least the options (and don't leave stale text behind). */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const opts = { mode, indent, sortKeys, path, conv, rootName };
+      if (!writeStored(SAVE_KEY, packSaved({ input, inputB, ...opts }), session())) writeStored(SAVE_KEY, { ...opts, big: true }, session());
+    }, 500);
+    return () => clearTimeout(t);
+  }, [input, inputB, mode, indent, sortKeys, path, conv, rootName]);
+
+  /* Opening a share link (#j=…) loads its JSON (undoable); the hash is then dropped so a reload keeps later edits. */
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      const payload = readHashParam(window.location.hash, "j");
+      if (!payload) return;
+      try {
+        const text = await decodeShare(payload);
+        if (!live) return;
+        setUndo(inputNow.current); setInput(text); setApplied(null);
+        notify("Loaded JSON from the link");
+      } catch (e) { if (live) notify(`Couldn't open that link — ${e?.message || "it looks damaged or incomplete"}`); }
+      if (live) dropHash();
+    };
+    load();
+    window.addEventListener("hashchange", load);
+    return () => { live = false; window.removeEventListener("hashchange", load); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const copyLink = async () => {
+    try {
+      /* Even at 50:1 compression this couldn't fit; skip the work. */
+      const link = input.length > LINK_MAX * 50 ? { ok: false } : await makeShareLink(shareBase(window.location), "j", input, { maxPayload: LINK_MAX });
+      if (!link.ok) { notify("Too big for a link (max ~4 KB compressed) — use Download or share the file instead"); return; }
+      await navigator.clipboard.writeText(link.url);
+      notify("Link copied — the JSON travels inside the link, nothing is uploaded");
+    } catch { notify("Couldn't copy the link"); }
+  };
 
   const dInput = useDeferredValue(input);
   const dInputB = useDeferredValue(inputB);
@@ -229,6 +280,7 @@ export default function JsonTool({ notify }) {
               <input ref={fileA} type="file" accept=".json,.ndjson,.jsonl,.txt,.map,application/json,text/plain" hidden onChange={(e) => { loadFile(e.target.files[0], setInput); e.target.value = ""; }} />
               <button className="pill" onClick={() => replaceInput(SAMPLE)}>Sample</button>
               <button className="pill" onClick={() => replaceInput("")}>Clear</button>
+              {input.trim() && <button type="button" className="pill" onClick={copyLink} title="Small inputs only. The JSON is stored in the link itself (after #), never uploaded.">Copy link</button>}
               {parsed.ok && <button className="pill" onClick={beautifyInPlace}>Beautify input</button>}
               {parsed.ok && <button className="pill" onClick={() => replaceInput(minifyJSON(parsed.value), "Minified")}>Minify input</button>}
               {parsed.ok && !sortKeys && <button className="pill" onClick={() => replaceInput(formatJSON(parsed.value, indent, true), "Keys sorted")}>Sort keys</button>}

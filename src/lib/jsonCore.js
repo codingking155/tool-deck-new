@@ -627,3 +627,31 @@ export function innerJSON(value) {
   const r = parseJSON(t);
   return r.ok && isContainer(r.value) ? r : null;
 }
+
+/* ─── saved session (input + options across reloads) ─────────────────── */
+
+/** Inputs longer than this (chars) aren't persisted — storage quota is ~5 MB and writes would stall typing. */
+export const SAVE_MAX_CHARS = 1000000;
+
+/** What to persist; oversized inputs are left out and flagged so a reload shows empty, not stale text. */
+export function packSaved({ input, inputB, ...opts }) {
+  const fits = (s) => typeof s === "string" && s.length <= SAVE_MAX_CHARS;
+  return { ...opts, input: fits(input) ? input : undefined, big: !fits(input) || undefined, inputB: fits(inputB) ? inputB : undefined };
+}
+
+/** Validated restore over `defaults`: unknown modes/converters or wrong types fall back to the default.
+    The sample input shows only when nothing was saved. */
+export function restoreSaved(raw, defaults, { modes, convs, indents = ["2", "4", "tab"] }) {
+  if (!raw || typeof raw !== "object") return { ...defaults };
+  const str = (k) => (typeof raw[k] === "string" ? raw[k] : defaults[k]);
+  return {
+    input: typeof raw.input === "string" ? raw.input : raw.big ? "" : defaults.input,
+    inputB: str("inputB"),
+    mode: modes.includes(raw.mode) ? raw.mode : defaults.mode,
+    indent: indents.includes(raw.indent) ? raw.indent : defaults.indent,
+    sortKeys: typeof raw.sortKeys === "boolean" ? raw.sortKeys : defaults.sortKeys,
+    path: str("path"),
+    conv: convs.includes(raw.conv) ? raw.conv : defaults.conv,
+    rootName: str("rootName"),
+  };
+}

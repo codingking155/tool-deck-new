@@ -6,7 +6,8 @@ served from ``base_url``. Everything after extraction (format selection, the HTT
 downloader, FFmpeg merging and audio extraction, progress hooks) is real yt-dlp code.
 
 Special video IDs simulate failures: ``privateVid0`` (private), ``liveStream0`` (live),
-``geoBlocked0`` (region-locked), ``deletedVid0`` (removed), ``rateLimit00`` (HTTP 429).
+``geoBlocked0`` (region-locked), ``deletedVid0`` (removed), ``rateLimit00`` (HTTP 429),
+``botCheck000`` (YouTube's "not a bot" challenge).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ FAILURES = {
     "geoBlocked0": "ERROR: [youtube] geoBlocked0: The uploader has not made this video available in your country",
     "deletedVid0": "ERROR: [youtube] deletedVid0: Video unavailable. This video has been removed by the uploader",
     "rateLimit00": "ERROR: [youtube] rateLimit00: HTTP Error 429: Too Many Requests",
+    "botCheck000": "ERROR: [youtube] botCheck000: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies",
 }
 
 

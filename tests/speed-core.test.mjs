@@ -321,5 +321,7 @@ test("history migration: v2 rows become v3 without losing data", () => {
 test("maskIp keeps only network prefix for both families", () => {
   assert.equal(maskIp("103.186.40.202"), "103.186.40.x");
   assert.equal(maskIp("2401:4900:1c5b:aa::1"), "2401:4900:1c5b::…");
+  assert.equal(maskIp("2001:db8::1"), "2001:db8:0::…");
+  assert.equal(maskIp("::1"), "0:0:0::…");
   assert.equal(maskIp(null), null);
 });

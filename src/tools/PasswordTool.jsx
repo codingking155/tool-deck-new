@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Eye, EyeOff, ShieldCheck, ShieldAlert, Shield, ShieldQuestion, CircleCheck, AlertTriangle, Loader2, KeyRound, Lock, Search, Lightbulb } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, ShieldAlert, Shield, ShieldQuestion, CircleCheck, AlertTriangle, Loader2, KeyRound, Lock, Search, Lightbulb, Dices, WandSparkles } from "lucide-react";
 import { checkPassword } from "../lib/breach.js";
-import { EmptyState } from "../components/ui.jsx";
+import { crackTimes, generatePassword, generatePassphrase } from "../lib/password.js";
+import { EmptyState, CopyButton } from "../components/ui.jsx";
 import "./css/password.css";
 
 /* One tone per strength band, shared by the meter and the guide (icon + words always ride along). */
@@ -15,7 +16,8 @@ const BANDS = [
 ];
 const TONE_ICON = { bad: ShieldAlert, warn: Shield, good: ShieldCheck };
 
-function calculateEntropy(password) {
+/* cap: a generated passphrase's true entropy (words × 10 bits); the charset estimate would over-rate it. */
+function calculateEntropy(password, cap = Infinity) {
   if (!password) return { bits: 0, score: 0, strength: "No password" };
 
   const hasLower = /[a-z]/.test(password);
@@ -29,7 +31,7 @@ function calculateEntropy(password) {
   if (hasDigit) charset += 10;
   if (hasSpecial) charset += 32;
 
-  const bits = password.length * Math.log2(charset); // log2(charset ** length) overflows to Infinity for long passwords
+  const bits = Math.min(cap, password.length * Math.log2(charset)); // log2(charset ** length) overflows to Infinity for long passwords
   const score = Math.min(100, Math.round((bits / 128) * 100));
 
   let strength = "Very weak";
@@ -75,11 +77,11 @@ function recommend(checks, band, breach) {
 
 /* Breach-check states (k-anonymity lookup) */
 const BREACH_VIEW = {
-  idle: { tone: "idle", Icon: ShieldQuestion, title: "Not checked yet", sub: "Run the breach check to compare against 700+ million breached passwords." },
+  idle: { tone: "idle", Icon: ShieldQuestion, title: "Not checked yet", sub: "Checks automatically against 700+ million breached passwords once you stop typing." },
   checking: { tone: "idle", Icon: Loader2, title: "Checking…", sub: "Sending 5 characters of the hash to the breach database." },
   found: { tone: "warn", Icon: AlertTriangle, title: "Found in known breaches", sub: "This password has appeared in at least one known data breach. Use a unique password instead." },
   clear: { tone: "good", Icon: CircleCheck, title: "Not found in known breaches", sub: "Not in known public breaches (it could still exist in unreleased data)." },
-  unavailable: { tone: "warn", Icon: AlertTriangle, title: "Couldn't check right now", sub: "The breach database didn't answer. Try again later." },
+  unavailable: { tone: "warn", Icon: AlertTriangle, title: "Couldn't check right now", sub: "The breach database didn't answer. Use “Check breaches” to try again." },
 };
 
 function BreachStatus({ status, count }) {
@@ -97,7 +99,25 @@ function BreachStatus({ status, count }) {
   );
 }
 
-function StrengthMeter({ entropy }) {
+/* Average time to guess at two attacker speeds. A leaked password is tried first, whatever its entropy. */
+function CrackTimes({ bits, leaked }) {
+  return (
+    <div className="pw-crack">
+      <div className="pw-bk">Estimated time to crack</div>
+      <dl>
+        {crackTimes(bits).map((a) => (
+          <div key={a.key}>
+            <dt>{a.label} <small>{a.note}</small></dt>
+            <dd>{leaked ? "instantly" : a.text}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>{leaked ? "It's on leaked-password lists, so attackers try it first." : "Assumes a random password; words and patterns fall far faster."}</p>
+    </div>
+  );
+}
+
+function StrengthMeter({ entropy, leaked }) {
   const idx = Math.max(0, BANDS.findIndex(([n]) => n === entropy.strength));
   const [, tone, , context] = BANDS[idx];
   const Icon = TONE_ICON[tone];
@@ -115,6 +135,7 @@ function StrengthMeter({ entropy }) {
         {BANDS.map(([n], i) => <i key={n} className={i <= idx ? "on" : ""} />)}
       </div>
       <p className="pw-ctx">{context}</p>
+      <CrackTimes bits={entropy.bits} leaked={leaked} />
     </div>
   );
 }
@@ -126,28 +147,43 @@ export default function PasswordTool({ notify }) {
   const [breachCount, setBreachCount] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const ctrl = useRef(null);
-  useEffect(() => () => ctrl.current?.abort(), []);
+  const auto = useRef(0);   // pending debounced breach check
+  const gen = useRef(null); // { value, bits } of the last generated password, rated by its true entropy
+  const notifyRef = useRef(notify);
+  useEffect(() => { notifyRef.current = notify; }, [notify]);
+  useEffect(() => () => { ctrl.current?.abort(); clearTimeout(auto.current); }, []);
 
-  const handlePasswordChange = useCallback((e) => {
-    const pwd = e.target.value;
+  const update = useCallback((pwd) => {
     ctrl.current?.abort(); ctrl.current = null; // a result for the previous password must never show for this one
     setPassword(pwd);
-    setEntropy(pwd ? calculateEntropy(pwd) : null);
+    setEntropy(pwd ? calculateEntropy(pwd, gen.current?.value === pwd ? gen.current.bits : Infinity) : null);
     setBreach("idle");
   }, []);
+  const handlePasswordChange = useCallback((e) => update(e.target.value), [update]);
 
-  const handleCheck = useCallback(async () => {
-    if (!password) return;
+  const generate = useCallback((kind) => {
+    const g = kind === "phrase" ? generatePassphrase() : generatePassword();
+    gen.current = g;
+    setShowPassword(true); // a generated password is only useful if you can see (and copy) it
+    update(g.value);
+  }, [update]);
+
+  // manual: the button (toasts the result). Automatic runs speak only through the status panel's live region.
+  const runCheck = useCallback(async (pwd, manual) => {
+    clearTimeout(auto.current);
+    if (!pwd) return;
     ctrl.current?.abort();
     const mine = (ctrl.current = new AbortController());
     setBreach("checking");
     let result;
     let count = 0;
-    try { count = await checkPassword(password, mine.signal); result = count > 0; }
+    try { count = await checkPassword(pwd, mine.signal); result = count > 0; }
     catch (err) { if (err?.name === "AbortError") return; result = null; }
     if (ctrl.current !== mine) return;
     setBreachCount(result ? count : 0);
     setBreach(result === true ? "found" : result === false ? "clear" : "unavailable");
+    if (!manual) return;
+    const notify = notifyRef.current;
     if (result === true) {
       notify(`⚠️ This password has been seen ${count.toLocaleString()} time${count > 1 ? "s" : ""} in data breaches. Choose a different one.`);
     } else if (result === false) {
@@ -155,7 +191,14 @@ export default function PasswordTool({ notify }) {
     } else {
       notify("⚠️ Could not run the breach check. Try again later.");
     }
-  }, [password, notify]);
+  }, []);
+
+  // Debounced k-anonymity check ~600ms after typing stops; each keystroke clears the timer and aborts any request in flight.
+  useEffect(() => {
+    if (!password) return undefined;
+    auto.current = setTimeout(() => runCheck(password, false), 600);
+    return () => clearTimeout(auto.current);
+  }, [password, runCheck]);
 
   const checks = password ? analyse(password) : [];
   const band = entropy ? Math.max(0, BANDS.findIndex(([n]) => n === entropy.strength)) : 0;
@@ -187,12 +230,18 @@ export default function PasswordTool({ notify }) {
             </div>
           </div>
 
+          <div className="pw-gen">
+            <button type="button" className="btn gh sm" onClick={() => generate("password")}><WandSparkles size={14} aria-hidden="true" />Generate password</button>
+            <button type="button" className="btn gh sm" onClick={() => generate("phrase")}><Dices size={14} aria-hidden="true" />Generate passphrase</button>
+            <CopyButton text={password} disabled={!password} className="btn gh sm" notify={notify} toast="Password copied" />
+          </div>
+
           <p className="pw-priv" id="pwd-privacy">
             <Lock size={15} aria-hidden="true" />
-            <span><b>Your password never leaves this device;</b> breach check sends only 5 characters of its hash.</span>
+            <span><b>Your password never leaves this device.</b> Once you stop typing, the breach check runs automatically and sends only the first 5 characters of its SHA-1 hash.</span>
           </p>
 
-          <button type="button" onClick={handleCheck} disabled={!password || checking} className="btn pri">
+          <button type="button" onClick={() => runCheck(password, true)} disabled={!password || checking} className="btn pri">
             {checking ? <Loader2 size={16} className="spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
             {checking ? "Checking…" : "Check breaches"}
           </button>
@@ -219,11 +268,11 @@ export default function PasswordTool({ notify }) {
         <div className="pb">
           {!entropy ? (
             <EmptyState icon={KeyRound} title="Type a password to rate it">
-              Strength, pattern checks and advice update as you type. Nothing is stored or sent until you run the breach check.
+              Strength, pattern checks and advice update as you type, or generate one. Nothing is stored; the automatic breach check sends only 5 characters of the password's hash.
             </EmptyState>
           ) : (
             <>
-              <StrengthMeter entropy={entropy} />
+              <StrengthMeter entropy={entropy} leaked={breach === "found"} />
 
               <h3 className="pw-h3">Checks</h3>
               <ul className="pw-checks">

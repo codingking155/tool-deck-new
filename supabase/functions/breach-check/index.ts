@@ -14,7 +14,12 @@ Deno.serve(withCors(async (req) => {
   if (req.method !== "POST") return fail(405, "method_not_allowed", "POST only.");
 
   const rl = await sharedRateLimit("breach", clientIp(req), 8, 60);
-  if (!rl.ok) return fail(429, "rate_limited", `Too many checks — try again in ${rl.retryAfter}s.`);
+  if (!rl.ok) {
+    // retryAfter rides in the body too: Retry-After isn't a CORS-safelisted header, so the browser can't read it cross-origin.
+    const retryAfter = Math.max(1, Math.ceil(Number(rl.retryAfter) || 60));
+    return json({ error: { code: "rate_limited", message: `Too many checks — try again in ${retryAfter}s.`, retryAfter, ref: crypto.randomUUID().slice(0, 8) } },
+      429, { "Retry-After": String(retryAfter), "Cache-Control": "no-store" });
+  }
 
   let email = "";
   try { email = String((await req.json())?.email ?? "").trim().toLowerCase(); } catch { /* falls through */ }

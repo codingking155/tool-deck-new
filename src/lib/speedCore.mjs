@@ -334,7 +334,14 @@ export function migrateHistory(rows) {
 /** Privacy-preserving IP display/storage: keep /24 (v4) or /48-ish (v6). */
 export function maskIp(ip) {
   if (!ip) return null;
-  if (ip.includes(":")) { const p = ip.split(":"); return p.slice(0, 3).join(":") + "::…"; }
+  if (ip.includes(":")) {
+    /* groups before "::" are the leading ones; zero-fill when "::" falls inside
+       the first three ("2001:db8::1" → "2001:db8:0::…", not "2001:db8:::…") */
+    const head = ip.split("::")[0];
+    const p = head ? head.split(":") : [];
+    while (p.length < 3) p.push("0");
+    return p.slice(0, 3).join(":") + "::…";
+  }
   const p = ip.split(".");
   return p.length === 4 ? `${p[0]}.${p[1]}.${p[2]}.x` : ip;
 }

@@ -14,6 +14,7 @@
 .yd-out{margin-top:var(--s4);scroll-margin:24px}
 .yd-out:empty{display:none}
 .yd-out>.notice{margin-bottom:0}
+.yd-out>.yd-wake{margin-bottom:var(--s3)}
 .yd-recover{margin-top:4px}
 
 /* result: identity column + options column */

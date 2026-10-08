@@ -56,3 +56,11 @@
 .ssl-sk-m .skel{height:64px}
 @media(max-width:600px){.ssl .inrow.stack>input{flex:none}}
 #ssl-domain{font-family:var(--mono)}
+
+/* result age + expiry reminder */
+.ssl-checked{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:var(--s4);font-size:12px;color:var(--tx3)}
+.ssl-checked svg{flex:none}
+.ssl-checked time{color:var(--tx2);font-weight:600}
+.ssl-remind{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s2) var(--s3);margin-top:var(--s3)}
+.ssl-remind .hint{margin:0}
+@media(max-width:600px){.ssl-remind .btn{min-height:44px}}

@@ -90,7 +90,12 @@ Deno.serve(withCors(async (req) => {
   if (req.method !== "GET") return fail(405, "method_not_allowed", "Use GET with ?url=");
   const max = Number(Deno.env.get("SHOPIFY_RATE_LIMIT_MAX") ?? 30);
   const rl = await sharedRateLimit("shopify", clientIp(req), Number.isFinite(max) && max > 0 ? max : 30, 60);
-  if (!rl.ok) return json({ error: { code: "rate_limited", message: "Too many checks — try again in a minute." } }, 429, { "Retry-After": String(rl.retryAfter ?? 60) });
+  if (!rl.ok) {
+    /* retry_after in the body too: Retry-After isn't CORS-safelisted, so browsers only see it when exposed */
+    const retryAfter = Math.max(1, Math.ceil(rl.retryAfter ?? 60));
+    return json({ error: { code: "rate_limited", message: `Too many checks — try again in ${retryAfter}s.`, retry_after: retryAfter } }, 429,
+      { "Retry-After": String(retryAfter), "Access-Control-Expose-Headers": "Retry-After" });
+  }
 
   const raw = new URL(req.url).searchParams.get("url")?.trim() ?? "";
   if (!raw) return fail(400, "missing_url", "Pass ?url=example.com");

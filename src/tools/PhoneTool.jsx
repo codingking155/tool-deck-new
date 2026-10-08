@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Phone, X, CircleCheck, CircleAlert, CircleX, Loader2, MessageCircle, PhoneCall, Link2, Clock, Info } from "lucide-react";
-import { analyzeNumber, validityText } from "../lib/phoneCheck.js";
-import { detectPhone } from "../lib/phone.js";
+import { analyzeNumber, validityText, nationalToE164 } from "../lib/phoneCheck.js";
+import { detectPhone, nationalDigits, REGION_INFO, REGION_LIST } from "../lib/phone.js";
 import { fmtLocal, offsetLabel, offsetMinutes, zoneParts, DAYS, USER_TZ } from "../lib/time.js";
 import { callWindow, diffText } from "../lib/phoneCall.js";
 import PhoneBatch from "./PhoneBatch.jsx";
@@ -13,6 +13,15 @@ import "./css/phone.css";
 
 const RECENT_KEY = "toolDeck.phoneRecent";
 const EXAMPLES = ["+91 98765 43210", "+1 416 555 0199", "+44 20 7183 8750", "+81 3 1234 5678"];
+const REGION_KEY = "toolDeck.phoneRegion";
+const isRegion = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(REGION_INFO, v);
+
+/* Country for numbers typed without +: the share link's ?cc= wins, then the last one picked on this device. */
+function initialRegion() {
+  const cc = readParams().get("cc");
+  if (isRegion(cc)) return cc;
+  try { const v = localStorage.getItem(REGION_KEY); return isRegion(v) ? v : ""; } catch { return ""; }
+}
 
 /* Ticks every second — a leaf so the input and result don't re-render with it. */
 function ZoneNow({ zone }) {
@@ -58,7 +67,7 @@ export default function PhoneTool({ notify }) {
     <div className="ph-tool">
       <div className="seg ph-mode" role="group" aria-label="Mode">
         <button type="button" aria-pressed={mode === "single"} onClick={() => { setMode("single"); writeParams({ mode: null }); }}>Single number</button>
-        <button type="button" aria-pressed={mode === "batch"} onClick={() => { setMode("batch"); writeParams({ mode: "batch", n: null }); }}>Batch</button>
+        <button type="button" aria-pressed={mode === "batch"} onClick={() => { setMode("batch"); writeParams({ mode: "batch", n: null, cc: null }); }}>Batch</button>
       </div>
       {mode === "single" ? <Single notify={notify} /> : <PhoneBatch notify={notify} />}
       <Notice tone="i" title="What this shows" className="ph-note">
@@ -72,7 +81,32 @@ export default function PhoneTool({ notify }) {
 function Single({ notify }) {
   const [input, setInput] = useState(() => readParams().get("n") || "");
   useEffect(() => { writeParams({ n: input.trim() || null }); }, [input]);
-  const det = useMemo(() => detectPhone(input), [input]);
+  const raw = useMemo(() => detectPhone(input), [input]);
+  const [region, setRegion] = useState(initialRegion);
+  const pickRegion = (iso) => {
+    setRegion(iso);
+    try { if (iso) localStorage.setItem(REGION_KEY, iso); else localStorage.removeItem(REGION_KEY); } catch { /* storage unavailable */ }
+  };
+  // No + / 00 typed: re-read the digits as a national number of the picked country.
+  const natDigits = nationalDigits(raw);
+  const natKey = natDigits && region ? `${region}:${natDigits}` : "";
+  const [nat, setNat] = useState(null); // { key, e164 } for the last resolved natKey
+  useEffect(() => { writeParams({ cc: natDigits && region ? region : null }); }, [natDigits, region]);
+  useEffect(() => {
+    if (!natKey) return;
+    let live = true;
+    nationalToE164(natDigits, region).then((e164) => live && setNat({ key: natKey, e164 }))
+      .catch(() => live && setNat({ key: natKey, e164: null }));
+    return () => { live = false; };
+  }, [natKey]); // natKey encodes natDigits + region
+  const det = useMemo(() => {
+    if (!natKey) return raw;
+    if (!nat || nat.key !== natKey) return raw.trunk ? null : raw; // resolving
+    const d = nat.e164 && detectPhone(nat.e164);
+    if (d && d.e164) return { ...d, ext: raw.ext, fromRegion: region };
+    // Not a possible number there: a trunk number has nothing to fall back on; an assumed one keeps the prefix guess.
+    return raw.trunk ? { error: `This isn't a possible number in ${REGION_INFO[region].name}. Check the digits, pick another country, or add the international prefix.` } : raw;
+  }, [raw, natKey, nat, region]);
   const [info, setInfo] = useState(undefined); // undefined = checking, null = no libphonenumber verdict
   const [recent, setRecent] = useState(() => loadRecent(RECENT_KEY));
   const e164 = det && det.e164;
@@ -112,6 +146,15 @@ function Single({ notify }) {
           )}
         </div>
         <p className="hint" id="ph-hint">Start with + and the country code. Spaces, dashes and brackets are fine.</p>
+        {natDigits && (
+          <div className="field ph-region">
+            <label htmlFor="ph-cc">{raw.trunk ? "Country this number is from" : "No + typed — country it's from"}</label>
+            <select id="ph-cc" value={region} onChange={(e) => pickRegion(e.target.value)}>
+              <option value="">{raw.trunk ? "Choose a country…" : "None — read the first digits as the country code"}</option>
+              {REGION_LIST.map((r) => <option key={r.iso} value={r.iso}>{r.name}</option>)}
+            </select>
+          </div>
+        )}
         {!input.trim() && (
           <div className="ph-try">
             <span className="ph-try-l" id="ph-try-l">Try</span>
@@ -137,6 +180,7 @@ function Single({ notify }) {
                   <span className="ph-dial">+{det.dial}{det.area ? ` · area ${det.area}` : ""}</span>
                   <Verdict det={det} info={info} />
                   {det.assumed && <StatusBadge tone="warn" icon={Info}>Prefix assumed</StatusBadge>}
+                  {det.fromRegion && <StatusBadge icon={Info}>{`Read as a ${REGION_INFO[det.fromRegion].name} number`}</StatusBadge>}
                 </div>
               </div>
             </div>

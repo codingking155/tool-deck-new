@@ -1,0 +1,9 @@
+/* Shopify Store Detector — additions on top of the .sd-* base in styles.css */
+.sd-actions{flex-wrap:wrap}
+.sd-more{margin-top:10px}
+.sd-site{position:relative;padding-right:40px!important}
+.sd-copyurl{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:8px;
+  background:transparent;color:var(--tx3);cursor:pointer;transition:color var(--dur-1),background var(--dur-1)}
+.sd-copyurl:hover{color:var(--tx);background:color-mix(in srgb,var(--tx) 8%,transparent)}
+.sd-copyurl:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+@media(max-width:600px){.sd-copyurl{width:40px;height:40px;right:2px}.sd-site{padding-right:46px!important}}

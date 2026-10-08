@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ShieldCheck, TriangleAlert, CircleMinus, CircleHelp, CircleDashed, LoaderCircle, CircleCheck, Radio, Server } from "lucide-react";
 import { collectIceCandidates, webrtcVerdict, runDnsLeakTest, dnsVerdict, DNS_PROVIDER } from "../lib/leak.js";
 import { Notice, StatusBadge } from "../components/ui.jsx";
+import { maskAddress } from "../lib/ipInfo.js";
 import "./css/ip.css";
 
 /* One status vocabulary for every diagnostic: icon + word, never colour alone.
@@ -32,7 +33,10 @@ const LEVEL = {
   blocked: { s: "unknown", tone: "i",  title: "WebRTC exposed nothing", text: "No addresses were gathered — WebRTC is disabled or blocked here, or the STUN server was unreachable. That is private, but it can also mean the test couldn't run." },
 };
 
-function WebRtcCard({ known }) {
+/* "Hide IP" (screen sharing) masks every address shown; the copied report keeps the real ones */
+const shownList = (ips, hide) => (hide ? ips.map(maskAddress) : ips).join(", ");
+
+function WebRtcCard({ known, hide, onResult }) {
   const [state, setState] = useState({ phase: "idle" });
   const alive = useRef(true);
   /* re-arm on mount: StrictMode's dev double-mount would otherwise leave it false forever */
@@ -41,8 +45,13 @@ function WebRtcCard({ known }) {
     setState({ phase: "running" });
     const { supported, candidates } = await collectIceCandidates();
     if (!alive.current) return;
-    if (!supported) return setState({ phase: "unsupported" });
-    setState({ phase: "done", v: webrtcVerdict(candidates, known) });
+    if (!supported) {
+      onResult?.("webrtc", { title: "Not supported (this browser has no WebRTC)" });
+      return setState({ phase: "unsupported" });
+    }
+    const v = webrtcVerdict(candidates, known);
+    setState({ phase: "done", v });
+    onResult?.("webrtc", { title: LEVEL[v.level].title, publicIps: v.publicIps, localIps: v.localIps });
   };
   const { phase, v } = state;
   const L = v && LEVEL[v.level];
@@ -61,12 +70,12 @@ function WebRtcCard({ known }) {
             <div className="ipt-result">
               <Notice tone={L.tone} title={L.title}>{L.text}</Notice>
               <div className="ipt-kvs">
-                {v.publicIps.length > 0 && <div className="kv"><span className="k">Public addresses seen</span><span className="v">{v.publicIps.join(", ")}</span></div>}
-                {v.localIps.length > 0 && <div className="kv"><span className="k">Local addresses exposed</span><span className="v">{v.localIps.join(", ")}</span></div>}
+                {v.publicIps.length > 0 && <div className="kv"><span className="k">Public addresses seen</span><span className="v">{shownList(v.publicIps, hide)}</span></div>}
+                {v.localIps.length > 0 && <div className="kv"><span className="k">Local addresses exposed</span><span className="v">{shownList(v.localIps, hide)}</span></div>}
                 {v.mdnsCount > 0 && <div className="kv"><span className="k">Hidden behind .local names</span><span className="v">{v.mdnsCount}</span></div>}
-                {v.unverified?.length > 0 && <div className="kv"><span className="k">Not yet compared</span><span className="v">{v.unverified.join(", ")}</span></div>}
+                {v.unverified?.length > 0 && <div className="kv"><span className="k">Not yet compared</span><span className="v">{shownList(v.unverified, hide)}</span></div>}
                 {v.mismatched.length > 0 && (
-                  <div className="kv is-flag"><span className="k"><TriangleAlert size={13} aria-hidden="true" />Not the address sites see</span><span className="v">{v.mismatched.join(", ")}</span></div>
+                  <div className="kv is-flag"><span className="k"><TriangleAlert size={13} aria-hidden="true" />Not the address sites see</span><span className="v">{shownList(v.mismatched, hide)}</span></div>
                 )}
               </div>
             </div>
@@ -101,7 +110,7 @@ function dnsMessage(v) {
   }
 }
 
-function DnsNetwork({ n }) {
+function DnsNetwork({ n, hide }) {
   return (
     <li className="dns-net">
       <div className="dns-net-head">
@@ -115,13 +124,13 @@ function DnsNetwork({ n }) {
       </div>
       <details className="dns-ips" open={n.ips.length <= 4}>
         <summary>{plural(n.ips.length, "server address", "server addresses")}</summary>
-        <ul>{n.ips.map((ip) => <li key={ip}>{ip}</li>)}</ul>
+        <ul>{n.ips.map((ip) => <li key={ip}>{hide ? maskAddress(ip) : ip}</li>)}</ul>
       </details>
     </li>
   );
 }
 
-function DnsCard() {
+function DnsCard({ hide, onResult }) {
   const [state, setState] = useState({ phase: "idle" });
   const ctrl = useRef(null);
   useEffect(() => () => ctrl.current?.abort(), []);
@@ -130,9 +139,16 @@ function DnsCard() {
     setState({ phase: "running", step: "start" });
     try {
       const r = await runDnsLeakTest(fetch, { signal: c.signal, onStep: (step) => !c.signal.aborted && setState({ phase: "running", step }) });
-      if (!c.signal.aborted) setState({ phase: "done", r, v: dnsVerdict(r) });
+      if (!c.signal.aborted) {
+        const v = dnsVerdict(r);
+        setState({ phase: "done", r, v });
+        onResult?.("dns", { title: dnsMessage(v).title, count: v.count, networks: v.networks.length ? listNames(v.networks) : null });
+      }
     } catch (e) {
-      if (e?.name !== "AbortError" && !c.signal.aborted) setState({ phase: "error", msg: /unavailable|unexpected/.test(e?.message || "") ? e.message : "Couldn't reach the DNS test service." });
+      if (e?.name !== "AbortError" && !c.signal.aborted) {
+        setState({ phase: "error", msg: /unavailable|unexpected/.test(e?.message || "") ? e.message : "Couldn't reach the DNS test service." });
+        onResult?.("dns", { title: "Couldn't run the test" });
+      }
     }
   };
   const { phase, v, step, msg } = state;
@@ -170,8 +186,8 @@ function DnsCard() {
                 <div><b>{v.networks.length}</b><span>{v.networks.length === 1 ? "network" : "networks"}</span></div>
                 <div><b>{countries}</b><span>{countries === 1 ? "country" : "countries"}</span></div>
               </div>
-              {v.you && <div className="kv dns-you"><span className="k">Your IP (as the test saw it)</span><span className="v">{v.you.ip}{v.you.network?.name ? ` · ${v.you.network.name}` : ""}</span></div>}
-              <ul className="dns-nets">{v.networks.map((n) => <DnsNetwork key={n.key} n={n} />)}</ul>
+              {v.you && <div className="kv dns-you"><span className="k">Your IP (as the test saw it)</span><span className="v">{hide ? maskAddress(v.you.ip) : v.you.ip}{v.you.network?.name ? ` · ${v.you.network.name}` : ""}</span></div>}
+              <ul className="dns-nets">{v.networks.map((n) => <DnsNetwork key={n.key} n={n} hide={hide} />)}</ul>
             </>}
           </div>
         )}
@@ -191,7 +207,7 @@ function DnsCard() {
   );
 }
 
-export default function IpLeakPanel({ v4, v6 }) {
+export default function IpLeakPanel({ v4, v6, hide, onResult }) {
   return (
     <section className="ipt-leaks" aria-labelledby="ipt-leaks-h">
       <div className="secbar">
@@ -201,8 +217,8 @@ export default function IpLeakPanel({ v4, v6 }) {
         </div>
       </div>
       <div className="ipt-pair">
-        <WebRtcCard known={{ v4, v6 }} />
-        <DnsCard />
+        <WebRtcCard known={{ v4, v6 }} hide={hide} onResult={onResult} />
+        <DnsCard hide={hide} onResult={onResult} />
       </div>
     </section>
   );

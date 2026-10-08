@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime } from "../lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime, targetBytes, fitToTarget } from "../lib/imageCore.mjs";
 import { makeZip } from "../lib/zip.js";
 import { ImagePlus, Loader2, Download, X, Columns2, Trash2, ClipboardPaste, Upload, ShieldCheck, ArrowRight, ArrowDown, ArrowUp,
   OctagonAlert, FileArchive, Shrink, Scaling, Crop, Repeat2, RotateCw, Stamp, SlidersHorizontal, Laugh, EyeOff, Eye } from "lucide-react";
@@ -17,7 +17,7 @@ const MODES = [
 ];
 
 const DEFAULTS = {
-  compress: { q: 70, fmt: "auto", max: "" },
+  compress: { q: 70, fmt: "auto", max: "", by: "quality", kb: "" },
   resize: { mode: "px", width: 1280, height: "", pct: 50, keep: true },
   crop: { aspect: "1:1", zoom: 1, panX: 50, panY: 50 },
   convert: { to: "image/jpeg", bg: "#ffffff" },
@@ -134,7 +134,41 @@ function drawWatermark(ctx, w, h, o) {
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
 
-/** Runs one mode on one file -> { blob, w, h, note? } */
+/** Compress "under N KB": best quality that fits (lossy), stepping dimensions down when quality alone can't. */
+async function compressToTarget(o, file, bmp, sw, sh) {
+  const target = targetBytes(o.kb);
+  const mime = compressMime(o.fmt, file.type);
+  const base = fitMax(sw, sh, o.max);
+  const canvases = new Map();   // one draw per scale; only the encode quality varies
+  const encodeAt = async (q, scale) => {
+    let c = canvases.get(scale);
+    if (!c) {
+      c = mk(Math.max(1, Math.round(base.w * scale)), Math.max(1, Math.round(base.h * scale)));
+      const cx = ctx2d(c);
+      if (mime === "image/jpeg") { cx.fillStyle = "#fff"; cx.fillRect(0, 0, c.width, c.height); }
+      cx.imageSmoothingQuality = "high"; cx.drawImage(bmp, 0, 0, c.width, c.height);
+      canvases.set(scale, c);
+    }
+    const blob = await toBlob(c, mime, q);
+    if (blob.type !== mime) throw new Error(`This browser can't encode ${mime.replace("image/", "").toUpperCase()}.`);
+    return { size: blob.size, blob, w: c.width, h: c.height };
+  };
+  const lossy = mime !== "image/png";
+  const r = await fitToTarget(encodeAt, target, { lossy, longest: Math.max(base.w, base.h) });
+  const { blob, w, h } = r.out;
+  const scaled = r.scale < 1 ? `scaled to ${Math.round(r.scale * 100)}%` : "";
+  if (!r.fits) {
+    return { blob, w, h, mime, warn: true,
+      note: `Can't get under ${fmtBytes(target)} — smallest was ${fmtBytes(blob.size)}${lossy ? ` at quality ${r.q}` : ""}${scaled ? `, ${scaled}` : ""}. Try ${lossy ? "WebP or " : "WebP/JPG or "}a larger target.` };
+  }
+  if (blob.size >= file.size && mime === file.type && w === sw && h === sh) {
+    return { blob: file, w: sw, h: sh, mime, note: "Already under the target — original kept" };
+  }
+  const how = [lossy ? `quality ${r.q}` : "", scaled].filter(Boolean).join(", ");
+  return { blob, w, h, mime, note: `Under ${fmtBytes(target)}${how ? ` · ${how}` : ""}` };
+}
+
+/** Runs one mode on one file -> { blob, w, h, note?, warn? } */
 async function runMode(mode, o, file, canAvif) {
   const bmp = await loadBitmap(file);
   const { w: sw, h: sh } = dimOf(bmp);
@@ -142,6 +176,7 @@ async function runMode(mode, o, file, canAvif) {
   let mime = srcMime, q = 0.92, canvas, ctx, note;
   const fillBg = (c, color) => { c.fillStyle = color; c.fillRect(0, 0, c.canvas.width, c.canvas.height); };
   try {
+    if (mode === "compress" && o.by === "target") return await compressToTarget(o, file, bmp, sw, sh);
     if (mode === "compress") {
       const { w, h } = fitMax(sw, sh, o.max);
       canvas = mk(w, h); ctx = ctx2d(canvas);
@@ -268,10 +303,20 @@ function Group({ title, children }) {
 function Options({ mode, o, set, canAvif, hasPng }) {
   if (mode === "compress") return <>
     <Group title="Quality">
-      <Range id="oq" label="Quality" value={o.q} min={5} max={100} onChange={(v) => set("q", v)} scale={["Smaller file", "Better quality"]} />
-      <div className="imgpresets" role="group" aria-label="Quality presets">
-        {QUALITY_PRESETS.map(([l, v]) => <button key={l} type="button" aria-pressed={o.q === v} onClick={() => set("q", v)}>{l}<small>{v}</small></button>)}
+      <div className="seg imgt-by" role="group" aria-label="Compress by">
+        <button type="button" aria-pressed={o.by !== "target"} onClick={() => set("by", "quality")}>Quality</button>
+        <button type="button" aria-pressed={o.by === "target"} onClick={() => set("by", "target")}>Target size</button>
       </div>
+      {o.by === "target" ? <>
+        <div className="field"><label htmlFor="okb">Under (KB)</label>
+          <input id="okb" type="number" min="1" step="any" inputMode="decimal" placeholder="e.g. 200" value={o.kb} onChange={(e) => set("kb", e.target.value)} aria-describedby="okb-h" /></div>
+        <div className="hint imgt-fieldhint" id="okb-h">Finds the highest quality that fits, and shrinks the dimensions only if it has to.</div>
+      </> : <>
+        <Range id="oq" label="Quality" value={o.q} min={5} max={100} onChange={(v) => set("q", v)} scale={["Smaller file", "Better quality"]} />
+        <div className="imgpresets" role="group" aria-label="Quality presets">
+          {QUALITY_PRESETS.map(([l, v]) => <button key={l} type="button" aria-pressed={o.q === v} onClick={() => set("q", v)}>{l}<small>{v}</small></button>)}
+        </div>
+      </>}
     </Group>
     <Group title="Output">
       <div className="two imgt-two32">
@@ -284,7 +329,9 @@ function Options({ mode, o, set, canAvif, hasPng }) {
       </div>
       <div className="hint imgt-fieldhint" id="omax-h">Max side limits the longest edge, e.g. 1920.</div>
     </Group>
-    {hasPng && o.fmt === "auto" && !Number(o.max) && <Notice tone="w" className="imgnote">PNG is lossless, so quality doesn't shrink it — switch the output to WebP or JPG (or set a max size) for big savings.</Notice>}
+    {hasPng && o.fmt === "auto" && (o.by === "target"
+      ? <Notice tone="w" className="imgnote">PNG is lossless, so a target size can only be reached by shrinking its dimensions — switch the output to WebP or JPG to keep full size.</Notice>
+      : !Number(o.max) && <Notice tone="w" className="imgnote">PNG is lossless, so quality doesn't shrink it — switch the output to WebP or JPG (or set a max size) for big savings.</Notice>)}
   </>;
   if (mode === "resize") return <>
     <Group title="Method">
@@ -466,7 +513,7 @@ function FileRow({ item, solo, onRemove, onSave, onView }) {
         </span>
         {item.err && <span className="bad"><OctagonAlert size={12} aria-hidden="true" /> {item.err}</span>}
         {item.busy && <span className="wait"><Loader2 size={12} className="imgspin" aria-hidden="true" /> Processing…</span>}
-        {r?.note && <span className="sub">{r.note}</span>}
+        {r?.note && <span className={r.warn ? "warn" : "sub"}>{r.note}</span>}
       </div>
       {r && saved !== 0 && <span className="imgt-badge">
         <StatusBadge tone={saved > 0 ? "ok" : "bad"} icon={saved > 0 ? ArrowDown : ArrowUp}

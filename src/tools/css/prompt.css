@@ -34,6 +34,11 @@
 .pg-acts{display:flex;gap:var(--s2)}
 .pg-acts .btn.pri{flex:1 1 auto}
 .pg-where{font-size:12px;color:var(--tx3);margin-top:var(--s2)}
+.pg-open{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:var(--s3)}
+.pg-open .pg-eyebrow{margin-right:4px}
+.pg-open .pill svg{flex:none;opacity:.7}
+.pg-undo{margin:calc(-1 * var(--s3)) 0 var(--s4)}
+.pg-undo .pill svg{flex:none}
 .pg-tip{margin:var(--s3) 0 0}
 .pg-out .empty-st{flex:1 1 auto}
 

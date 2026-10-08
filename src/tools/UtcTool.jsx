@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { ShoppingBag, Send, Hourglass, RotateCcw, MapPin, X, Copy, ChevronDown, ExternalLink, Bookmark, Plus, Table2 } from "lucide-react";
+import { ShoppingBag, Send, Hourglass, RotateCcw, MapPin, X, Copy, ChevronDown, ExternalLink, Bookmark, Plus, Table2, Clock, CalendarX } from "lucide-react";
 import {
   pad, USER_TZ, isValidZone, zonedToUtc, fmtDur,
-  fmtUtc, fmtUtcDate, fmtLocal, fmt12Str, fmtDurDays, nextSendUtc, skippedWeekendDays, buildOrderRows, getDateTimeWarning,
+  fmtUtc, fmtUtcDate, fmtLocal, fmt12Str, fmtDurDays, nextSendUtc, skippedDaysFor, buildOrderRows, getDateTimeWarning,
+  cleanHolidays, waitTotals, nowInZone,
 } from "../lib/time.js";
 import ZonePicker from "../components/ZonePicker.jsx";
 import { Switch, ShareLink, copyText } from "../components/chrome.jsx";
-import { Notice, EmptyState } from "../components/ui.jsx";
+import { Notice, EmptyState, CopyButton } from "../components/ui.jsx";
 import { readParams, writeParams, useNow } from "../hooks/index.js";
 import { buildIcs, googleCalendarUrl } from "../lib/ics.js";
 import "./css/utc.css";
@@ -19,6 +20,8 @@ const isTime = (v) => typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(
 const isPreset = (p) => p && typeof p.name === "string" && isTime(p.order) && isTime(p.send) && (!p.senddate || isDate(p.senddate));
 const safeWarning = (...a) => { try { return getDateTimeWarning(...a); } catch { return null; } };
 const cityOf = (tz) => (tz || "").split("/").pop().replace(/_/g, " ");
+const HOL_MAX = 60;
+const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
 
 /* Presentational only: "Sat 11 Jul 2026" for an instant, in a zone (or UTC). */
 const dateFmts = new Map();
@@ -89,6 +92,9 @@ export default function UtcTool({ notify }) {
   const [sendDate, setSendDate] = useState(() => (isDate(P.get("senddate")) ? P.get("senddate") : ""));
   const [is12, setIs12] = useState(() => { try { return localStorage.getItem(CLOCK_KEY) !== "24"; } catch { return true; } });
   const [skipWk, setSkipWk] = useState(() => P.get("wk") === "1");
+  // Specific local dates that are never send days (public holidays, shop closures), on top of the weekend rule.
+  const [holidays, setHolidays] = useState(() => cleanHolidays((P.get("hol") || "").split(","), HOL_MAX));
+  const [holInput, setHolInput] = useState("");
   const [showTable, setShowTable] = useState(false);
   const [presets, setPresets] = useState(() => {
     try { const v = JSON.parse(localStorage.getItem(PRESET_KEY) || "[]"); return Array.isArray(v) ? v.filter(isPreset).slice(0, 12) : []; } catch { return []; }
@@ -96,40 +102,57 @@ export default function UtcTool({ notify }) {
   const [presetsOpen, setPresetsOpen] = useState(() => presets.length > 0);
   const [presetName, setPresetName] = useState("");
   const savePresets = (next) => { setPresets(next); try { localStorage.setItem(PRESET_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ } };
+  // Same name = replace: the button and an inline line say so before it happens.
+  const replacing = presets.some((p) => p.name === presetName.trim());
   const addPreset = () => {
     const name = presetName.trim();
     if (!name) return notify("Name the preset first.");
-    savePresets([{ name, tz, order: orderTime, send: sendTime, senddate: sendDate, wk: skipWk }, ...presets.filter((p) => p.name !== name)].slice(0, 12));
-    setPresetName(""); notify("Preset saved on this device.");
+    savePresets([{ name, tz, order: orderTime, send: sendTime, senddate: sendDate, wk: skipWk, hol: holidays }, ...presets.filter((p) => p.name !== name)].slice(0, 12));
+    setPresetName(""); notify(replacing ? `Preset "${name}" replaced.` : "Preset saved on this device.");
   };
-  const applyPreset = (p) => { if (isValidZone(p.tz)) setTz(p.tz); setOrderTime(p.order); setSendTime(p.send); setSendDate(p.senddate || ""); setSkipWk(!!p.wk); };
+  const applyPreset = (p) => {
+    if (isValidZone(p.tz)) setTz(p.tz);
+    setOrderTime(p.order); setSendTime(p.send); setSendDate(p.senddate || ""); setSkipWk(!!p.wk); setHolidays(cleanHolidays(p.hol, HOL_MAX));
+  };
+  const addHoliday = () => {
+    if (!isDate(holInput)) return notify("Pick a date first.");
+    if (holidays.includes(holInput)) return notify("That date is already a day off.");
+    if (holidays.length >= HOL_MAX) return notify(`Up to ${HOL_MAX} days off.`);
+    setHolidays(cleanHolidays([...holidays, holInput], HOL_MAX)); setHolInput("");
+  };
+  const setNow = () => { try { const n = nowInZone(tz); setOrderDate(n.date); setOrderTime(n.time); } catch { /* invalid zone */ } };
 
   useEffect(() => { try { localStorage.setItem(CLOCK_KEY, is12 ? "12" : "24"); } catch { /* storage unavailable */ } }, [is12]);
   useEffect(() => { writeParams(Object.fromEntries(LEGACY_KEYS.map((k) => [k, null]))); }, []);
   useEffect(() => {
-    writeParams({ zone: tz, date: orderDate, order: orderTime, send: sendTime, senddate: sendDate || null, wk: skipWk ? "1" : null });
-  }, [tz, orderDate, orderTime, sendTime, sendDate, skipWk]);
+    writeParams({ zone: tz, date: orderDate, order: orderTime, send: sendTime, senddate: sendDate || null, wk: skipWk ? "1" : null, hol: holidays.join(",") || null });
+  }, [tz, orderDate, orderTime, sendTime, sendDate, skipWk, holidays]);
 
   const t = (hhmm) => (is12 ? fmt12Str(hhmm) : hhmm);
+
+  const dayOpts = useMemo(() => ({ skipWeekends: skipWk, holidays }), [skipWk, holidays]);
 
   const result = useMemo(() => {
     if (!tz || !orderDate || !orderTime || !sendTime) return null;
     try {
       const orderUtc = zonedToUtc(orderDate, orderTime, tz);
-      const sendUtc = nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate, { skipWeekends: skipWk });
-      const skipped = skipWk ? skippedWeekendDays(orderUtc, sendTime, tz, sendDate) : [];
+      const sendUtc = nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate, dayOpts);
+      const skipped = skippedDaysFor(orderUtc, sendTime, tz, sendDate, dayOpts);
       return { orderUtc, sendUtc, waitMs: sendUtc - orderUtc, skipped };
     } catch { return null; }
-  }, [tz, orderDate, orderTime, sendTime, sendDate, skipWk]);
+  }, [tz, orderDate, orderTime, sendTime, sendDate, dayOpts]);
 
-  const rows = useMemo(() => buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate, { skipWeekends: skipWk }), [orderDate, orderTime, sendTime, tz, sendDate, skipWk]);
+  const rows = useMemo(() => buildOrderRows(orderDate, orderTime, sendTime, tz, sendDate, dayOpts), [orderDate, orderTime, sendTime, tz, sendDate, dayOpts]);
 
   const warnings = useMemo(() => {
     const w = [];
     if (!orderDate) w.push("Please select an order date.");
     if (!orderTime) w.push("Please enter the order created time.");
     if (!sendTime) w.push("Please enter the target send time.");
-    if (orderDate && orderDate < localToday()) w.push("Order date is in the past. The calculator will still find the next valid target send time.");
+    // "today" in the chosen zone, so Now in a zone behind the browser's isn't flagged as past
+    let today = localToday();
+    try { today = nowInZone(tz).date; } catch { /* invalid zone: browser date */ }
+    if (orderDate && orderDate < today) w.push("Order date is in the past. The calculator will still find the next valid target send time.");
     if (sendDate && orderDate && sendDate < orderDate) w.push("Target send date is before the order date. The next valid send time after the order is used instead.");
     const a = orderDate && orderTime && safeWarning(orderDate, orderTime, tz, "Order created time");
     if (a) w.push(a);
@@ -141,10 +164,13 @@ export default function UtcTool({ notify }) {
   const unusual = result ? unusualWait(result.waitMs) : null;
   const userZoneDiffers = isValidZone(USER_TZ) && USER_TZ !== tz;
   const wait = result ? fmtDurDays(result.waitMs) : "";
-  const skippedN = result ? result.skipped.length : 0;
-  const skippedTx = skippedN > 0 ? `${skippedN} weekend day${skippedN > 1 ? "s" : ""} skipped` : "";
+  const totals = result ? waitTotals(result.waitMs) : null;
+  const holN = result ? result.skipped.filter((d) => d.holiday).length : 0;
+  const wkN = result ? result.skipped.length - holN : 0;
+  const skippedTx = wkN + holN > 0
+    ? `${[wkN && plural(wkN, "weekend day"), holN && plural(holN, "day off")].filter(Boolean).join(", ")} skipped` : "";
 
-  const reset = () => { setTz(USER_TZ); setOrderDate(localToday()); setOrderTime(DEFAULTS.order); setSendTime(DEFAULTS.send); setSendDate(""); setSkipWk(false); };
+  const reset = () => { setTz(USER_TZ); setOrderDate(localToday()); setOrderTime(DEFAULTS.order); setSendTime(DEFAULTS.send); setSendDate(""); setSkipWk(false); setHolidays([]); };
 
   const downloadIcs = (sendUtc) => {
     const ics = buildIcs({ title: "Send notification", startUtc: sendUtc, description: `Order placed ${fmtUtcDate(result.orderUtc)} ${fmtUtc(result.orderUtc)} UTC (${tz}).` });
@@ -203,7 +229,15 @@ export default function UtcTool({ notify }) {
               <fieldset className="utc-step">
                 <legend><span className="st-dot" aria-hidden="true"><ShoppingBag size={12} strokeWidth={2.4} /></span>Order</legend>
                 <div className="two">
-                  <div className="field"><label htmlFor="od">Order date</label><input id="od" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} /></div>
+                  <div className="field">
+                    <div className="lbl-row">
+                      <label htmlFor="od">Order date</label>
+                      <button type="button" className="linkbtn utc-clear" onClick={setNow} aria-label={`Set order date and time to now in ${cityOf(tz)}`}>
+                        <Clock size={12} aria-hidden="true" />Now
+                      </button>
+                    </div>
+                    <input id="od" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+                  </div>
                   <div className="field"><label htmlFor="ot">Order created time</label><input id="ot" type="time" value={orderTime} onChange={(e) => setOrderTime(e.target.value)} aria-describedby="ot-h" />
                     {orderTime && <div className="hint mono-h" id="ot-h">{t(orderTime)}</div>}</div>
                 </div>
@@ -230,6 +264,26 @@ export default function UtcTool({ notify }) {
                   <div><div className="t">Skip weekends</div><div className="s">Sends that land on Saturday or Sunday move to Monday</div></div>
                   <Switch on={skipWk} onChange={setSkipWk} label="Skip weekends" />
                 </div>
+                <div className="utc-hol">
+                  <div className="t" id="hol-l">Days off</div>
+                  <div className="s" id="hol-h">Holidays or closures — a send that lands on one moves to the next working day</div>
+                  {holidays.length > 0 && (
+                    <ul className="utc-chips" aria-labelledby="hol-l">
+                      {holidays.map((d) => (
+                        <li key={d} className="utc-chip">
+                          <span className="cp-day">{fmtDay(zonedToUtc(d, "12:00", "UTC"))}</span>
+                          <button type="button" className="cp-del" aria-label={`Remove day off ${d}`} onClick={() => setHolidays(holidays.filter((x) => x !== d))}><X size={13} aria-hidden="true" /></button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <label htmlFor="hol-d" className="sr-only">Add a day off</label>
+                  <div className="inrow utc-save">
+                    <input id="hol-d" className="inp" type="date" value={holInput} aria-describedby="hol-h"
+                      onChange={(e) => setHolInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHoliday()} />
+                    <button type="button" className="btn gh" onClick={addHoliday}><CalendarX size={14} aria-hidden="true" />Add day off</button>
+                  </div>
+                </div>
                 <div className="tgl">
                   <div className="t" id="clk-l">Clock format</div>
                   <div className="seg utc-seg" role="group" aria-labelledby="clk-l">
@@ -255,10 +309,14 @@ export default function UtcTool({ notify }) {
                   <label htmlFor="pn" className="sr-only">Preset name</label>
                   <div className="inrow utc-save">
                     <input id="pn" className="inp" type="text" placeholder="Name, e.g. Mexico morning" value={presetName} maxLength={30}
-                      onChange={(e) => setPresetName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPreset()} />
-                    <button type="button" className="btn gh" onClick={addPreset}><Plus size={14} aria-hidden="true" />Save</button>
+                      aria-describedby="pn-h" onChange={(e) => setPresetName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPreset()} />
+                    <button type="button" className={`btn gh ${replacing ? "utc-replace" : ""}`} onClick={addPreset}>
+                      {replacing ? <RotateCcw size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}{replacing ? "Replace" : "Save"}
+                    </button>
                   </div>
-                  <p className="hint">Saved on this device only.</p>
+                  <p className="hint" id="pn-h" aria-live="polite">
+                    {replacing ? <span className="utc-repl">A preset named “{presetName.trim()}” exists — saving replaces it.</span> : "Saved on this device only."}
+                  </p>
                 </div>
               </details>
             </div>
@@ -276,6 +334,14 @@ export default function UtcTool({ notify }) {
                   <div className="sub">
                     <Countdown orderUtc={result.orderUtc} sendUtc={result.sendUtc} />
                   </div>
+                </div>
+
+                <div className="utc-totals" role="group" aria-labelledby="tot-l">
+                  <span className="eyebrow" id="tot-l">Copy as a delay</span>
+                  <CopyButton text={String(totals.minutes)} className="btn gh sm" notify={notify} toast={`${totals.minutes} minutes copied.`}
+                    label={<><b>{totals.minutes}</b>&nbsp;min<span className="sr-only"> — copy total minutes</span></>} done="Copied" />
+                  <CopyButton text={String(totals.seconds)} className="btn gh sm" notify={notify} toast={`${totals.seconds} seconds copied.`}
+                    label={<><b>{totals.seconds}</b>&nbsp;sec<span className="sr-only"> — copy total seconds</span></>} done="Copied" />
                 </div>
 
                 <ol className="utc-tl" aria-label="Order to send timeline">

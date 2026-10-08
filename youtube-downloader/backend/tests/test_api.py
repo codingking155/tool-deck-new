@@ -68,6 +68,7 @@ def test_info_rejects_unsupported_urls(client, url):
         ("geoBlocked0", 451, "region_restricted"),
         ("deletedVid0", 404, "unavailable"),
         ("rateLimit00", 429, "rate_limited"),
+        ("botCheck000", 503, "bot_check"),
         ("liveStream0", 422, "live"),
     ],
 )

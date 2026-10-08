@@ -246,10 +246,13 @@ export function looksBlockedPage(html) {
 /* ── report ───────────────────────────────────────────────────────────── */
 
 /** Plain-text report for the copy button — pasteable into CRM notes. */
-export function buildReport(res, url, ms) {
+export function buildReport(res, url, ms, now = new Date()) {
+  const blockedUnknown = res.blocked && res.verdict === "uncertain" && res.confidence < 25;
+  const verdict = blockedUnknown ? "Couldn't see the page (bot protection or rate limiting)"
+    : res.verdict === "yes" ? "Shopify store detected" : res.verdict === "uncertain" ? "Possibly Shopify" : "Not Shopify";
   const lines = [
     `Shopify check — ${url}`,
-    `Verdict: ${res.verdict === "yes" ? "Shopify store detected" : res.verdict === "uncertain" ? "Possibly Shopify" : "Not Shopify"} (${res.confidence}% confidence)`,
+    `Verdict: ${verdict} (${res.confidence}% confidence)`,
   ];
   if (res.shopDomain) lines.push(`Shop domain: ${res.shopDomain}`);
   if (res.theme) lines.push(`Theme: ${res.theme}${res.themeStoreId ? ` (theme store #${res.themeStoreId})` : ""}`);
@@ -257,9 +260,37 @@ export function buildReport(res, url, ms) {
   if (res.currency) lines.push(`Store currency: ${res.currency}`);
   if (res.productCount != null) lines.push(`Catalog visible: ${res.productCount}+ products`);
   if (res.platform && res.verdict !== "yes") lines.push(`Detected platform instead: ${res.platform}`);
+  if (res.blocked && !blockedUnknown) lines.push("Note: the page itself was blocked; based on headers and storefront endpoints");
   if (ms != null) lines.push(`Response time: ${ms} ms`);
-  lines.push(`Signals matched (${res.hits.length}/${res.signalsChecked}):`);
-  for (const h of res.hits) lines.push(`  ✓ ${h.label} (+${h.w})`);
-  lines.push(`Checked with ToolDeck BLR · ${new Date().toISOString().slice(0, 10)}`);
+  lines.push(`Signals matched (${res.hits.length}${res.signalsChecked ? `/${res.signalsChecked}` : ""}):`);
+  for (const h of res.hits) lines.push(`  ✓ ${h.label}${h.w ? ` (+${h.w})` : ""}`);
+  lines.push(`Checked with ToolDeck BLR · ${now.toISOString().slice(0, 10)}`);
   return lines.join("\n");
+}
+
+/** shopify-check's JSON body → the analysis shape buildReport takes (the browser
+    only has the API response). Absent fields stay absent — nothing is invented. */
+export function fromApiResponse(body) {
+  const b = body || {};
+  const confidence = Number.isFinite(b.confidence_pct) ? b.confidence_pct : Math.round((Number(b.confidence) || 0) * 100);
+  const hits = Array.isArray(b.signals_detail)
+    ? b.signals_detail.filter((h) => h && typeof h.label === "string").map((h) => ({ label: h.label, w: Number(h.w) || 0 }))
+    : (Array.isArray(b.detected_signals) ? b.detected_signals : []).filter((l) => typeof l === "string").map((label) => ({ label, w: 0 }));
+  return {
+    verdict: b.verdict || (b.is_shopify ? "yes" : confidence >= 25 ? "uncertain" : "no"),
+    confidence, hits,
+    plus: b.plus === true,
+    theme: b.theme || null,
+    themeStoreId: b.theme_store_id ?? null,
+    shopDomain: b.shop_domain || null,
+    currency: b.currency || null,
+    productCount: Number.isFinite(b.product_count) ? b.product_count : null,
+    platform: b.platform || null,
+    blocked: b.page_blocked === true,
+  };
+}
+
+/** CRM-pasteable report straight from an API response. */
+export function reportFromResponse(body, now = new Date()) {
+  return buildReport(fromApiResponse(body), body?.final_url || body?.input_url || "", Number.isFinite(body?.elapsed_ms) ? body.elapsed_ms : null, now);
 }

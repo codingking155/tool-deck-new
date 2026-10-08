@@ -154,3 +154,11 @@ export const REGION_INFO = (() => {
 export const REGION_LIST = Object.entries(REGION_INFO)
   .map(([iso, { name }]) => ({ iso, name }))
   .sort((a, b) => a.name.localeCompare(b.name));
+
+/* The digits as typed when there was no + / 00 (a trunk "0…" number, or one whose prefix was only assumed),
+   for re-reading as a national number of a picked country; null when the number had an international prefix. */
+export function nationalDigits(det) {
+  if (!det) return null;
+  if (det.trunk) return det.digits;
+  return det.assumed && det.dial ? det.dial + det.national : null;
+}

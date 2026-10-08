@@ -64,12 +64,15 @@ _RULES: list[tuple[re.Pattern[str], ApiError]] = [
         re.compile(r"sign in to confirm your age|age[- ]restricted|inappropriate for some users"),
         ApiError(403, "age_restricted", "This video is age-restricted and requires signing in, which isn't supported."),
     ),
+    # YouTube's bot check on datacenter IPs. Not a rate limit the person caused, and waiting a minute
+    # rarely clears it, so it gets its own code and honest copy. We deliberately don't work around it.
     (
         re.compile(r"sign in to confirm you.?re not a bot|confirm you are not a robot"),
         ApiError(
-            429,
-            "rate_limited",
-            "YouTube is temporarily limiting requests from this server. Please try again in a few minutes.",
+            503,
+            "bot_check",
+            "YouTube is blocking requests from our download server right now. This isn't caused by you or the link."
+            " Try again later, or try a different video.",
         ),
     ),
     (

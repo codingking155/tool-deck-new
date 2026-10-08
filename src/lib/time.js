@@ -124,9 +124,12 @@ export function getNextValidSendUtc(orderUtc, sendTime, tz, options = {}) {
     skipWeekends = true,
     weekendBasis = "utc",
     nonWorkingDays = [0, 6],
+    holidays = [],
     maxDays = 60,
   } = options;
   const dayOpts = { skipWeekends, weekendBasis, timeZone: tz, nonWorkingDays };
+  // Specific local dates (YYYY-MM-DD) that are never send days, independent of the weekend rule.
+  const holidaySet = new Set(holidays);
   // A fixed send date before the order's local date can never be valid — start from the later one.
   const orderLocal = localDateOf(orderUtc, tz);
   let candidateDate = sendDate && sendDate > orderLocal ? sendDate : orderLocal;
@@ -135,14 +138,15 @@ export function getNextValidSendUtc(orderUtc, sendTime, tz, options = {}) {
   for (let i = 0; i < maxDays; i++) {
     const candidateUtc = zonedToUtc(candidateDate, sendTime, tz);
     const tooEarly = candidateUtc.getTime() <= orderUtc.getTime();
-    const nonWorking = isNonWorkingDay(candidateUtc, dayOpts);
+    const holiday = holidaySet.has(candidateDate);
+    const nonWorking = holiday || isNonWorkingDay(candidateUtc, dayOpts);
     if (!tooEarly && !nonWorking) return { sendUtc: candidateUtc, skippedDays };
     if (!tooEarly && nonWorking) {
-      skippedDays.push({ date: candidateDate, dow: dowOf(candidateUtc, weekendBasis, tz) });
+      skippedDays.push({ date: candidateDate, dow: dowOf(candidateUtc, weekendBasis, tz), holiday });
     }
     candidateDate = nextLocalDate(candidateDate, tz); // never mutates, always re-resolves
   }
-  throw new Error("No valid send day found within 60 days — check the non-working-day configuration.");
+  throw new Error(`No valid send day found within ${maxDays} days — check the non-working-day configuration.`);
 }
 
 /* ─── validation warnings (audited v2) ──────────────────────────────────── */
@@ -197,28 +201,58 @@ export function fmtDur(ms) {
 
 export const fmt12 = (h, m) => `${pad(h % 12 || 12)}:${pad(m)} ${h >= 12 ? "PM" : "AM"}`;
 
-/* ─── order → target-send wait (no weekend rules) ───────────────────────── */
+/* ─── order → target-send wait ──────────────────────────────────────────── */
 
-/** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day (DST-safe) if it is not after the order. A sendDate before the order date starts from the order date. */
+/** Valid YYYY-MM-DD strings from an untrusted list (URL / storage), deduped and sorted. */
+export function cleanHolidays(list, max = 60) {
+  if (!Array.isArray(list)) return [];
+  const ok = list.filter((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)));
+  return [...new Set(ok)].sort().slice(0, max);
+}
+
+const hasRules = (opts) => !!(opts.skipWeekends || opts.holidays?.length);
+const ruleOpts = (sendDate, opts) => ({
+  sendDate: sendDate || null, skipWeekends: !!opts.skipWeekends, weekendBasis: "local", holidays: opts.holidays || [],
+  // each holiday can push the send one more day, so widen the search window for long lists
+  maxDays: 60 + (opts.holidays?.length || 0),
+});
+
+/** Next instant after orderUtc whose local wall-clock is sendTime; a fixed sendDate is honoured, then advanced day-by-day (DST-safe) if it is not after the order. A sendDate before the order date starts from the order date. `opts.skipWeekends` / `opts.holidays` (local YYYY-MM-DD dates) push the send past non-working days. */
 export function nextSendUtc(orderUtc, orderDate, sendTime, tz, sendDate = "", opts = {}) {
-  if (opts.skipWeekends) {
-    return getNextValidSendUtc(orderUtc, sendTime, tz, { sendDate: sendDate || null, skipWeekends: true, weekendBasis: "local" }).sendUtc;
-  }
+  if (hasRules(opts)) return getNextValidSendUtc(orderUtc, sendTime, tz, ruleOpts(sendDate, opts)).sendUtc;
   let date = sendDate && sendDate > orderDate ? sendDate : orderDate;
   let send = zonedToUtc(date, sendTime, tz);
   for (let i = 0; i < 30 && send <= orderUtc; i++) { date = nextLocalDate(date, tz); send = zonedToUtc(date, sendTime, tz); }
   return send;
 }
 
-/** Weekend days skipped for a given order (empty unless skipWeekends). */
+/** Weekend days skipped for a given order (always applies the weekend rule). */
 export function skippedWeekendDays(orderUtc, sendTime, tz, sendDate = "") {
   return getNextValidSendUtc(orderUtc, sendTime, tz, { sendDate: sendDate || null, skipWeekends: true, weekendBasis: "local" }).skippedDays;
+}
+
+/** Non-working days (weekends when opts.skipWeekends, plus opts.holidays) skipped for an order; each entry has `holiday`. */
+export function skippedDaysFor(orderUtc, sendTime, tz, sendDate = "", opts = {}) {
+  if (!hasRules(opts)) return [];
+  return getNextValidSendUtc(orderUtc, sendTime, tz, ruleOpts(sendDate, opts)).skippedDays;
 }
 
 export function fmtDurDays(ms) {
   const tm = Math.max(0, Math.round(ms / 60000));
   const d = Math.floor(tm / 1440), h = Math.floor((tm % 1440) / 60), m = tm % 60;
   return d > 0 ? `${d} day${d > 1 ? "s" : ""} ${h} hr ${m} min` : `${h} hr ${m} min`;
+}
+
+/** Whole wait as automation-friendly totals ("delay N minutes/seconds" fields); minutes match fmtDurDays' rounding. */
+export function waitTotals(ms) {
+  const minutes = Math.max(0, Math.round(ms / 60000));
+  return { minutes, seconds: minutes * 60 };
+}
+
+/** The current wall-clock date (YYYY-MM-DD) and minute (HH:MM) in a zone. */
+export function nowInZone(tz, at = new Date()) {
+  const p = zoneParts(at, tz);
+  return { date: `${p.year}-${pad(p.month)}-${pad(p.day)}`, time: `${pad(p.hour)}:${pad(p.minute)}` };
 }
 
 export const fmt12Str = (t) => { const [h, m] = t.split(":").map(Number); return fmt12(h, m); };

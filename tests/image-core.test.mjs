@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime } from "../src/lib/imageCore.mjs";
+import { fmtBytes, resizeDims, fitMax, cropRect, outName, noopReason, compressMime, targetBytes, searchQuality, fitToTarget } from "../src/lib/imageCore.mjs";
 import { makeZip } from "../src/lib/zip.js";
 
 test("fmtBytes", () => {
@@ -54,10 +54,68 @@ test("compressMime: 'Same as original' keeps JPG/PNG/WebP, sends GIF/BMP/SVG/AVI
 });
 
 test("noopReason: explains no-op applies", () => {
+  assert.match(noopReason("compress", { by: "target", kb: "" }), /target size/);
+  assert.equal(noopReason("compress", { by: "target", kb: "150" }), "");
+  assert.equal(noopReason("compress", { by: "quality", kb: "" }), "");
   assert.match(noopReason("rotate", { angle: 0, flipH: false, flipV: false }), /rotation or a flip/);
   assert.equal(noopReason("rotate", { angle: 0, flipH: true, flipV: false }), "");
   assert.match(noopReason("crop", { aspect: "free", zoom: 1 }), /aspect ratio or zoom/);
   assert.equal(noopReason("crop", { aspect: "free", zoom: 1.5 }), "");
   assert.equal(noopReason("crop", { aspect: "1:1", zoom: 1 }), "");
   assert.equal(noopReason("compress", { q: 70 }), "");
+});
+
+/* Fake encoder: size grows with quality and with pixel area, like a real lossy codec. */
+const fake = (base) => async (q, scale = 1) => ({ size: Math.round(base * (0.1 + q) * scale * scale), q, scale });
+
+test("targetBytes", () => {
+  assert.equal(targetBytes("200"), 204800);
+  assert.equal(targetBytes(""), 0);
+  assert.equal(targetBytes("-5"), 0);
+  assert.equal(targetBytes("abc"), 0);
+});
+
+test("searchQuality: largest quality that fits, in few encodes", async () => {
+  const enc = fake(100000);
+  const r = await searchQuality(enc, 60000);
+  assert.equal(r.fits, true);
+  assert.ok(r.out.size <= 60000);
+  assert.equal(r.q, 50);                       // 100000 * (0.1 + 0.50) = 60000
+  assert.ok((await enc(0.51)).size > 60000);
+  assert.ok(r.tries <= 9, `took ${r.tries} encodes`);
+});
+
+test("searchQuality: max quality fits -> one encode; min too big -> reports failure", async () => {
+  const hi = await searchQuality(fake(1000), 10000);
+  assert.deepEqual([hi.fits, hi.q, hi.tries], [true, 95, 1]);
+  const lo = await searchQuality(fake(1000000), 1000);
+  assert.deepEqual([lo.fits, lo.q, lo.tries], [false, 5, 2]);
+});
+
+test("searchQuality never returns a size it didn't see fit (non-monotonic encoder)", async () => {
+  const jumpy = async (q) => ({ size: [30, 41, 57].includes(Math.round(q * 100)) ? 99999 : Math.round(q * 1000) });
+  const r = await searchQuality(jumpy, 600);
+  assert.equal(r.fits, true);
+  assert.ok(r.out.size <= 600);
+});
+
+test("fitToTarget: steps dimensions down when quality alone can't reach the target", async () => {
+  const r = await fitToTarget(fake(100000), 5000, { longest: 4000 });
+  assert.equal(r.fits, true);
+  assert.ok(r.scale < 1);
+  assert.ok(r.out.size <= 5000);
+  const full = await fitToTarget(fake(100000), 60000, { longest: 4000 });
+  assert.deepEqual([full.scale, full.q], [1, 50]);
+});
+
+test("fitToTarget: lossless ignores quality; unreachable targets return the smallest attempt", async () => {
+  const seen = [];
+  const png = async (q, scale) => { seen.push(q); return { size: Math.round(80000 * scale * scale) }; };
+  const ok = await fitToTarget(png, 20000, { lossy: false, longest: 2000 });
+  assert.deepEqual([ok.fits, ok.scale, ok.q], [true, 0.4, null]);
+  assert.ok(seen.every((q) => q === 1));
+  const nope = await fitToTarget(fake(1e9), 10, { longest: 100 });
+  assert.equal(nope.fits, false);
+  assert.equal(nope.scale, 0.2);               // 0.1 would make the 100px side 10px < minSide 16
+  assert.equal(nope.q, 5);
 });

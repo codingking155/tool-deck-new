@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep, stats, formatPath, toJSONSchema, diffJSON, MAX_DEPTH } from "../src/lib/jsonCore.js";
+import { parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep, stats, formatPath, toJSONSchema, diffJSON, MAX_DEPTH, packSaved, restoreSaved, SAVE_MAX_CHARS } from "../src/lib/jsonCore.js";
 import { parsePageRanges, formatBytes } from "../src/lib/pageRanges.js";
 
 test("parseJSON reports line and column of the error", () => {
@@ -212,4 +212,25 @@ test("diff limit is enforced inside add/remove loops", () => {
   const o = Object.fromEntries(b.map((i) => [`k${i}`, i]));
   assert.equal(diffJSON({}, o, 50).changes.length, 50);
   assert.equal(diffJSON(o, {}, 50).changes.length, 50);
+});
+
+const DEF = { input: "SAMPLE", inputB: "B", mode: "format", indent: "2", sortKeys: false, path: "$.a", conv: "ts", rootName: "Root" };
+const VOC = { modes: ["format", "tree"], convs: ["ts", "yaml"] };
+
+test("saved session: round-trip, sample only when nothing saved, cleared input stays cleared", () => {
+  const st = { input: "[1]", inputB: "[2]", mode: "tree", indent: "tab", sortKeys: true, path: "$..id", conv: "yaml", rootName: "Order" };
+  assert.deepEqual(restoreSaved(JSON.parse(JSON.stringify(packSaved(st))), DEF, VOC), st);
+  assert.deepEqual(restoreSaved(null, DEF, VOC), DEF);
+  assert.equal(restoreSaved({ input: "" }, DEF, VOC).input, "");
+});
+
+test("saved session: oversized input isn't stored and restores empty; junk falls back to defaults", () => {
+  const big = packSaved({ input: "x".repeat(SAVE_MAX_CHARS + 1), inputB: "ok", mode: "format" });
+  assert.equal(big.input, undefined);
+  assert.equal(big.big, true);
+  assert.equal(packSaved({ input: "x" }).big, undefined);
+  const r = restoreSaved(JSON.parse(JSON.stringify(big)), DEF, VOC);
+  assert.equal(r.input, "");
+  assert.equal(r.inputB, "ok");
+  assert.deepEqual(restoreSaved({ mode: "evil", indent: 3, sortKeys: "yes", conv: "exe", path: 5 }, DEF, VOC), DEF);
 });

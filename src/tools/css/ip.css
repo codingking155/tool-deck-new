@@ -10,6 +10,8 @@
 .ipt-hero-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--s6);padding:var(--s5) var(--s6) var(--s4)}
 .ipt-hero-main{min-width:0}
 .ipt-hero-main .eyebrow{display:block}
+.ipt-hero-top{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
+.ipt-hide[aria-pressed="true"]{color:var(--pri2);border-color:var(--pri-line);background:color-mix(in srgb,var(--pri2) 12%,transparent)}
 .ipt-ipblock{margin-top:var(--s2);min-height:104px}
 .ipt-iprow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
 .ipt-ip{font:600 clamp(26px,4vw,40px)/1.1 var(--mono);letter-spacing:-.02em;color:var(--tx);overflow-wrap:anywhere;min-width:0;font-variant-numeric:tabular-nums}
@@ -18,6 +20,8 @@
 .ipt-iprow.alt{margin-top:var(--s2);align-items:center}
 .ipt-alt{font:500 13.5px var(--mono);color:var(--tx2);overflow-wrap:anywhere;min-width:0}
 .ipt-alt-none{font-size:13px;color:var(--tx3)}
+/* IPv6 address type: a quiet label, the explanation is in the IPv6 section and the tooltip */
+.ipt-v6kind{font:500 11.5px var(--body);color:var(--tx2);border:1px dashed var(--line-strong);border-radius:var(--r-pill);padding:1px 8px;flex:none;cursor:help}
 .ipt-copy{margin-top:var(--s3)}
 .ipt-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s4);min-height:22px}
 .ipt-facts{min-width:0;align-self:center}
@@ -28,6 +32,8 @@
 .ipt-fact .v{font-family:var(--body);font-size:13px}
 .ipt-hero-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap;padding:var(--s3) var(--s6);border-top:1px solid var(--line2);background:var(--bg-secondary)}
 .ipt-hero-foot .hint{margin:0;flex:1 1 280px}
+.ipt-foot-acts{display:flex;flex-wrap:wrap;gap:var(--s2);margin:0}
+.ipt-v6note b{color:var(--tx);font-weight:600}
 
 /* skeletons sit in the exact slots the results will fill — no layout shift */
 .ipt-sk-ip{display:block;height:40px;width:min(320px,80%);border-radius:var(--r-sm)}
@@ -110,7 +116,7 @@
   .ipt-hero-foot{padding:var(--s3) var(--s4)}
   .ipt-sechead{padding:var(--s4) var(--s4) 0}
   .ipt-ipblock{min-height:0}
-  .ipt-copy .btn.sm,.ipt-hero-foot .btn.sm,.ipt-facts .btn.sm{min-height:44px}
+  .ipt-copy .btn.sm,.ipt-hero-foot .btn.sm,.ipt-facts .btn.sm,.ipt-hide.btn.sm{min-height:44px}
   .dns-ips summary{min-height:44px}
 }
 @media(prefers-reduced-motion:reduce){

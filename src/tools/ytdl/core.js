@@ -121,6 +121,7 @@ export const ERROR_TITLES = {
   removed: "Video removed",
   live: "Live streams aren't supported",
   rate_limited: "Slow down a little",
+  bot_check: "YouTube is blocking the download server",
   too_many_jobs: "Downloads already running",
   busy: "Service is busy",
   ffmpeg_missing: "Conversion unavailable",
@@ -129,3 +130,16 @@ export const ERROR_TITLES = {
   too_large: "File too large",
   too_long: "Video too long",
 };
+
+/* Polling a job: a dropped connection or a 5xx with no error body (Render restarting, a proxy hiccup)
+   is worth retrying; anything the backend answered with its own code (job_not_found, 4xx) is not. */
+export const POLL_TRIES = 4;
+
+export function isTransientPollError(e) {
+  if (!e || e.name === "AbortError") return false;
+  if (e.code === "backend_unavailable") return true;   // fetch failed, or a 5xx without a JSON detail
+  return e.status >= 500 && e.code === `http_${e.status}`;
+}
+
+/** Backoff before retry n (1-based): 1 s, 2 s, 4 s … capped at 8 s. */
+export const pollRetryDelay = (attempt) => Math.min(8000, 1000 * 2 ** Math.max(0, attempt - 1));

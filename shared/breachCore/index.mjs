@@ -21,6 +21,9 @@ export function pwnedCount(rangeText, suffix) {
 
 const SEVERE = /password|credit|card|bank|ssn|social security|passport|security question|payment/i;
 
+/** Is this exposed data type (e.g. "Passwords", "Credit cards") sensitive enough to flag? */
+export const isSevereType = (t) => SEVERE.test(String(t));
+
 /** One breach record in the shape the UI uses. */
 function normalizeBreach(b) {
   const data = String(b.xposed_data ?? "").split(";").map((s) => s.trim()).filter(Boolean);

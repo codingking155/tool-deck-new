@@ -1,6 +1,8 @@
-import { useState, useMemo, useRef } from "react";
-import { Square, Mail, Code2, FileText, Megaphone, GraduationCap, Download, Check, Plus, Sparkles } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Square, Mail, Code2, FileText, Megaphone, GraduationCap, Download, Check, Plus, Sparkles, ExternalLink, Link2, Undo2 } from "lucide-react";
 import { saveBlob } from "../lib/zip.js";
+import { makeShareLink, shareBase, decodeShare, readHashParam, readStored, writeStored } from "../lib/shareState.js";
+import { AI_TARGETS, PROMPT_URL_MAX, aiOpenPlan, packDraft, unpackDraft } from "../lib/promptCore.js";
 import { CopyButton, Notice, EmptyState } from "../components/ui.jsx";
 import "./css/prompt.css";
 
@@ -159,6 +161,38 @@ const EXTRAS = [
   ["review", "After answering, review your work and fix any mistakes."],
 ];
 
+const DRAFT_KEY = "toolDeck.promptDraft";
+const VOCAB = { presets: Object.keys(PRESETS), fields: FIELDS.map((x) => x[0]), styles: STYLES.map((x) => x[0]), extras: EXTRAS.map((x) => x[0]) };
+/* A preset minus its label/icon, i.e. just the field values. */
+const fieldsOf = (p) => Object.fromEntries(FIELDS.map(([k]) => [k, p[k]]));
+const dropHash = () => { try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch { /* ignore */ } };
+
+/* Prefill links open directly; assistants without prefill (or prompts too long for a URL)
+   get the prompt via the clipboard, then open in a new tab. */
+function OpenIn({ prompt, notify }) {
+  const open = (plan) => async (e) => {
+    if (!plan.copy) return;
+    e.preventDefault();
+    try { await navigator.clipboard.writeText(prompt); notify(`Prompt copied — paste it in ${plan.label}`); }
+    catch { notify(`Couldn't copy — copy the prompt, then paste it in ${plan.label}`); }
+    window.open(plan.url, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <div className="pg-open" role="group" aria-label="Open in an AI assistant">
+      <span className="pg-eyebrow">Open in</span>
+      {AI_TARGETS.map(([id]) => {
+        const plan = aiOpenPlan(id, prompt);
+        return (
+          <a key={id} className="pill" href={plan.url} target="_blank" rel="noopener noreferrer" onClick={open(plan)}
+            title={plan.copy ? `Copies the prompt, then opens ${plan.label} — paste it in` : `Opens ${plan.label} with this prompt filled in`}>
+            {plan.label}<ExternalLink size={13} aria-hidden="true" />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function Field({ k, label, ph, multi, value, onChange, required }) {
   return (
     <div className="field">
@@ -171,12 +205,44 @@ function Field({ k, label, ph, multi, value, onChange, required }) {
 }
 
 export default function PromptTool({ notify }) {
-  const [preset, setPreset] = useState("email");
-  const [f, setF] = useState(() => ({ ...PRESETS.email }));
-  const [style, setStyle] = useState("plain");
-  const [extras, setExtras] = useState({});
+  const [saved] = useState(() => unpackDraft(readStored(DRAFT_KEY), VOCAB));
+  const [preset, setPreset] = useState(saved?.preset ?? "email");
+  const [f, setF] = useState(() => saved?.f ?? fieldsOf(PRESETS.email));
+  const [style, setStyle] = useState(saved?.style ?? "plain");
+  const [extras, setExtras] = useState(saved?.extras ?? {});
   const [moreOpen, setMoreOpen] = useState(false);
+  const [undo, setUndo] = useState(null);
   const moreRef = useRef(null);
+  const cur = useRef(null);
+  cur.current = { preset, f, style, extras };
+
+  const apply = (d) => { setPreset(d.preset); setF(d.f); setStyle(d.style); setExtras(d.extras); };
+
+  /* Draft survives reloads; debounced so typing doesn't hammer storage. */
+  useEffect(() => {
+    const t = setTimeout(() => writeStored(DRAFT_KEY, packDraft({ preset, f, style, extras })), 400);
+    return () => clearTimeout(t);
+  }, [preset, f, style, extras]);
+
+  /* A shared link (#p=…) replaces the draft, with Undo; the hash is dropped so a reload keeps later edits. */
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      const payload = readHashParam(window.location.hash, "p");
+      if (!payload) return;
+      try {
+        const d = unpackDraft(JSON.parse(await decodeShare(payload, { maxBytes: 200000 })), VOCAB);
+        if (!d) throw new Error("bad draft");
+        if (!live) return;
+        setUndo({ msg: "Loaded the shared prompt.", prev: cur.current });
+        apply(d);
+      } catch { if (live) notify("That prompt link is damaged or incomplete."); }
+      if (live) dropHash();
+    };
+    load();
+    window.addEventListener("hashchange", load);
+    return () => { live = false; window.removeEventListener("hashchange", load); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const extraLines = EXTRAS.filter(([k]) => extras[k]).map(([, line]) => line);
   const prompt = useMemo(() => buildPrompt(f, style, extraLines), [f, style, extraLines.join("|")]);
@@ -187,11 +253,24 @@ export default function PromptTool({ notify }) {
   const optFilled = OPTIONAL.filter(([k]) => filled(k)).length + extraLines.length;
 
   const edited = FIELDS.some(([k]) => f[k] !== PRESETS[preset][k]);
+  /* Switch at once; edits are only a click away via Undo. */
   const pick = (k) => {
-    if (edited && !window.confirm(`Replace your edits with the ${PRESETS[k].label} template?`)) return;
-    setPreset(k); setF({ ...PRESETS[k] });
+    if (k === preset && !edited) return;
+    setUndo(edited ? { msg: `Switched to the ${PRESETS[k].label} template.`, prev: { preset, f } } : null);
+    setPreset(k); setF(fieldsOf(PRESETS[k]));
   };
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const restore = () => { if (undo) { apply({ ...cur.current, ...undo.prev }); setUndo(null); } };
+  const set = (k) => (e) => { setF((p) => ({ ...p, [k]: e.target.value })); setUndo(null); };
+
+  /* The draft travels in the hash, so the link works without anything being uploaded. */
+  const copyLink = async () => {
+    try {
+      const { url } = await makeShareLink(shareBase(window.location), "p", JSON.stringify(packDraft({ preset, f, style, extras })));
+      if (url.length > PROMPT_URL_MAX) { notify("Too long to share as a link — copy or download the prompt instead."); return; }
+      await navigator.clipboard.writeText(url);
+      notify("Link copied — it opens with this prompt filled in");
+    } catch { notify("Couldn't copy the link."); }
+  };
 
   /* Chips jump to their field, opening "More options" first when needed. */
   const focusField = (k) => {
@@ -218,6 +297,14 @@ export default function PromptTool({ notify }) {
           })}
         </div>
       </div>
+      {undo && (
+        <Notice tone="i" role="status" className="pg-undo" actions={
+          <>
+            <button type="button" className="pill" onClick={restore}><Undo2 size={14} aria-hidden="true" />Undo</button>
+            <button type="button" className="pill" onClick={() => setUndo(null)}>Dismiss</button>
+          </>
+        }>{undo.msg}</Notice>
+      )}
 
       <div className="pg-grid">
         <section className="pg-ess" aria-labelledby="pg-ess-h">
@@ -260,8 +347,10 @@ export default function PromptTool({ notify }) {
               <div className="pg-acts">
                 <CopyButton text={() => prompt} label="Copy prompt" done="Copied" className="btn pri" notify={notify} toast="Prompt copied" />
                 <button type="button" className="btn gh" onClick={download}><Download size={15} aria-hidden="true" />Download .txt</button>
+                <button type="button" className="btn gh" onClick={copyLink} title="The prompt is stored in the link itself — nothing is uploaded"><Link2 size={15} aria-hidden="true" />Copy link</button>
               </div>
-              <p className="pg-where">Paste it into ChatGPT, Claude, Gemini or any other assistant.</p>
+              <OpenIn prompt={prompt} notify={notify} />
+              <p className="pg-where">Or paste it into any other assistant. Your draft is saved in this browser.</p>
               {missing.length > 0 && (
                 <Notice tone="i" title="Tip" className="pg-tip">
                   Adding {missing.join(", ")} usually gives a noticeably better answer.

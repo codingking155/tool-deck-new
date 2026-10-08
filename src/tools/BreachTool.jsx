@@ -1,16 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Mail, KeyRound, ShieldCheck, AlertTriangle, Loader2, RotateCcw, ArrowRight, Server, Database, Laptop, Hash, Eye, EyeOff, CalendarDays, Users, Globe, CircleCheck } from "lucide-react";
-import { checkEmail, checkPassword, isValidEmail } from "../lib/breach.js";
+import { Mail, KeyRound, ShieldCheck, AlertTriangle, Loader2, RotateCcw, ArrowRight, Server, Database, Laptop, Hash, Eye, EyeOff, CalendarDays, Users, Globe, CircleCheck, BadgeCheck } from "lucide-react";
+import { checkEmail, checkPassword, isValidEmail, isSevereType, nextSteps } from "../lib/breach.js";
 import { readParams, writeParams } from "../hooks/index.js";
 import { Notice, StatusBadge } from "../components/ui.jsx";
 import "./css/breach.css";
-
-const NEXT_STEPS = [
-  "Change the password on every affected account — and anywhere you reused it.",
-  "Use a unique password per site, ideally from a password manager.",
-  "Turn on two-factor authentication, preferably an authenticator app or passkey.",
-  "Be wary of phishing that mentions these services; attackers reuse breach data.",
-];
 
 /* Error message → which kind of failure, so "not set up here", "slow down" and "offline" read differently. */
 function classify(msg) {
@@ -20,12 +13,33 @@ function classify(msg) {
   return { tone: "w", title: "Couldn't check right now", hint: "The breach service didn't answer. Try again in a moment." };
 }
 
-function ErrorNotice({ msg, onRetry }) {
+const secsLeft = (until) => Math.max(0, Math.ceil((until - Date.now()) / 1000));
+
+/* Live "Try again in Ns". Ticks in its own leaf so only this text re-renders; onDone fires once at 0.
+   aria-live="off" so the enclosing alert isn't re-announced every second. */
+function Countdown({ until, onDone }) {
+  const [left, setLeft] = useState(() => secsLeft(until));
+  const done = useRef(onDone);
+  useEffect(() => { done.current = onDone; }, [onDone]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = secsLeft(until);
+      setLeft(s);
+      if (s <= 0) { clearInterval(id); done.current?.(); }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [until]);
+  return <span aria-live="off">{left > 0 ? `Try again in ${left}s.` : "You can try again now."}</span>;
+}
+
+/* retryUntil (epoch ms) comes from a 429's retryAfter; while cooling the retry button stays disabled. */
+function ErrorNotice({ msg, onRetry, retryUntil, cooling, onCooldownEnd }) {
   const c = classify(msg);
   return (
     <Notice tone={c.tone} title={c.title} role="alert" className="br-gap"
-      actions={!c.noRetry && <button type="button" className="btn gh sm" onClick={onRetry}><RotateCcw size={14} aria-hidden="true" />Try again</button>}>
-      {msg}{c.hint && msg !== c.hint ? <> {c.hint}</> : null}
+      actions={!c.noRetry && <button type="button" className="btn gh sm" onClick={onRetry} disabled={cooling}><RotateCcw size={14} aria-hidden="true" />Try again</button>}>
+      {retryUntil ? <Countdown until={retryUntil} onDone={onCooldownEnd} />
+        : <>{msg}{c.hint && msg !== c.hint ? <> {c.hint}</> : null}</>}
     </Notice>
   );
 }
@@ -56,11 +70,13 @@ function Verdict({ tone, Icon, title, children }) {
 function EmailPane({ notify }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState({ phase: "idle" });
+  const [coolUntil, setCoolUntil] = useState(null); // epoch ms; set by a 429 with retryAfter
   const ctrl = useRef(null);
   useEffect(() => () => ctrl.current?.abort(), []);
 
   const run = async (e) => {
     e?.preventDefault();
+    if (coolUntil) return;
     const v = email.trim();
     if (!isValidEmail(v)) return notify("Enter a valid email address.");
     ctrl.current?.abort(); ctrl.current = new AbortController();
@@ -69,12 +85,16 @@ function EmailPane({ notify }) {
       const res = await checkEmail(v, ctrl.current.signal);
       setState({ phase: "done", res });
     } catch (err) {
-      if (err?.name !== "AbortError") setState({ phase: "error", msg: err.message });
+      if (err?.name === "AbortError") return;
+      const retryUntil = err?.status === 429 && err.retryAfter ? Date.now() + err.retryAfter * 1000 : null;
+      setCoolUntil(retryUntil);
+      setState({ phase: "error", msg: err.message, retryUntil });
     }
   };
 
-  const { phase, res, msg } = state;
+  const { phase, res, msg, retryUntil } = state;
   const count = res ? res.summary?.count ?? res.breaches.length : 0;
+  const exposed = res?.summary?.dataTypes ?? [];
   return (
     <div className="pb">
       <form onSubmit={run} noValidate>
@@ -84,7 +104,7 @@ function EmailPane({ notify }) {
             <input id="br-email" type="email" inputMode="email" autoComplete="off" spellCheck={false}
               placeholder="you@example.com" value={email}
               onChange={(e) => { setEmail(e.target.value); if (phase === "loading") { ctrl.current?.abort(); setState({ phase: "idle" }); } }} />
-            <button className="btn pri auto" disabled={phase === "loading"}>
+            <button className="btn pri auto" disabled={phase === "loading" || !!coolUntil}>
               {phase === "loading" && <Loader2 size={16} className="spin" aria-hidden="true" />}
               {phase === "loading" ? "Checking…" : "Check this email"}
             </button>
@@ -97,7 +117,7 @@ function EmailPane({ notify }) {
       </DataFlow>
 
       <div aria-live="polite" aria-busy={phase === "loading"}>
-        {phase === "error" && <ErrorNotice msg={msg} onRetry={() => run()} />}
+        {phase === "error" && <ErrorNotice msg={msg} onRetry={() => run()} retryUntil={retryUntil} cooling={!!coolUntil} onCooldownEnd={() => setCoolUntil(null)} />}
 
         {phase === "done" && res.breaches.length === 0 && (
           <Verdict tone="ok" Icon={ShieldCheck} title="No known breaches">
@@ -111,12 +131,24 @@ function EmailPane({ notify }) {
             <Verdict tone="warn" Icon={AlertTriangle} title={`Found in ${count} breach${count > 1 ? "es" : ""}`}>
               {res.summary?.severe ? "Including sensitive data such as passwords or financial details." : "Here's what was exposed and where."}
             </Verdict>
+            {exposed.length > 0 && (
+              <section className="br-all" aria-labelledby="br-all-h">
+                <h3 id="br-all-h">Exposed overall</h3>
+                <div className="br-types">
+                  {exposed.map((t) => isSevereType(t)
+                    ? <span key={t} className="chip br-sev"><AlertTriangle size={12} aria-hidden="true" /><span className="sr-only">Sensitive: </span>{t}</span>
+                    : <span key={t} className="chip">{t}</span>)}
+                </div>
+              </section>
+            )}
             <ul className="br-list">
-              {res.breaches.map((b) => (
-                <li key={b.name + b.year} className="br-item">
+              {res.breaches.map((b, i) => (
+                // index keeps keys unique: two records can share name + year (or both lack a year)
+                <li key={`${i}:${b.name}`} className="br-item">
                   <div className="br-top">
                     <b className="br-name">{b.name}</b>
                     {b.severe && <StatusBadge tone="warn" icon={AlertTriangle}>SENSITIVE</StatusBadge>}
+                    {b.verified && <StatusBadge tone="info" icon={BadgeCheck} title="The breach database has confirmed this breach is genuine">VERIFIED</StatusBadge>}
                   </div>
                   <div className="br-meta">
                     {b.year && <span><CalendarDays size={13} aria-hidden="true" />{b.year}</span>}
@@ -134,7 +166,7 @@ function EmailPane({ notify }) {
             </ul>
             <section className="br-next" aria-labelledby="br-next-h">
               <h3 id="br-next-h">What to do next</h3>
-              <ul>{NEXT_STEPS.map((s) => <li key={s}><CircleCheck size={15} aria-hidden="true" />{s}</li>)}</ul>
+              <ul>{nextSteps(exposed.length ? exposed : res.breaches.flatMap((b) => b.dataTypes ?? [])).map((s) => <li key={s}><CircleCheck size={15} aria-hidden="true" />{s}</li>)}</ul>
             </section>
           </>
         )}

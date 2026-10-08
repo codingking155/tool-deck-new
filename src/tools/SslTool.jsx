@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { ShieldCheck, ShieldX, ShieldAlert, Search, Loader2, RotateCcw, ExternalLink, Lock, CalendarClock, CircleCheck, AlertTriangle, OctagonAlert, HelpCircle } from "lucide-react";
+import { ShieldCheck, ShieldX, ShieldAlert, Search, Loader2, RotateCcw, ExternalLink, Lock, CalendarClock, CircleCheck, AlertTriangle, OctagonAlert, HelpCircle, Clock, BellPlus } from "lucide-react";
 import { normalizeDomain, parseDate, daysUntil, expirySeverity } from "../../shared/sslCore/index.mjs";
 import { Notice, EmptyState } from "../components/ui.jsx";
+import { useNow } from "../hooks/index.js";
+import { checkedAgo, expiryReminder } from "../lib/sslView.js";
 import "./css/ssl.css";
 
 /* Talks to our `ssl-check` edge function: a real TLS handshake to host:443 plus the
@@ -71,6 +73,26 @@ function Verdict({ tls, host }) {
   );
 }
 
+/* Results can come from the shared 10-minute cache, so say when the check really ran.
+   A leaf with its own slow clock keeps "3 min ago" current without re-rendering the result. */
+function CheckedAt({ iso }) {
+  const now = useNow(30_000);
+  const rel = checkedAgo(iso, now.getTime());
+  if (!rel) return null;
+  const abs = new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return (
+    <p className="ssl-checked"><Clock size={13} aria-hidden="true" />Checked <time dateTime={iso} title={abs}>{rel}</time><span> · {abs}</span></p>
+  );
+}
+
+function downloadReminder(r, notify) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([r.ics], { type: "text/calendar" }));
+  a.download = r.filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  notify?.(`Reminder for ${r.startUtc.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} downloaded — open it to add it to your calendar.`);
+}
+
 function SanList({ sans }) {
   const [all, setAll] = useState(false);
   const shown = all ? sans : sans.slice(0, SAN_PREVIEW);
@@ -90,7 +112,7 @@ function SanList({ sans }) {
   );
 }
 
-function CtCertificate({ ct, tls }) {
+function CtCertificate({ ct, tls, host, notify }) {
   if (ct.status === "unavailable") {
     return <Notice tone="w" title="Certificate details unavailable">The Certificate Transparency log service (crt.sh) didn't answer. The connection result above is still accurate — try again in a minute for details.</Notice>;
   }
@@ -102,6 +124,8 @@ function CtCertificate({ ct, tls }) {
   const sev = expirySeverity(days);
   const { tone, Icon } = SEV[sev.level] || SEV.unknown;
   const sans = c.sans || [];
+  /* only a real, future expiry gets a reminder */
+  const reminder = days != null && days >= 0 ? expiryReminder({ host, notAfter: c.notAfter }) : null;
   return (
     <>
       <div className="metrics ssl-metrics">
@@ -121,6 +145,15 @@ function CtCertificate({ ct, tls }) {
           <div className="v ssl-v-sm ssl-issuer" title={c.issuer || undefined}>{c.issuer || "—"}</div>
         </div>
       </div>
+
+      {reminder && (
+        <div className="ssl-remind">
+          <button type="button" className="btn gh sm" onClick={() => downloadReminder(reminder, notify)}>
+            <BellPlus size={14} aria-hidden="true" />Remind me before expiry
+          </button>
+          <span className="hint">Calendar file (.ics) for {reminder.leadDays === 1 ? "the day" : `${reminder.leadDays} days`} before {fmtDate(c.notAfter)}, with an alert.</span>
+        </div>
+      )}
 
       {!tls.ok && tls.status === "expired" && days != null && days >= 0 && (
         <Notice tone="w" title="Renewed but not deployed?" className="ssl-gap">A newer valid certificate exists in the logs, but the server is still presenting an expired one.</Notice>
@@ -148,7 +181,7 @@ function CtCertificate({ ct, tls }) {
   );
 }
 
-export default function SslTool({ arg }) {
+export default function SslTool({ arg, notify }) {
   const [domain, setDomain] = useState(() => (typeof arg === "string" ? arg : ""));
   const [inputErr, setInputErr] = useState("");
   const [state, setState] = useState({ kind: "idle" });   // idle | loading | error | done
@@ -236,7 +269,8 @@ export default function SslTool({ arg }) {
         {state.kind === "done" && d && (
           <section className="ssl-card" aria-label="Certificate result">
             <Verdict tls={d.tls} host={d.host} />
-            <CtCertificate ct={d.ct || { status: "unavailable" }} tls={d.tls} />
+            <CtCertificate ct={d.ct || { status: "unavailable" }} tls={d.tls} host={d.host} notify={notify} />
+            {d.checked_at && <CheckedAt iso={d.checked_at} />}
           </section>
         )}
       </div>

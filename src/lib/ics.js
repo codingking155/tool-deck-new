@@ -19,10 +19,10 @@ function fold(line) {
   return parts.join("\r\n ");
 }
 
-export function buildIcs({ title, startUtc, durationMin = 15, description = "", uid = `${Date.now()}@tooldeck.in`, now = new Date() }) {
+export function buildIcs({ title, startUtc, durationMin = 15, description = "", uid = `${Date.now()}@tooldeck.in`, now = new Date(), product = "UTC Wait-Time Generator" }) {
   const end = new Date(startUtc.getTime() + durationMin * 60000);
   return [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ToolDeck//UTC Wait-Time Generator//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VCALENDAR", "VERSION:2.0", `PRODID:-//ToolDeck//${product}//EN`, "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
     "BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${stamp(now)}`, `DTSTART:${stamp(startUtc)}`, `DTEND:${stamp(end)}`,
     `SUMMARY:${esc(title)}`, ...(description ? [`DESCRIPTION:${esc(description)}`] : []),
     "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(title)}`, "TRIGGER:-PT10M", "END:VALARM",

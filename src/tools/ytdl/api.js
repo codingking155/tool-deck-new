@@ -4,6 +4,21 @@ const BASE = (import.meta.env?.VITE_DOWNLOADER_API_URL || "").replace(/\/+$/, ""
 
 export const isConfigured = () => !!BASE;
 
+/* Render's free tier sleeps when idle and takes up to a minute to wake. Any answer from the
+   server means it's up; the UI uses this to explain a slow first lookup honestly. */
+let awake = false;
+let waking = null;
+export const isAwake = () => awake;
+
+/** Fire-and-forget /api/health on tool mount so the server is (hopefully) up by the time it's needed. */
+export function wakeBackend() {
+  if (!BASE || awake || waking) return;
+  waking = fetch(`${BASE}/api/health`, { cache: "no-store", signal: AbortSignal.timeout?.(90_000) })
+    .then((r) => { if (r.ok) awake = true; })
+    .catch(() => undefined)
+    .finally(() => { waking = null; });
+}
+
 export class DownloaderError extends Error {
   constructor(message, code, status = 0) { super(message); this.name = "DownloaderError"; this.code = code; this.status = status; }
 }
@@ -18,6 +33,7 @@ async function request(path, init = {}) {
     if (err?.name === "AbortError") throw err;
     throw new DownloaderError(OFFLINE, "backend_unavailable");
   }
+  if (res.status < 500) awake = true;   // a 5xx may be Render's proxy, not our app
   if (res.ok) return res;
   const data = await res.json().catch(() => null);
   if (typeof data?.detail === "string") throw new DownloaderError(data.detail, data.code || `http_${res.status}`, res.status);

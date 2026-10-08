@@ -3,9 +3,9 @@ import { Check, ClipboardPaste, Clock, Download, Film, ImageOff, Loader2, Music2
 import { Notice } from "../components/ui.jsx";
 import {
   checkYouTubeUrl, defaultFormat, formatBytes, formatDuration, formatEta, formatLabel, formatsOf, safeDownloadName,
-  sanitizeFilename, ERROR_TITLES, PERMANENT_ERRORS,
+  sanitizeFilename, ERROR_TITLES, PERMANENT_ERRORS, POLL_TRIES, isTransientPollError, pollRetryDelay,
 } from "./ytdl/core.js";
-import { cancelJob, createJob, DownloaderError, getJob, getVideoInfo, isConfigured, jobFileUrl } from "./ytdl/api.js";
+import { cancelJob, createJob, DownloaderError, getJob, getVideoInfo, isAwake, isConfigured, jobFileUrl, wakeBackend } from "./ytdl/api.js";
 import "./css/yt.css";
 
 /* State machine: idle → analyzing → ready → downloading → complete, with error from analysis or download.
@@ -38,6 +38,18 @@ function sleep(ms, signal) {
     const t = setTimeout(resolve, ms);
     signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once: true });
   });
+}
+
+/* One dropped poll mustn't fail a download that's still running on the server: retry transient
+   failures with backoff, but surface permanent ones (job_not_found, 4xx with a code) at once. */
+async function getJobWithRetry(id, signal) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await getJob(id, signal); }
+    catch (e) {
+      if (attempt >= POLL_TRIES || !isTransientPollError(e)) throw e;
+      await sleep(pollRetryDelay(attempt), signal);
+    }
+  }
 }
 
 /* The anchor has no download attribute (ignored cross-origin anyway): the server
@@ -102,6 +114,7 @@ const RECOVERY = {
   removed: "The video was taken down. Try another link.",
   live: "Try again once the stream has ended and YouTube has processed the recording.",
   rate_limited: "Wait a minute, then try again.",
+  bot_check: "This tool never signs in to YouTube or routes around its checks, so the only fix is time: try again later, or another video.",
   too_many_jobs: "Wait for your other downloads to finish, then try again.",
   busy: "Lots of people are downloading right now — try again shortly.",
   format_unavailable: "Pick another quality from the list.",
@@ -113,7 +126,7 @@ const RECOVERY = {
 
 function ErrorBox({ error, onRetry, onDismiss, dismissLabel }) {
   const canRetry = onRetry && !PERMANENT_ERRORS.has(error.code) && error.code !== "not_configured";
-  const tone = error.code === "network" || error.code === "backend_unavailable" ? "off" : PERMANENT_ERRORS.has(error.code) ? "w" : "e";
+  const tone = error.code === "network" || error.code === "backend_unavailable" || error.code === "bot_check" ? "off" : PERMANENT_ERRORS.has(error.code) ? "w" : "e";
   return (
     <Notice tone={tone} role="alert" className="yd-err" title={ERROR_TITLES[error.code] || "Something went wrong"}
       actions={(canRetry || onDismiss) && (
@@ -137,6 +150,23 @@ function Thumb({ src, duration }) {
         : <ImageOff size={28} aria-hidden="true" />}
       {duration && <span className="yd-dur" aria-hidden="true">{duration}</span>}
     </div>
+  );
+}
+
+const SLOW_MS = 8000;
+
+/* Mounted only while analyzing, so the timer restarts with each lookup. After ~8 s, explain the wait:
+   a sleeping server if it hasn't answered yet, otherwise YouTube being slow. */
+function Analyzing() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), SLOW_MS); return () => clearTimeout(t); }, []);
+  return (
+    <>
+      {slow && (isAwake()
+        ? <Notice tone="i" role="status" className="yd-wake">Still working — YouTube is taking a while to answer.</Notice>
+        : <Notice tone="i" role="status" className="yd-wake">Waking up the download server — this can take up to a minute on first use.</Notice>)}
+      <Skeleton />
+    </>
   );
 }
 
@@ -173,6 +203,8 @@ export default function YtDownloaderTool({ notify }) {
   const resultRef = useRef(null);
   const prevPhase = useRef(s.phase);
   sRef.current = s;
+
+  useEffect(() => { wakeBackend(); }, []);
 
   useEffect(() => () => {
     analyzeCtl.current?.abort();
@@ -231,7 +263,7 @@ export default function YtDownloaderTool({ notify }) {
           message: job.message, loaded: job.downloaded_bytes, total: job.total_bytes, speed: job.speed, eta: job.eta,
         } });
         await sleep(POLL_MS, c.signal);
-        job = await getJob(job.id, c.signal);
+        job = await getJobWithRetry(job.id, c.signal);
       }
       startFileDownload(jobFileUrl(job.id));
       jobId.current = null;   // the server deletes the file once it has been sent
@@ -341,7 +373,7 @@ export default function YtDownloaderTool({ notify }) {
       <p className="sr-only" role="status">{announce}</p>
 
       <div ref={resultRef} className="yd-out">
-        {phase === "analyzing" && <Skeleton />}
+        {phase === "analyzing" && <Analyzing />}
         {analyzeFailed && <ErrorBox error={error} onRetry={() => s.url && analyze(s.url)} onDismiss={editLink} dismissLabel="Edit the link" />}
         {video && !analyzeFailed && phase !== "analyzing" && (
           <article className="panel yd-card" aria-labelledby="yd-title">

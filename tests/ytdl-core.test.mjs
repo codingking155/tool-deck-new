@@ -60,3 +60,27 @@ test("picks a sensible default among the offered formats", () => {
   assert.equal(defaultFormat(video, "audio"), "audio-mp3");
   assert.equal(formatLabel(video.formats[0]), "Best available (720p) · MP4");
 });
+
+test("poll retries: only dropped connections and bare 5xx are transient", async () => {
+  const { isTransientPollError, pollRetryDelay, POLL_TRIES } = await import("../src/tools/ytdl/core.js");
+  const { DownloaderError } = await import("../src/tools/ytdl/api.js");
+  assert.equal(isTransientPollError(new DownloaderError("offline", "backend_unavailable")), true);
+  assert.equal(isTransientPollError(new DownloaderError("offline", "backend_unavailable", 502)), true);
+  assert.equal(isTransientPollError({ code: "http_500", status: 500 }), true);
+  // the backend answered with its own code: retrying can't help
+  assert.equal(isTransientPollError(new DownloaderError("gone", "job_not_found", 404)), false);
+  assert.equal(isTransientPollError({ code: "rate_limited", status: 429 }), false);
+  assert.equal(isTransientPollError({ code: "http_400", status: 400 }), false);
+  assert.equal(isTransientPollError({ code: "ffmpeg_missing", status: 503 }), false);
+  assert.equal(isTransientPollError(new DOMException("Aborted", "AbortError")), false);
+  assert.equal(isTransientPollError(null), false);
+  assert.deepEqual([1, 2, 3, 4, 9].map(pollRetryDelay), [1000, 2000, 4000, 8000, 8000]);
+  assert.ok(POLL_TRIES >= 2);
+});
+
+test("YouTube's bot check has its own title, distinct from rate limiting", async () => {
+  const { ERROR_TITLES, PERMANENT_ERRORS } = await import("../src/tools/ytdl/core.js");
+  assert.ok(ERROR_TITLES.bot_check);
+  assert.notEqual(ERROR_TITLES.bot_check, ERROR_TITLES.rate_limited);
+  assert.equal(PERMANENT_ERRORS.has("bot_check"), false);   // it can clear later, so "Try again" stays
+});
