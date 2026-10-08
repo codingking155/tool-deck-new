@@ -27,9 +27,9 @@ function tooDeep(root) {
 }
 
 export function lineCol(text, pos) {
-  const before = text.slice(0, pos);
-  const line = before.split("\n").length;
-  return { line, col: pos - before.lastIndexOf("\n") };
+  let line = 1, last = -1;
+  for (let j = text.indexOf("\n"); j !== -1 && j < pos; j = text.indexOf("\n", j + 1)) { line++; last = j; }
+  return { line, col: pos - last };
 }
 
 /* Engines word (or omit) error positions differently, so locate the first
@@ -37,7 +37,8 @@ export function lineCol(text, pos) {
 function locateError(s) {
   let i = 0;
   const fail = (msg) => { throw { pos: i, msg }; };
-  const ws = () => { while (i < s.length && " \t\n\r".includes(s[i])) i++; };
+  const ws = () => { for (let c = s.charCodeAt(i); c === 32 || c === 9 || c === 10 || c === 13; c = s.charCodeAt(++i)); };
+  const NUM = /-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/y; // sticky: matches at i without copying the rest of the text
   const show = () => (i >= s.length ? "end of input" : `"${s[i]}"`);
   const value = (depth = 0) => {
     ws();
@@ -72,9 +73,9 @@ function locateError(s) {
     if (c === '"') return str();
     if (c === "'") fail("Strings need double quotes, not single quotes");
     if (c === "-" || (c >= "0" && c <= "9")) {
-      const m = s.slice(i).match(/^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/);
-      if (!m) fail("Invalid number");
-      i += m[0].length; return;
+      NUM.lastIndex = i;
+      if (!NUM.test(s)) fail("Invalid number");
+      i = NUM.lastIndex; return;
     }
     for (const lit of ["true", "false", "null"]) if (s.startsWith(lit, i)) { i += lit.length; return; }
     fail(i >= s.length ? "Unexpected end of input — something isn't closed" : `Unexpected ${show()}`);
@@ -82,7 +83,9 @@ function locateError(s) {
   const str = () => {
     i++;
     while (i < s.length && s[i] !== '"') {
-      if (s[i] === "\\") {
+      const c = s.charCodeAt(i);
+      if (c >= 0x20 && c !== 92) { i++; continue; } // plain character: the common case
+      if (c === 92) {
         i++;
         if (s[i] === "u") { if (!/^[0-9a-fA-F]{4}$/.test(s.slice(i + 1, i + 5))) fail("Bad \\u escape"); i += 5; continue; }
         if (!'"\\/bfnrt'.includes(s[i])) fail(`Invalid escape "\\${s[i] ?? ""}"`);
@@ -101,6 +104,8 @@ function locateError(s) {
     throw e;
   }
 }
+
+const STRICT_NUM = /^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/;
 
 function unsafeNumber(raw) {
   const n = Number(raw);
@@ -159,6 +164,10 @@ function parseLenient(src) {
     i++;
     let out = "";
     while (i < src.length) {
+      /* copy a run of plain characters in one slice instead of one at a time */
+      let j = i;
+      for (let ch = src[j]; j < src.length && ch !== "\\" && ch >= " " && !close.includes(ch); ch = src[++j]);
+      if (j > i) { out += src.slice(i, j); i = j; if (i >= src.length) break; }
       const c = src[i];
       if (close.includes(c)) { i++; return out; }
       if (c === "\\") {
@@ -183,7 +192,8 @@ function parseLenient(src) {
     return k;
   };
 
-  const set = (o, k, v) => Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
+  /* defineProperty only for "__proto__" (assignment would set the prototype); plain assignment is much faster */
+  const set = (o, k, v) => { if (k === "__proto__") Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true }); else o[k] = v; };
 
   const value = (depth) => {
     ws();
@@ -195,6 +205,10 @@ function parseLenient(src) {
     if (src.startsWith("-Infinity", i)) { i += 9; fixes.add("Replaced NaN/Infinity with null"); return null; }
     const num = sticky(NUM);
     if (num != null) {
+      if (STRICT_NUM.test(num)) { // already valid JSON: skip the rewrites; only long or huge-exponent numbers can lose precision
+        if ((num.length > 15 || /[eE][+-]?\d{3}/.test(num)) && unsafeNumber(num)) { bigs++; return new BigNum(num); }
+        return Number(num);
+      }
       if (/^[+-]?0[xX]/.test(num)) { fixes.add("Converted hex numbers"); return Number(num.replace(/^\+/, "")); }
       let r = num.replace(/^\+/, "").replace(/^(-?)\./, "$10.").replace(/\.(?=[eE]|$)/, "").replace(/^(-?)0+(?=\d)/, "$1");
       if (r !== num) fixes.add("Fixed number formats");
@@ -418,6 +432,19 @@ export function queryPath(root, path) {
   return { ok: true, matches: cur };
 }
 
+/** UTF-8 byte length without encoding the whole string (no multi-MB allocation). */
+export function utf8Length(s) {
+  let n = s.length;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) continue;
+    if (c < 0x800) n += 1;
+    else if (c >= 0xd800 && c < 0xdc00 && i + 1 < s.length && (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { n += 2; i++; } // pair: 2 units → 4 bytes
+    else n += 2; // BMP 3 bytes (lone surrogates encode as U+FFFD, also 3)
+  }
+  return n;
+}
+
 export function stats(value, text) {
   let keys = 0, depth = 0, nodes = 0;
   const stack = [value, 0]; // iterative: deep documents can't overflow the call stack
@@ -428,7 +455,7 @@ export function stats(value, text) {
     if (Array.isArray(v)) for (const x of v) stack.push(x, d + 1);
     else if (isContainer(v)) for (const k of Object.keys(v)) { keys++; stack.push(v[k], d + 1); }
   }
-  return { keys, depth, nodes, bytes: new TextEncoder().encode(text).length };
+  return { keys, depth, nodes, bytes: utf8Length(text) };
 }
 
 export function typeOf(v) {

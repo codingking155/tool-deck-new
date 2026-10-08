@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep, stats, formatPath, toJSONSchema, diffJSON, MAX_DEPTH } from "../src/lib/jsonCore.js";
+import { parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, queryPath, sortKeysDeep, stats, formatPath, toJSONSchema, diffJSON, MAX_DEPTH, utf8Length, lineCol } from "../src/lib/jsonCore.js";
 import { parsePageRanges, formatBytes } from "../src/lib/pageRanges.js";
 
 test("parseJSON reports line and column of the error", () => {
@@ -212,4 +212,25 @@ test("diff limit is enforced inside add/remove loops", () => {
   const o = Object.fromEntries(b.map((i) => [`k${i}`, i]));
   assert.equal(diffJSON({}, o, 50).changes.length, 50);
   assert.equal(diffJSON(o, {}, 50).changes.length, 50);
+});
+
+test("utf8Length matches TextEncoder, including astral and lone surrogates", () => {
+  for (const s of ["", "abc", "é", "€", "😀", "a😀b", "\ud800x", "\udc00", "日本語", '{"k":"✓"}'])
+    assert.equal(utf8Length(s), new TextEncoder().encode(s).length, JSON.stringify(s));
+});
+
+test("lineCol counts lines and columns (1-based)", () => {
+  assert.deepEqual(lineCol("abc", 1), { line: 1, col: 2 });
+  assert.deepEqual(lineCol("a\nbc\nd", 3), { line: 2, col: 2 });
+  assert.deepEqual(lineCol("a\n", 1), { line: 1, col: 2 }); // the newline itself is still on line 1
+});
+
+test("lenient parse: fast paths keep __proto__ as data and big numbers exact", () => {
+  const r = repairJSON("{__proto__: {x: 1}, 'a': 12345678901234567890, b: 1.5, c: 007,}");
+  assert.ok(r.ok);
+  assert.equal(Object.getPrototypeOf(r.value), Object.prototype);
+  assert.deepEqual(Object.keys(r.value), ["__proto__", "a", "b", "c"]);
+  assert.equal(String(r.value.a), "12345678901234567890");
+  assert.equal(r.value.b, 1.5);
+  assert.equal(r.value.c, 7);
 });

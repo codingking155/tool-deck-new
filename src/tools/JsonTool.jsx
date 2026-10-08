@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef, useDeferredValue } from "react";
+import { useState, useMemo, useRef, useDeferredValue, useEffect } from "react";
 import {
   parseJSON, repairJSON, formatJSON, minifyJSON, toYAML, toCSV, toTypeScript, toJSONSchema,
-  queryPath, stats, innerJSON,
+  queryPath, stats, innerJSON, utf8Length,
 } from "../lib/jsonCore.js";
 import { formatBytes } from "../lib/pageRanges.js";
 import { saveBlob } from "../lib/zip.js";
@@ -45,7 +45,21 @@ const CONVERTERS = {
   string: ["Escaped string (for embedding)", "txt", "text/plain"],
 };
 const PATH_EXAMPLES = ["$.items[*].sku", "$..id", "$.items[-1]", "$.customer.*"];
-const bytes = (s) => new TextEncoder().encode(s).length;
+const bytes = utf8Length;
+
+/* Small inputs re-parse on every keystroke (deferred, so typing stays responsive). Past 1 MB a parse
+   takes long enough to stutter typing, so wait until typing pauses instead. */
+const BIG_INPUT = 1_000_000;
+function useParseInput(value) {
+  const deferred = useDeferredValue(value);
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    if (value.length < BIG_INPUT) return;
+    const id = setTimeout(() => setSettled(value), 350);
+    return () => clearTimeout(id);
+  }, [value]);
+  return value.length < BIG_INPUT ? deferred : settled;
+}
 
 async function copyText(text, notify, what = "Copied") {
   try { await navigator.clipboard.writeText(text); notify(what); }
@@ -76,10 +90,10 @@ function previewOf(text) {
   return { text: `${text.slice(0, nl > PREVIEW_CHARS / 2 ? nl : PREVIEW_CHARS)}\n…`, cut: true };
 }
 
-function OutputActions({ text, file, notify }) {
+function OutputActions({ text, size, file, notify }) {
   return (
     <>
-      <div className="hint" style={{ marginBottom: 12 }}>{formatBytes(bytes(text))}</div>
+      <div className="hint" style={{ marginBottom: 12 }}>{formatBytes(size)}</div>
       <div style={{ display: "flex", gap: 10 }}>
         <button className="btn pri" onClick={() => copyText(text, notify)}>Copy</button>
         <button className="btn gh" style={{ whiteSpace: "nowrap" }} onClick={() => saveBlob(new Blob([text], { type: file[1] }), file[0])}>Download</button>
@@ -122,8 +136,8 @@ export default function JsonTool({ notify }) {
   const inputRef = useRef(null);
   const fileA = useRef(null), fileB = useRef(null);
 
-  const dInput = useDeferredValue(input);
-  const dInputB = useDeferredValue(inputB);
+  const dInput = useParseInput(input);
+  const dInputB = useParseInput(inputB);
   const parsed = useMemo(() => parseJSON(dInput), [dInput]);
   const parsedB = useMemo(() => (mode === "diff" ? parseJSON(dInputB) : null), [dInputB, mode]);
   const repair = useMemo(() => (!parsed.ok && !parsed.empty ? repairJSON(dInput) : null), [parsed, dInput]);
@@ -132,7 +146,7 @@ export default function JsonTool({ notify }) {
 
   const out = useMemo(() => {
     if (!parsed.ok || mode === "tree" || mode === "diff") return null;
-    try { return buildOutput(parsed.value, { mode, indent, sortKeys, path, conv, rootName }); }
+    try { const o = buildOutput(parsed.value, { mode, indent, sortKeys, path, conv, rootName }); return o.text != null ? { ...o, bytes: bytes(o.text) } : o; }
     catch (e) { return { note: `Couldn't produce this output: ${e?.message || e}` }; }
   }, [parsed, mode, indent, sortKeys, path, conv, rootName]);
 
@@ -319,9 +333,9 @@ export default function JsonTool({ notify }) {
                     <CodeEditor id="json-out" label="Output" value={shownOut.text} readOnly height={mode === "format" || mode === "minify" ? 330 : 300} />
                     {shownOut.cut && <div className="hint">Large result — showing a preview. Copy and Download include everything.</div>}
                     {mode === "minify" && info && (
-                      <div className="hint">{Math.max(0, Math.round((1 - bytes(out.text) / info.bytes) * 100))}% smaller than the input</div>
+                      <div className="hint">{Math.max(0, Math.round((1 - out.bytes / info.bytes) * 100))}% smaller than the input</div>
                     )}
-                    <div style={{ marginTop: 6 }}><OutputActions text={out.text} file={out.file} notify={notify} /></div>
+                    <div style={{ marginTop: 6 }}><OutputActions text={out.text} size={out.bytes} file={out.file} notify={notify} /></div>
                   </>
                 )}
               </div>
