@@ -80,6 +80,7 @@ jobs:
           #   price-alerts-unsubscribe ← email links; guarded by a signed token
           #   speedtest                ← plain browser fetches; rate-limited per IP
           #   breach-check             ← plain browser POST; rate-limited per IP
-          for fn in check-price-alerts price-alerts-unsubscribe speedtest breach-check; do
+          #   csp-report               ← browsers' CSP violation reports; rate-limited per IP
+          for fn in check-price-alerts price-alerts-unsubscribe speedtest breach-check csp-report; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
