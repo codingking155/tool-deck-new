@@ -42,10 +42,6 @@ class MainActivity : AppCompatActivity() {
             allowContentAccess = true
         }
         web.addJavascriptInterface(Saver(), "AndroidSaver")
-        web.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(v: WebView, r: WebResourceRequest) =
-                loader.shouldInterceptRequest(r.url)
-        }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 w: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams
